@@ -1,5 +1,6 @@
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
+    QComboBox,
     QFrame,
     QHBoxLayout,
     QHeaderView,
@@ -11,10 +12,18 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from sqlalchemy import or_
+from sqlalchemy import distinct, or_
 from sqlalchemy.orm import Session
 
-from database import Student, get_engine
+from database import (
+    Program,
+    School,
+    Structure,
+    Student,
+    StudentProgram,
+    StudentSemester,
+    get_engine,
+)
 
 
 class StudentsView(QWidget):
@@ -24,6 +33,10 @@ class StudentsView(QWidget):
         self.page_size = 30
         self.total_students = 0
         self.search_query = ""
+        self.selected_school_id = None
+        self.selected_program_id = None
+        self.selected_term = None
+        self.selected_semester_number = None
         self.search_timer = QTimer()
         self.search_timer.setSingleShot(True)
         self.search_timer.timeout.connect(self.perform_search)
@@ -46,6 +59,46 @@ class StudentsView(QWidget):
         header_layout.addWidget(self.total_label)
 
         layout.addLayout(header_layout)
+
+        filters_container = QFrame()
+        filters_layout = QHBoxLayout(filters_container)
+        filters_layout.setContentsMargins(0, 0, 0, 0)
+        filters_layout.setSpacing(10)
+
+        filters_label = QLabel("Filters:")
+        filters_layout.addWidget(filters_label)
+
+        self.school_filter = QComboBox()
+        self.school_filter.addItem("All Schools", None)
+        self.school_filter.currentIndexChanged.connect(self.on_filter_changed)
+        self.school_filter.setMinimumWidth(150)
+        filters_layout.addWidget(self.school_filter)
+
+        self.program_filter = QComboBox()
+        self.program_filter.addItem("All Programs", None)
+        self.program_filter.currentIndexChanged.connect(self.on_filter_changed)
+        self.program_filter.setMinimumWidth(150)
+        filters_layout.addWidget(self.program_filter)
+
+        self.term_filter = QComboBox()
+        self.term_filter.addItem("All Terms", None)
+        self.term_filter.currentIndexChanged.connect(self.on_filter_changed)
+        self.term_filter.setMinimumWidth(150)
+        filters_layout.addWidget(self.term_filter)
+
+        self.semester_filter = QComboBox()
+        self.semester_filter.addItem("All Semesters", None)
+        self.semester_filter.currentIndexChanged.connect(self.on_filter_changed)
+        self.semester_filter.setMinimumWidth(150)
+        filters_layout.addWidget(self.semester_filter)
+
+        self.clear_filters_button = QPushButton("Clear Filters")
+        self.clear_filters_button.clicked.connect(self.clear_filters)
+        filters_layout.addWidget(self.clear_filters_button)
+
+        filters_layout.addStretch()
+
+        layout.addWidget(filters_container)
 
         search_container = QFrame()
         search_layout = QHBoxLayout(search_container)
@@ -112,6 +165,79 @@ class StudentsView(QWidget):
         pagination_layout.addStretch()
         layout.addLayout(pagination_layout)
 
+        self.load_filter_options()
+        self.load_students()
+
+    def load_filter_options(self):
+        try:
+            engine = get_engine(use_local=True)
+            with Session(engine) as session:
+                schools = (
+                    session.query(School.id, School.name)
+                    .filter(School.is_active == True)
+                    .order_by(School.name)
+                    .all()
+                )
+                for school in schools:
+                    self.school_filter.addItem(str(school.name))
+                    self.school_filter.setItemData(
+                        self.school_filter.count() - 1, school.id
+                    )
+
+                programs = (
+                    session.query(Program.id, Program.name).order_by(Program.name).all()
+                )
+                for program in programs:
+                    self.program_filter.addItem(str(program.name))
+                    self.program_filter.setItemData(
+                        self.program_filter.count() - 1, program.id
+                    )
+
+                terms = (
+                    session.query(distinct(StudentSemester.term))
+                    .filter(StudentSemester.term.isnot(None))
+                    .order_by(StudentSemester.term.desc())
+                    .all()
+                )
+                for term_tuple in terms:
+                    term = term_tuple[0]
+                    self.term_filter.addItem(str(term))
+                    self.term_filter.setItemData(self.term_filter.count() - 1, term)
+
+                semesters = (
+                    session.query(distinct(StudentSemester.semester_number))
+                    .filter(StudentSemester.semester_number.isnot(None))
+                    .order_by(StudentSemester.semester_number)
+                    .all()
+                )
+                for sem_tuple in semesters:
+                    sem = sem_tuple[0]
+                    self.semester_filter.addItem(f"Semester {sem}")
+                    self.semester_filter.setItemData(
+                        self.semester_filter.count() - 1, sem
+                    )
+
+        except Exception as e:
+            print(f"Error loading filter options: {str(e)}")
+
+    def on_filter_changed(self):
+        self.selected_school_id = self.school_filter.currentData()
+        self.selected_program_id = self.program_filter.currentData()
+        self.selected_term = self.term_filter.currentData()
+        self.selected_semester_number = self.semester_filter.currentData()
+        self.current_page = 1
+        self.load_students()
+
+    def clear_filters(self):
+        self.school_filter.setCurrentIndex(0)
+        self.program_filter.setCurrentIndex(0)
+        self.term_filter.setCurrentIndex(0)
+        self.semester_filter.setCurrentIndex(0)
+        self.selected_school_id = None
+        self.selected_program_id = None
+        self.selected_term = None
+        self.selected_semester_number = None
+        self.current_page = 1
         self.load_students()
 
     def on_search_changed(self, text):
@@ -136,7 +262,44 @@ class StudentsView(QWidget):
             with Session(engine) as session:
                 offset = (self.current_page - 1) * self.page_size
 
-                query = session.query(Student)
+                query = session.query(Student).distinct()
+
+                if self.selected_school_id or self.selected_program_id:
+                    query = query.join(
+                        StudentProgram, Student.std_no == StudentProgram.std_no
+                    )
+                    query = query.join(
+                        Structure, StudentProgram.structure_id == Structure.id
+                    )
+                    query = query.join(Program, Structure.program_id == Program.id)
+
+                    if self.selected_school_id:
+                        query = query.filter(
+                            Program.school_id == self.selected_school_id
+                        )
+
+                    if self.selected_program_id:
+                        query = query.filter(Program.id == self.selected_program_id)
+
+                if self.selected_term or self.selected_semester_number:
+                    if not (self.selected_school_id or self.selected_program_id):
+                        query = query.join(
+                            StudentProgram, Student.std_no == StudentProgram.std_no
+                        )
+
+                    query = query.join(
+                        StudentSemester,
+                        StudentProgram.id == StudentSemester.student_program_id,
+                    )
+
+                    if self.selected_term:
+                        query = query.filter(StudentSemester.term == self.selected_term)
+
+                    if self.selected_semester_number:
+                        query = query.filter(
+                            StudentSemester.semester_number
+                            == self.selected_semester_number
+                        )
 
                 if self.search_query:
                     search_term = f"%{self.search_query}%"

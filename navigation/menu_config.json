@@ -1,0 +1,57 @@
+{
+  "menu_items": [
+    {
+      "title": "Sync",
+      "description": "Synchronize Database with CMS",
+      "icon": null,
+      "submenu": [
+        {
+          "title": "Students",
+          "action": "sync_students"
+        },
+        {
+          "title": "Structures",
+          "action": "sync_structures"
+        },
+        {
+          "title": "Modules",
+          "action": "sync_modules"
+        }
+      ]
+    },
+    {
+      "title": "Enrollments",
+      "description": "Enroll students and modules",
+      "icon": null,
+      "submenu": [
+        {
+          "title": "Approved",
+          "action": "enrollments_approved"
+        },
+        {
+          "title": "Module",
+          "action": "enrollments_module"
+        },
+        {
+          "title": "Student",
+          "action": "enrollments_student"
+        }
+      ]
+    },
+    {
+      "title": "Export",
+      "description": "Export data and reports",
+      "icon": null,
+      "submenu": [
+        {
+          "title": "Certificates",
+          "action": "export_certificates"
+        },
+        {
+          "title": "Reports",
+          "action": "export_reports"
+        }
+      ]
+    }
+  ]
+}

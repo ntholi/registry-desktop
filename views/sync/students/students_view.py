@@ -75,7 +75,7 @@ class StudentsView(QWidget):
             with Session(engine) as session:
                 offset = (self.current_page - 1) * self.page_size
 
-                query = session.query(Student).order_by(Student.stdNo)
+                query = session.query(Student).order_by(Student.std_no)
                 self.total_students = query.count()
 
                 students = query.offset(offset).limit(self.page_size).all()
@@ -83,12 +83,12 @@ class StudentsView(QWidget):
                 self.table.setRowCount(len(students))
 
                 for row, student in enumerate(students):
-                    self.table.setItem(row, 0, QTableWidgetItem(str(student.stdNo)))
+                    self.table.setItem(row, 0, QTableWidgetItem(str(student.std_no)))
                     self.table.setItem(
                         row, 1, QTableWidgetItem(str(student.name or ""))
                     )
                     self.table.setItem(
-                        row, 2, QTableWidgetItem(str(student.nationalId or ""))
+                        row, 2, QTableWidgetItem(str(student.national_id or ""))
                     )
                     self.table.setItem(
                         row, 3, QTableWidgetItem(str(student.gender or ""))
@@ -97,7 +97,7 @@ class StudentsView(QWidget):
                         row, 4, QTableWidgetItem(str(student.phone1 or ""))
                     )
                     self.table.setItem(
-                        row, 5, QTableWidgetItem(str(student.maritalStatus or ""))
+                        row, 5, QTableWidgetItem(str(student.marital_status or ""))
                     )
                     self.table.setItem(
                         row, 6, QTableWidgetItem(str(student.religion or ""))

@@ -25,17 +25,17 @@ class User(Base):
     role = Column(String, nullable=False, default="user")
     position = Column(String)
     email = Column(String, unique=True)
-    emailVerified = Column(DateTime)
+    email_verified = Column(DateTime)
     image = Column(Text)
 
 
 class Account(Base):
     __tablename__ = "accounts"
 
-    userId = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     type = Column(String, nullable=False)
     provider = Column(String, nullable=False, primary_key=True)
-    providerAccountId = Column(String, nullable=False, primary_key=True)
+    provider_account_id = Column(String, nullable=False, primary_key=True)
     refresh_token = Column(Text)
     access_token = Column(Text)
     expires_at = Column(Integer)
@@ -48,8 +48,8 @@ class Account(Base):
 class Session(Base):
     __tablename__ = "sessions"
 
-    sessionToken = Column(String, primary_key=True)
-    userId = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    session_token = Column(String, primary_key=True)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     expires = Column(DateTime, nullable=False)
 
 
@@ -64,53 +64,53 @@ class VerificationToken(Base):
 class Authenticator(Base):
     __tablename__ = "authenticators"
 
-    credentialID = Column(String, nullable=False, unique=True)
-    userId = Column(
+    credential_id = Column(String, nullable=False, unique=True)
+    user_id = Column(
         String,
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         primary_key=True,
     )
-    providerAccountId = Column(String, nullable=False)
-    credentialPublicKey = Column(Text, nullable=False)
+    provider_account_id = Column(String, nullable=False)
+    credential_public_key = Column(Text, nullable=False)
     counter = Column(Integer, nullable=False)
-    credentialDeviceType = Column(String, nullable=False)
-    credentialBackedUp = Column(Boolean, nullable=False)
+    credential_device_type = Column(String, nullable=False)
+    credential_backed_up = Column(Boolean, nullable=False)
     transports = Column(Text)
 
 
 class Signup(Base):
     __tablename__ = "signups"
 
-    userId = Column(
+    user_id = Column(
         String,
         ForeignKey("users.id", ondelete="CASCADE"),
         primary_key=True,
         nullable=False,
     )
     name = Column(Text, nullable=False)
-    stdNo = Column(String, nullable=False)
+    std_no = Column(String, nullable=False)
     status = Column(String, nullable=False, default="pending")
     message = Column(Text, default="Pending approval")
-    createdAt = Column(DateTime, default=datetime.utcnow)
-    updatedAt = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime)
 
 
 class Student(Base):
     __tablename__ = "students"
 
-    stdNo = Column(Integer, primary_key=True)
+    std_no = Column(Integer, primary_key=True)
     name = Column(Text, nullable=False)
-    nationalId = Column(String, nullable=False)
+    national_id = Column(String, nullable=False)
     sem = Column(Integer, nullable=False)
-    dateOfBirth = Column(DateTime)
+    date_of_birth = Column(DateTime)
     phone1 = Column(String)
     phone2 = Column(String)
     gender = Column(String)
-    maritalStatus = Column(String)
+    marital_status = Column(String)
     religion = Column(Text)
-    userId = Column(String, ForeignKey("users.id", ondelete="SET NULL"))
-    createdAt = Column(DateTime, default=datetime.utcnow)
+    user_id = Column(String, ForeignKey("users.id", ondelete="SET NULL"))
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class School(Base):
@@ -119,8 +119,8 @@ class School(Base):
     id = Column(Integer, primary_key=True)
     code = Column(String, nullable=False, unique=True)
     name = Column(Text, nullable=False)
-    isActive = Column(Boolean, nullable=False, default=True)
-    createdAt = Column(DateTime, default=datetime.utcnow)
+    is_active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class Program(Base):
@@ -130,10 +130,10 @@ class Program(Base):
     code = Column(String, nullable=False, unique=True)
     name = Column(Text, nullable=False)
     level = Column(String, nullable=False)
-    schoolId = Column(
+    school_id = Column(
         Integer, ForeignKey("schools.id", ondelete="CASCADE"), nullable=False
     )
-    createdAt = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class Structure(Base):
@@ -142,43 +142,43 @@ class Structure(Base):
     id = Column(Integer, primary_key=True)
     code = Column(String, nullable=False, unique=True)
     desc = Column(Text)
-    programId = Column(
+    program_id = Column(
         Integer, ForeignKey("programs.id", ondelete="CASCADE"), nullable=False
     )
-    createdAt = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class StudentProgram(Base):
     __tablename__ = "student_programs"
 
     id = Column(Integer, primary_key=True)
-    stdNo = Column(
-        Integer, ForeignKey("students.stdNo", ondelete="CASCADE"), nullable=False
+    std_no = Column(
+        Integer, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
     )
-    intakeDate = Column(String)
-    regDate = Column(String)
-    startTerm = Column(String)
-    structureId = Column(
+    intake_date = Column(String)
+    reg_date = Column(String)
+    start_term = Column(String)
+    structure_id = Column(
         Integer, ForeignKey("structures.id", ondelete="CASCADE"), nullable=False
     )
     stream = Column(Text)
-    graduationDate = Column(String)
+    graduation_date = Column(String)
     status = Column(String, nullable=False)
-    assistProvider = Column(Text)
-    createdAt = Column(DateTime, default=datetime.utcnow)
+    assist_provider = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class StructureSemester(Base):
     __tablename__ = "structure_semesters"
 
     id = Column(Integer, primary_key=True)
-    structureId = Column(
+    structure_id = Column(
         Integer, ForeignKey("structures.id", ondelete="CASCADE"), nullable=False
     )
-    semesterNumber = Column(Integer, nullable=False)
+    semester_number = Column(Integer, nullable=False)
     name = Column(Text, nullable=False)
-    totalCredits = Column(Float, nullable=False)
-    createdAt = Column(DateTime, default=datetime.utcnow)
+    total_credits = Column(Float, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class StudentSemester(Base):
@@ -186,13 +186,13 @@ class StudentSemester(Base):
 
     id = Column(Integer, primary_key=True)
     term = Column(String, nullable=False)
-    semesterNumber = Column(Integer)
+    semester_number = Column(Integer)
     status = Column(String, nullable=False)
-    studentProgramId = Column(
+    student_program_id = Column(
         Integer, ForeignKey("student_programs.id", ondelete="CASCADE"), nullable=False
     )
-    cafDate = Column(String)
-    createdAt = Column(DateTime, default=datetime.utcnow)
+    caf_date = Column(String)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class Module(Base):
@@ -209,45 +209,45 @@ class SemesterModule(Base):
     __tablename__ = "semester_modules"
 
     id = Column(Integer, primary_key=True)
-    moduleId = Column(Integer, ForeignKey("modules.id"))
+    module_id = Column(Integer, ForeignKey("modules.id"))
     type = Column(String, nullable=False)
     credits = Column(Float, nullable=False)
-    semesterId = Column(
+    semester_id = Column(
         Integer, ForeignKey("structure_semesters.id", ondelete="SET NULL")
     )
     hidden = Column(Boolean, nullable=False, default=False)
-    createdAt = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class StudentModule(Base):
     __tablename__ = "student_modules"
 
     id = Column(Integer, primary_key=True)
-    semesterModuleId = Column(
+    semester_module_id = Column(
         Integer, ForeignKey("semester_modules.id", ondelete="CASCADE"), nullable=False
     )
     status = Column(String, nullable=False)
     marks = Column(String, nullable=False)
     grade = Column(String, nullable=False)
-    studentSemesterId = Column(
+    student_semester_id = Column(
         Integer, ForeignKey("student_semesters.id", ondelete="CASCADE"), nullable=False
     )
-    createdAt = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class ModulePrerequisite(Base):
     __tablename__ = "module_prerequisites"
 
     id = Column(Integer, primary_key=True)
-    semesterModuleId = Column(
+    semester_module_id = Column(
         Integer, ForeignKey("semester_modules.id", ondelete="CASCADE"), nullable=False
     )
-    prerequisiteId = Column(
+    prerequisite_id = Column(
         Integer, ForeignKey("semester_modules.id", ondelete="CASCADE"), nullable=False
     )
-    createdAt = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
-    __table_args__ = (UniqueConstraint("semesterModuleId", "prerequisiteId"),)
+    __table_args__ = (UniqueConstraint("semester_module_id", "prerequisite_id"),)
 
 
 class Term(Base):
@@ -255,9 +255,9 @@ class Term(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(Text, nullable=False, unique=True)
-    isActive = Column(Boolean, nullable=False, default=False)
+    is_active = Column(Boolean, nullable=False, default=False)
     semester = Column(Integer, nullable=False)
-    createdAt = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class Sponsor(Base):
@@ -265,49 +265,51 @@ class Sponsor(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(Text, nullable=False, unique=True)
-    createdAt = Column(DateTime, default=datetime.utcnow)
-    updatedAt = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime)
 
 
 class RegistrationRequest(Base):
     __tablename__ = "registration_requests"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    sponsorId = Column(
+    sponsor_id = Column(
         Integer, ForeignKey("sponsors.id", ondelete="CASCADE"), nullable=False
     )
-    stdNo = Column(
-        Integer, ForeignKey("students.stdNo", ondelete="CASCADE"), nullable=False
+    std_no = Column(
+        Integer, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
     )
-    termId = Column(Integer, ForeignKey("terms.id", ondelete="CASCADE"), nullable=False)
+    term_id = Column(
+        Integer, ForeignKey("terms.id", ondelete="CASCADE"), nullable=False
+    )
     status = Column(String, nullable=False, default="pending")
-    mailSent = Column(Boolean, nullable=False, default=False)
+    mail_sent = Column(Boolean, nullable=False, default=False)
     count = Column(Integer, nullable=False, default=1)
-    semesterStatus = Column(String, nullable=False)
-    semesterNumber = Column(Integer, nullable=False)
+    semester_status = Column(String, nullable=False)
+    semester_number = Column(Integer, nullable=False)
     message = Column(Text)
-    createdAt = Column(DateTime, default=datetime.utcnow)
-    updatedAt = Column(DateTime)
-    dateApproved = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime)
+    date_approved = Column(DateTime)
 
-    __table_args__ = (UniqueConstraint("stdNo", "termId"),)
+    __table_args__ = (UniqueConstraint("std_no", "term_id"),)
 
 
 class RequestedModule(Base):
     __tablename__ = "requested_modules"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    moduleStatus = Column(String, nullable=False, default="Compulsory")
-    registrationRequestId = Column(
+    module_status = Column(String, nullable=False, default="Compulsory")
+    registration_request_id = Column(
         Integer,
         ForeignKey("registration_requests.id", ondelete="CASCADE"),
         nullable=False,
     )
-    semesterModuleId = Column(
+    semester_module_id = Column(
         Integer, ForeignKey("semester_modules.id", ondelete="CASCADE"), nullable=False
     )
     status = Column(String, nullable=False, default="pending")
-    createdAt = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class Clearance(Base):
@@ -317,60 +319,60 @@ class Clearance(Base):
     department = Column(String, nullable=False)
     status = Column(String, nullable=False, default="pending")
     message = Column(Text)
-    emailSent = Column(Boolean, nullable=False, default=False)
-    respondedBy = Column(String, ForeignKey("users.id", ondelete="CASCADE"))
-    responseDate = Column(DateTime)
-    createdAt = Column(DateTime, default=datetime.utcnow)
+    email_sent = Column(Boolean, nullable=False, default=False)
+    responded_by = Column(String, ForeignKey("users.id", ondelete="CASCADE"))
+    response_date = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class RegistrationClearance(Base):
     __tablename__ = "registration_clearance"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    registrationRequestId = Column(
+    registration_request_id = Column(
         Integer,
         ForeignKey("registration_requests.id", ondelete="CASCADE"),
         nullable=False,
     )
-    clearanceId = Column(
+    clearance_id = Column(
         Integer, ForeignKey("clearance.id", ondelete="CASCADE"), nullable=False
     )
-    createdAt = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
-    __table_args__ = (UniqueConstraint("registrationRequestId", "clearanceId"),)
+    __table_args__ = (UniqueConstraint("registration_request_id", "clearance_id"),)
 
 
 class GraduationRequest(Base):
     __tablename__ = "graduation_requests"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    studentProgramId = Column(
+    student_program_id = Column(
         Integer,
         ForeignKey("student_programs.id", ondelete="CASCADE"),
         unique=True,
         nullable=False,
     )
-    informationConfirmed = Column(Boolean, nullable=False, default=False)
+    information_confirmed = Column(Boolean, nullable=False, default=False)
     message = Column(Text)
-    createdAt = Column(DateTime, default=datetime.utcnow)
-    updatedAt = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime)
 
 
 class GraduationClearance(Base):
     __tablename__ = "graduation_clearance"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    graduationRequestId = Column(
+    graduation_request_id = Column(
         Integer,
         ForeignKey("graduation_requests.id", ondelete="CASCADE"),
         nullable=False,
     )
-    clearanceId = Column(
+    clearance_id = Column(
         Integer, ForeignKey("clearance.id", ondelete="CASCADE"), nullable=False
     )
-    createdAt = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
-    __table_args__ = (UniqueConstraint("clearanceId"),)
+    __table_args__ = (UniqueConstraint("clearance_id"),)
 
 
 class GraduationList(Base):
@@ -378,38 +380,38 @@ class GraduationList(Base):
 
     id = Column(String, primary_key=True)
     name = Column(Text, nullable=False, default="Graduation List")
-    spreadsheetId = Column(Text)
-    spreadsheetUrl = Column(Text)
+    spreadsheet_id = Column(Text)
+    spreadsheet_url = Column(Text)
     status = Column(String, nullable=False, default="created")
-    createdBy = Column(String, ForeignKey("users.id", ondelete="SET NULL"))
-    populatedAt = Column(DateTime)
-    createdAt = Column(DateTime, default=datetime.utcnow)
+    created_by = Column(String, ForeignKey("users.id", ondelete="SET NULL"))
+    populated_at = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class PaymentReceipt(Base):
     __tablename__ = "payment_receipts"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    graduationRequestId = Column(
+    graduation_request_id = Column(
         Integer,
         ForeignKey("graduation_requests.id", ondelete="CASCADE"),
         nullable=False,
     )
-    paymentType = Column(String, nullable=False)
-    receiptNo = Column(String, nullable=False, unique=True)
-    createdAt = Column(DateTime, default=datetime.utcnow)
+    payment_type = Column(String, nullable=False)
+    receipt_no = Column(String, nullable=False, unique=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class ClearanceAudit(Base):
     __tablename__ = "clearance_audit"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    clearanceId = Column(
+    clearance_id = Column(
         Integer, ForeignKey("clearance.id", ondelete="CASCADE"), nullable=False
     )
-    previousStatus = Column(String)
-    newStatus = Column(String, nullable=False)
-    createdBy = Column(
+    previous_status = Column(String)
+    new_status = Column(String, nullable=False)
+    created_by = Column(
         String, ForeignKey("users.id", ondelete="SET NULL"), nullable=False
     )
     date = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -421,104 +423,110 @@ class SponsoredStudent(Base):
     __tablename__ = "sponsored_students"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    sponsorId = Column(
+    sponsor_id = Column(
         Integer, ForeignKey("sponsors.id", ondelete="CASCADE"), nullable=False
     )
-    stdNo = Column(
-        Integer, ForeignKey("students.stdNo", ondelete="CASCADE"), nullable=False
+    std_no = Column(
+        Integer, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
     )
-    borrowerNo = Column(Text)
-    bankName = Column(Text)
-    accountNumber = Column(Text)
+    borrower_no = Column(Text)
+    bank_name = Column(Text)
+    account_number = Column(Text)
     confirmed = Column(Boolean, default=False)
-    createdAt = Column(DateTime, default=datetime.utcnow)
-    updatedAt = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime)
 
-    __table_args__ = (UniqueConstraint("sponsorId", "stdNo"),)
+    __table_args__ = (UniqueConstraint("sponsor_id", "std_no"),)
 
 
 class SponsoredTerm(Base):
     __tablename__ = "sponsored_terms"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    sponsoredStudentId = Column(
+    sponsored_student_id = Column(
         Integer, ForeignKey("sponsored_students.id", ondelete="CASCADE"), nullable=False
     )
-    termId = Column(Integer, ForeignKey("terms.id", ondelete="CASCADE"), nullable=False)
-    createdAt = Column(DateTime, default=datetime.utcnow)
-    updatedAt = Column(DateTime)
+    term_id = Column(
+        Integer, ForeignKey("terms.id", ondelete="CASCADE"), nullable=False
+    )
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime)
 
-    __table_args__ = (UniqueConstraint("sponsoredStudentId", "termId"),)
+    __table_args__ = (UniqueConstraint("sponsored_student_id", "term_id"),)
 
 
 class AssignedModule(Base):
     __tablename__ = "assigned_modules"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    termId = Column(Integer, ForeignKey("terms.id", ondelete="CASCADE"), nullable=False)
+    term_id = Column(
+        Integer, ForeignKey("terms.id", ondelete="CASCADE"), nullable=False
+    )
     active = Column(Boolean, nullable=False, default=True)
-    userId = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    semesterModuleId = Column(
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    semester_module_id = Column(
         Integer, ForeignKey("semester_modules.id", ondelete="CASCADE"), nullable=False
     )
-    createdAt = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class UserSchool(Base):
     __tablename__ = "user_schools"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    userId = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    schoolId = Column(
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    school_id = Column(
         Integer, ForeignKey("schools.id", ondelete="CASCADE"), nullable=False
     )
-    createdAt = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
-    __table_args__ = (UniqueConstraint("userId", "schoolId"),)
+    __table_args__ = (UniqueConstraint("user_id", "school_id"),)
 
 
 class Assessment(Base):
     __tablename__ = "assessments"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    moduleId = Column(
+    module_id = Column(
         Integer, ForeignKey("modules.id", ondelete="CASCADE"), nullable=False
     )
-    termId = Column(Integer, ForeignKey("terms.id", ondelete="CASCADE"), nullable=False)
-    assessmentNumber = Column(String, nullable=False)
-    assessmentType = Column(Text, nullable=False)
-    totalMarks = Column(Float, nullable=False)
+    term_id = Column(
+        Integer, ForeignKey("terms.id", ondelete="CASCADE"), nullable=False
+    )
+    assessment_number = Column(String, nullable=False)
+    assessment_type = Column(Text, nullable=False)
+    total_marks = Column(Float, nullable=False)
     weight = Column(Float, nullable=False)
-    createdAt = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
-    __table_args__ = (UniqueConstraint("moduleId", "assessmentNumber", "termId"),)
+    __table_args__ = (UniqueConstraint("module_id", "assessment_number", "term_id"),)
 
 
 class AssessmentMark(Base):
     __tablename__ = "assessment_marks"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    assessmentId = Column(
+    assessment_id = Column(
         Integer, ForeignKey("assessments.id", ondelete="CASCADE"), nullable=False
     )
-    stdNo = Column(
-        Integer, ForeignKey("students.stdNo", ondelete="CASCADE"), nullable=False
+    std_no = Column(
+        Integer, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
     )
     marks = Column(Float, nullable=False)
-    createdAt = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class AssessmentMarksAudit(Base):
     __tablename__ = "assessment_marks_audit"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    assessmentMarkId = Column(
+    assessment_mark_id = Column(
         Integer, ForeignKey("assessment_marks.id", ondelete="SET NULL")
     )
     action = Column(String, nullable=False)
-    previousMarks = Column(Float)
-    newMarks = Column(Float)
-    createdBy = Column(
+    previous_marks = Column(Float)
+    new_marks = Column(Float)
+    created_by = Column(
         String, ForeignKey("users.id", ondelete="SET NULL"), nullable=False
     )
     date = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -528,17 +536,17 @@ class AssessmentsAudit(Base):
     __tablename__ = "assessments_audit"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    assessmentId = Column(Integer, ForeignKey("assessments.id", ondelete="SET NULL"))
+    assessment_id = Column(Integer, ForeignKey("assessments.id", ondelete="SET NULL"))
     action = Column(String, nullable=False)
-    previousAssessmentNumber = Column(String)
-    newAssessmentNumber = Column(String)
-    previousAssessmentType = Column(Text)
-    newAssessmentType = Column(Text)
-    previousTotalMarks = Column(Float)
-    newTotalMarks = Column(Float)
-    previousWeight = Column(Float)
-    newWeight = Column(Float)
-    createdBy = Column(
+    previous_assessment_number = Column(String)
+    new_assessment_number = Column(String)
+    previous_assessment_type = Column(Text)
+    new_assessment_type = Column(Text)
+    previous_total_marks = Column(Float)
+    new_total_marks = Column(Float)
+    previous_weight = Column(Float)
+    new_weight = Column(Float)
+    created_by = Column(
         String, ForeignKey("users.id", ondelete="SET NULL"), nullable=False
     )
     date = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -548,56 +556,56 @@ class ModuleGrade(Base):
     __tablename__ = "module_grades"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    moduleId = Column(
+    module_id = Column(
         Integer, ForeignKey("modules.id", ondelete="CASCADE"), nullable=False
     )
-    stdNo = Column(
-        Integer, ForeignKey("students.stdNo", ondelete="CASCADE"), nullable=False
+    std_no = Column(
+        Integer, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
     )
     grade = Column(String, nullable=False)
-    weightedTotal = Column(Float, nullable=False)
-    createdAt = Column(DateTime, default=datetime.utcnow)
-    updatedAt = Column(DateTime, default=datetime.utcnow)
+    weighted_total = Column(Float, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
 
-    __table_args__ = (UniqueConstraint("moduleId", "stdNo"),)
+    __table_args__ = (UniqueConstraint("module_id", "std_no"),)
 
 
 class StatementOfResultsPrint(Base):
     __tablename__ = "statement_of_results_prints"
 
     id = Column(String, primary_key=True)
-    stdNo = Column(
-        Integer, ForeignKey("students.stdNo", ondelete="CASCADE"), nullable=False
+    std_no = Column(
+        Integer, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
     )
-    printedBy = Column(
+    printed_by = Column(
         String, ForeignKey("users.id", ondelete="SET NULL"), nullable=False
     )
-    studentName = Column(Text, nullable=False)
-    programName = Column(Text, nullable=False)
-    totalCredits = Column(Integer, nullable=False)
-    totalModules = Column(Integer, nullable=False)
+    student_name = Column(Text, nullable=False)
+    program_name = Column(Text, nullable=False)
+    total_credits = Column(Integer, nullable=False)
+    total_modules = Column(Integer, nullable=False)
     cgpa = Column(Float)
     classification = Column(Text)
-    academicStatus = Column(Text)
-    graduationDate = Column(Text)
-    printedAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+    academic_status = Column(Text)
+    graduation_date = Column(Text)
+    printed_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 
 class TranscriptPrint(Base):
     __tablename__ = "transcript_prints"
 
     id = Column(String, primary_key=True)
-    stdNo = Column(
-        Integer, ForeignKey("students.stdNo", ondelete="CASCADE"), nullable=False
+    std_no = Column(
+        Integer, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
     )
-    printedBy = Column(
+    printed_by = Column(
         String, ForeignKey("users.id", ondelete="SET NULL"), nullable=False
     )
-    studentName = Column(Text, nullable=False)
-    programName = Column(Text, nullable=False)
-    totalCredits = Column(Integer, nullable=False)
+    student_name = Column(Text, nullable=False)
+    program_name = Column(Text, nullable=False)
+    total_credits = Column(Integer, nullable=False)
     cgpa = Column(Float)
-    printedAt = Column(DateTime, default=datetime.utcnow, nullable=False)
+    printed_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 
 class BlockedStudent(Base):
@@ -606,13 +614,13 @@ class BlockedStudent(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     status = Column(String, nullable=False, default="blocked")
     reason = Column(Text, nullable=False)
-    byDepartment = Column(String, nullable=False)
-    stdNo = Column(
-        Integer, ForeignKey("students.stdNo", ondelete="CASCADE"), nullable=False
+    by_department = Column(String, nullable=False)
+    std_no = Column(
+        Integer, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
     )
-    createdAt = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
-    __table_args__ = (Index("blocked_students_std_no_idx", "stdNo"),)
+    __table_args__ = (Index("blocked_students_std_no_idx", "std_no"),)
 
 
 class StudentCardPrint(Base):
@@ -620,22 +628,23 @@ class StudentCardPrint(Base):
 
     id = Column(String, primary_key=True)
     receiptNo = Column(String, nullable=False, unique=True)
-    stdNo = Column(
-        Integer, ForeignKey("students.stdNo", ondelete="CASCADE"), nullable=False
+    receipt_no = Column(String, nullable=False, unique=True)
+    std_no = Column(
+        Integer, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
     )
-    printedBy = Column(
+    printed_by = Column(
         String, ForeignKey("users.id", ondelete="SET NULL"), nullable=False
     )
-    createdAt = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class Document(Base):
     __tablename__ = "documents"
 
     id = Column(String, primary_key=True)
-    fileName = Column(Text, nullable=False)
+    file_name = Column(Text, nullable=False)
     type = Column(Text)
-    stdNo = Column(
-        Integer, ForeignKey("students.stdNo", ondelete="CASCADE"), nullable=False
+    std_no = Column(
+        Integer, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
     )
-    createdAt = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)

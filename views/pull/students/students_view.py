@@ -126,16 +126,14 @@ class StudentsView(QWidget):
         layout.addWidget(search_container)
 
         self.table = QTableWidget()
-        self.table.setColumnCount(7)
+        self.table.setColumnCount(5)
         self.table.setHorizontalHeaderLabels(
             [
                 "Student No",
                 "Name",
-                "National ID",
                 "Gender",
-                "Phone",
-                "Marital Status",
-                "Religion",
+                "Faculty Code",
+                "Program Name",
             ]
         )
         self.table.horizontalHeader().setSectionResizeMode(
@@ -286,31 +284,32 @@ class StudentsView(QWidget):
             with Session(engine) as session:
                 offset = (self.current_page - 1) * self.page_size
 
-                query = session.query(Student).distinct()
-
-                if self.selected_school_id or self.selected_program_id:
-                    query = query.join(
-                        StudentProgram, Student.std_no == StudentProgram.std_no
+                query = (
+                    session.query(
+                        Student.std_no,
+                        Student.name,
+                        Student.gender,
+                        School.code.label("faculty_code"),
+                        Program.name.label("program_name"),
                     )
-                    query = query.join(
-                        Structure, StudentProgram.structure_id == Structure.id
+                    .outerjoin(
+                        StudentProgram,
+                        (Student.std_no == StudentProgram.std_no)
+                        & (StudentProgram.status == "Active"),
                     )
-                    query = query.join(Program, Structure.program_id == Program.id)
+                    .outerjoin(Structure, StudentProgram.structure_id == Structure.id)
+                    .outerjoin(Program, Structure.program_id == Program.id)
+                    .outerjoin(School, Program.school_id == School.id)
+                    .distinct()
+                )
 
-                    if self.selected_school_id:
-                        query = query.filter(
-                            Program.school_id == self.selected_school_id
-                        )
+                if self.selected_school_id:
+                    query = query.filter(Program.school_id == self.selected_school_id)
 
-                    if self.selected_program_id:
-                        query = query.filter(Program.id == self.selected_program_id)
+                if self.selected_program_id:
+                    query = query.filter(Program.id == self.selected_program_id)
 
                 if self.selected_term or self.selected_semester_number:
-                    if not (self.selected_school_id or self.selected_program_id):
-                        query = query.join(
-                            StudentProgram, Student.std_no == StudentProgram.std_no
-                        )
-
                     query = query.join(
                         StudentSemester,
                         StudentProgram.id == StudentSemester.student_program_id,
@@ -348,19 +347,13 @@ class StudentsView(QWidget):
                         row, 1, QTableWidgetItem(str(student.name or ""))
                     )
                     self.table.setItem(
-                        row, 2, QTableWidgetItem(str(student.national_id or ""))
+                        row, 2, QTableWidgetItem(str(student.gender or ""))
                     )
                     self.table.setItem(
-                        row, 3, QTableWidgetItem(str(student.gender or ""))
+                        row, 3, QTableWidgetItem(str(student.faculty_code or ""))
                     )
                     self.table.setItem(
-                        row, 4, QTableWidgetItem(str(student.phone1 or ""))
-                    )
-                    self.table.setItem(
-                        row, 5, QTableWidgetItem(str(student.marital_status or ""))
-                    )
-                    self.table.setItem(
-                        row, 6, QTableWidgetItem(str(student.religion or ""))
+                        row, 4, QTableWidgetItem(str(student.program_name or ""))
                     )
 
                 self.update_pagination_controls()

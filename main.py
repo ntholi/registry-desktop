@@ -8,11 +8,20 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMainWindow,
+    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
 
 from navigation import AccordionNavigation
+from views.enrollments.approved.approved_view import ApprovedView
+from views.enrollments.module.module_view import ModuleView
+from views.enrollments.student.student_view import StudentView
+from views.export.certificates.certificates_view import CertificatesView
+from views.export.reports.reports_view import ReportsView
+from views.sync.modules.modules_view import ModulesView
+from views.sync.structures.structures_view import StructuresView
+from views.sync.students.students_view import StudentsView
 
 
 class MainWindow(QMainWindow):
@@ -41,32 +50,48 @@ class MainWindow(QMainWindow):
         separator.setLineWidth(1)
         main_layout.addWidget(separator)
 
-        # Content area
-        self.content_area = QWidget()
-        content_layout = QVBoxLayout(self.content_area)
-        content_layout.setContentsMargins(40, 40, 40, 40)
+        # Content area with stacked widget
+        self.content_stack = QStackedWidget()
 
-        # Welcome message
-        self.content_label = QLabel(
+        # Welcome page
+        welcome_widget = QWidget()
+        welcome_layout = QVBoxLayout(welcome_widget)
+        welcome_layout.setContentsMargins(40, 40, 40, 40)
+        welcome_label = QLabel(
             "Welcome to Limkokwing Registry\n\nSelect an item from the navigation menu to get started"
         )
-        self.content_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.content_label.setWordWrap(True)
-
+        welcome_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        welcome_label.setWordWrap(True)
         content_font = QFont()
         content_font.setPointSize(12)
-        self.content_label.setFont(content_font)
+        welcome_label.setFont(content_font)
+        welcome_layout.addWidget(welcome_label)
 
-        content_layout.addWidget(self.content_label)
+        self.content_stack.addWidget(welcome_widget)
 
-        main_layout.addWidget(self.content_area, 1)
+        # Initialize all views
+        self.views = {
+            "sync_students": StudentsView(),
+            "sync_structures": StructuresView(),
+            "sync_modules": ModulesView(),
+            "enrollments_approved": ApprovedView(),
+            "enrollments_module": ModuleView(),
+            "enrollments_student": StudentView(),
+            "export_certificates": CertificatesView(),
+            "export_reports": ReportsView(),
+        }
+
+        # Add all views to stack
+        for view in self.views.values():
+            self.content_stack.addWidget(view)
+
+        main_layout.addWidget(self.content_stack, 1)
 
     def on_navigation_clicked(self, action):
         """Handle navigation item clicks"""
-        action_text = action.replace("_", " ").title()
-        self.content_label.setText(
-            f"📄 {action_text}\n\nContent for {action_text} will be displayed here.\nThis is where you'll manage {action_text.lower()}."
-        )
+        if action in self.views:
+            view = self.views[action]
+            self.content_stack.setCurrentWidget(view)
 
 
 def main():

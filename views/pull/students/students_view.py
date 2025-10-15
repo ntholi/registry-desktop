@@ -70,7 +70,7 @@ class StudentsView(QWidget):
 
         self.school_filter = QComboBox()
         self.school_filter.addItem("All Schools", None)
-        self.school_filter.currentIndexChanged.connect(self.on_filter_changed)
+        self.school_filter.currentIndexChanged.connect(self.on_school_changed)
         self.school_filter.setMinimumWidth(150)
         filters_layout.addWidget(self.school_filter)
 
@@ -184,14 +184,7 @@ class StudentsView(QWidget):
                         self.school_filter.count() - 1, school.id
                     )
 
-                programs = (
-                    session.query(Program.id, Program.name).order_by(Program.name).all()
-                )
-                for program in programs:
-                    self.program_filter.addItem(str(program.name))
-                    self.program_filter.setItemData(
-                        self.program_filter.count() - 1, program.id
-                    )
+                self.load_programs_for_school(None)
 
                 terms = (
                     session.query(distinct(StudentSemester.term))
@@ -219,6 +212,37 @@ class StudentsView(QWidget):
 
         except Exception as e:
             print(f"Error loading filter options: {str(e)}")
+
+    def load_programs_for_school(self, school_id):
+        try:
+            while self.program_filter.count() > 1:
+                self.program_filter.removeItem(1)
+
+            engine = get_engine(use_local=True)
+            with Session(engine) as session:
+                q = session.query(Program.id, Program.name)
+                if school_id:
+                    q = q.filter(Program.school_id == school_id)
+                programs = q.order_by(Program.name).all()
+
+                for program in programs:
+                    self.program_filter.addItem(str(program.name))
+                    self.program_filter.setItemData(
+                        self.program_filter.count() - 1, program.id
+                    )
+        except Exception as e:
+            print(f"Error loading programs: {str(e)}")
+
+    def on_school_changed(self, index):
+        self.selected_school_id = self.school_filter.currentData()
+        self.load_programs_for_school(self.selected_school_id)
+        self.term_filter.setCurrentIndex(0)
+        self.semester_filter.setCurrentIndex(0)
+        self.selected_program_id = None
+        self.selected_term = None
+        self.selected_semester_number = None
+        self.current_page = 1
+        self.load_students()
 
     def on_filter_changed(self):
         self.selected_school_id = self.school_filter.currentData()

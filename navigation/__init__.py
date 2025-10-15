@@ -1,3 +1,3 @@
-from .accordion_nav import AccordionNavigation
+from .navigation import AccordionNavigation
 
 __all__ = ["AccordionNavigation"]

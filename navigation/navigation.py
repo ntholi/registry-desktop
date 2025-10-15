@@ -209,7 +209,7 @@ class AccordionNavigation(QWidget):
 
     def load_menu(self):
         """Load menu configuration from JSON file"""
-        config_path = Path(__file__).parent / "menu_config.json"
+        config_path = Path(__file__).parent / "menu.json"
 
         try:
             with open(config_path, "r") as f:

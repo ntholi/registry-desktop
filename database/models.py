@@ -10,9 +10,37 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    TypeDecorator,
     UniqueConstraint,
 )
 from sqlalchemy.orm import declarative_base
+
+
+class SafeDateTime(TypeDecorator):
+    impl = Text
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value.isoformat()
+        if isinstance(value, str):
+            return value
+        return None
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, str):
+            try:
+                return datetime.fromisoformat(value.replace("Z", "+00:00"))
+            except (ValueError, AttributeError):
+                return None
+        return None
+
 
 Base = declarative_base()
 
@@ -103,14 +131,14 @@ class Student(Base):
     name = Column(Text, nullable=False)
     national_id = Column(String, nullable=False)
     sem = Column(Integer, nullable=False)
-    date_of_birth = Column(DateTime)
+    date_of_birth = Column(SafeDateTime)
     phone1 = Column(String)
     phone2 = Column(String)
     gender = Column(String)
     marital_status = Column(String)
     religion = Column(Text)
     user_id = Column(String, ForeignKey("users.id", ondelete="SET NULL"))
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(SafeDateTime, default=datetime.utcnow)
 
 
 class School(Base):

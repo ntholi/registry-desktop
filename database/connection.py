@@ -1,6 +1,6 @@
 import os
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
 from sqlalchemy.pool import NullPool
 
@@ -8,6 +8,13 @@ TURSO_DATABASE_URL = os.getenv("TURSO_DATABASE_URL")
 TURSO_AUTH_TOKEN = os.getenv("TURSO_AUTH_TOKEN")
 
 TIMEOUT_SECONDS = 120
+
+
+@event.listens_for(Engine, "connect")
+def set_sqlite_pragma(dbapi_conn, connection_record):
+    cursor = dbapi_conn.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
 
 
 def get_engine(use_local: bool = False) -> Engine:
@@ -19,6 +26,7 @@ def get_engine(use_local: bool = False) -> Engine:
             echo=False,
             pool_pre_ping=True,
             poolclass=NullPool,
+            native_datetime=False,
         )
         return engine
     else:
@@ -30,6 +38,7 @@ def get_engine(use_local: bool = False) -> Engine:
                 echo=False,
                 pool_pre_ping=True,
                 poolclass=NullPool,
+                native_datetime=False,
             )
             return engine
         else:

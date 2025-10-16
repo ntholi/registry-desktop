@@ -1,4 +1,5 @@
 from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -124,13 +125,21 @@ class StudentsView(QWidget):
 
         search_layout.addStretch()
 
-        self.sync_button = QPushButton("Sync Selected")
-        self.sync_button.clicked.connect(self.sync_students)
-        self.sync_button.setEnabled(False)
-        self.sync_button.setStyleSheet(
-            "QPushButton { padding: 8px 16px; font-weight: bold; }"
+        self.pull_button = QPushButton("Pull")
+        self.pull_button.setIcon(
+            self.style().standardIcon(self.style().StandardPixmap.SP_ArrowDown)
         )
-        search_layout.addWidget(self.sync_button)
+        self.pull_button.clicked.connect(self.pull_students)
+        self.pull_button.setEnabled(False)
+        search_layout.addWidget(self.pull_button)
+
+        self.push_button = QPushButton("Push")
+        self.push_button.setIcon(
+            self.style().standardIcon(self.style().StandardPixmap.SP_ArrowUp)
+        )
+        self.push_button.clicked.connect(self.push_students)
+        self.push_button.setEnabled(False)
+        search_layout.addWidget(self.push_button)
 
         layout.addWidget(search_container)
 
@@ -365,7 +374,7 @@ class StudentsView(QWidget):
                         )
                     )
 
-                query = query.order_by(Student.std_no)
+                query = query.order_by(Student.std_no.desc())
                 self.total_students = query.count()
 
                 students = query.offset(offset).limit(self.page_size).all()
@@ -450,7 +459,8 @@ class StudentsView(QWidget):
     def on_row_selection_changed(self):
         selected_count = self.get_selected_count()
         self.selection_label.setText(f"{selected_count} selected")
-        self.sync_button.setEnabled(selected_count > 0)
+        self.pull_button.setEnabled(selected_count > 0)
+        self.push_button.setEnabled(selected_count > 0)
 
         self.select_all_checkbox.blockSignals(True)
         if selected_count == 0:
@@ -483,8 +493,14 @@ class StudentsView(QWidget):
                         selected_students.append(student_no_item.text())
         return selected_students
 
-    def sync_students(self):
+    def pull_students(self):
         selected_students = self.get_selected_student_numbers()
         if not selected_students:
             return
-        print(f"Syncing {len(selected_students)} students: {selected_students}")
+        print(f"Pulling {len(selected_students)} students: {selected_students}")
+
+    def push_students(self):
+        selected_students = self.get_selected_student_numbers()
+        if not selected_students:
+            return
+        print(f"Pushing {len(selected_students)} students: {selected_students}")

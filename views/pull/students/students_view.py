@@ -1,5 +1,6 @@
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QFrame,
     QHBoxLayout,
@@ -123,12 +124,38 @@ class StudentsView(QWidget):
 
         search_layout.addStretch()
 
+        self.pull_button = QPushButton("Pull Selected")
+        self.pull_button.clicked.connect(self.pull_students)
+        self.pull_button.setEnabled(False)
+        self.pull_button.setStyleSheet(
+            "QPushButton { padding: 8px 16px; font-weight: bold; }"
+        )
+        search_layout.addWidget(self.pull_button)
+
         layout.addWidget(search_container)
 
+        selection_container = QFrame()
+        selection_layout = QHBoxLayout(selection_container)
+        selection_layout.setContentsMargins(0, 0, 0, 0)
+        selection_layout.setSpacing(10)
+
+        self.select_all_checkbox = QCheckBox("Select All")
+        self.select_all_checkbox.stateChanged.connect(self.on_select_all_changed)
+        selection_layout.addWidget(self.select_all_checkbox)
+
+        self.selection_label = QLabel("0 selected")
+        self.selection_label.setStyleSheet("color: #666; margin-left: 10px;")
+        selection_layout.addWidget(self.selection_label)
+
+        selection_layout.addStretch()
+
+        layout.addWidget(selection_container)
+
         self.table = QTableWidget()
-        self.table.setColumnCount(5)
+        self.table.setColumnCount(6)
         self.table.setHorizontalHeaderLabels(
             [
+                "",
                 "Student No",
                 "Name",
                 "Gender",
@@ -139,6 +166,10 @@ class StudentsView(QWidget):
         self.table.horizontalHeader().setSectionResizeMode(
             QHeaderView.ResizeMode.Stretch
         )
+        self.table.horizontalHeader().setSectionResizeMode(
+            0, QHeaderView.ResizeMode.Fixed
+        )
+        self.table.setColumnWidth(0, 40)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setAlternatingRowColors(True)
@@ -342,18 +373,28 @@ class StudentsView(QWidget):
                 self.table.setRowCount(len(students))
 
                 for row, student in enumerate(students):
-                    self.table.setItem(row, 0, QTableWidgetItem(str(student.std_no)))
+                    checkbox = QCheckBox()
+                    checkbox.setStyleSheet("margin-left: 12px;")
+                    checkbox.stateChanged.connect(self.on_row_selection_changed)
+                    checkbox_widget = QWidget()
+                    checkbox_layout = QHBoxLayout(checkbox_widget)
+                    checkbox_layout.addWidget(checkbox)
+                    checkbox_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                    checkbox_layout.setContentsMargins(0, 0, 0, 0)
+                    self.table.setCellWidget(row, 0, checkbox_widget)
+
+                    self.table.setItem(row, 1, QTableWidgetItem(str(student.std_no)))
                     self.table.setItem(
-                        row, 1, QTableWidgetItem(str(student.name or ""))
+                        row, 2, QTableWidgetItem(str(student.name or ""))
                     )
                     self.table.setItem(
-                        row, 2, QTableWidgetItem(str(student.gender or ""))
+                        row, 3, QTableWidgetItem(str(student.gender or ""))
                     )
                     self.table.setItem(
-                        row, 3, QTableWidgetItem(str(student.faculty_code or ""))
+                        row, 4, QTableWidgetItem(str(student.faculty_code or ""))
                     )
                     self.table.setItem(
-                        row, 4, QTableWidgetItem(str(student.program_name or ""))
+                        row, 5, QTableWidgetItem(str(student.program_name or ""))
                     )
 
                 self.update_pagination_controls()
@@ -392,3 +433,52 @@ class StudentsView(QWidget):
         if self.current_page < total_pages:
             self.current_page += 1
             self.load_students()
+
+    def on_select_all_changed(self, state):
+        is_checked = state == Qt.CheckState.Checked.value
+        for row in range(self.table.rowCount()):
+            checkbox_widget = self.table.cellWidget(row, 0)
+            if checkbox_widget:
+                checkbox = checkbox_widget.findChild(QCheckBox)
+                if checkbox:
+                    checkbox.setChecked(is_checked)
+
+    def on_row_selection_changed(self):
+        selected_count = self.get_selected_count()
+        self.selection_label.setText(f"{selected_count} selected")
+        self.pull_button.setEnabled(selected_count > 0)
+
+        if selected_count == 0:
+            self.select_all_checkbox.setCheckState(Qt.CheckState.Unchecked)
+        elif selected_count == self.table.rowCount():
+            self.select_all_checkbox.setCheckState(Qt.CheckState.Checked)
+        else:
+            self.select_all_checkbox.setCheckState(Qt.CheckState.PartiallyChecked)
+
+    def get_selected_count(self):
+        count = 0
+        for row in range(self.table.rowCount()):
+            checkbox_widget = self.table.cellWidget(row, 0)
+            if checkbox_widget:
+                checkbox = checkbox_widget.findChild(QCheckBox)
+                if checkbox and checkbox.isChecked():
+                    count += 1
+        return count
+
+    def get_selected_student_numbers(self):
+        selected_students = []
+        for row in range(self.table.rowCount()):
+            checkbox_widget = self.table.cellWidget(row, 0)
+            if checkbox_widget:
+                checkbox = checkbox_widget.findChild(QCheckBox)
+                if checkbox and checkbox.isChecked():
+                    student_no_item = self.table.item(row, 1)
+                    if student_no_item:
+                        selected_students.append(student_no_item.text())
+        return selected_students
+
+    def pull_students(self):
+        selected_students = self.get_selected_student_numbers()
+        if not selected_students:
+            return
+        print(f"Pulling {len(selected_students)} students: {selected_students}")

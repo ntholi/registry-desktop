@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from navigation import AccordionNavigation
+from base.nav import AccordionNavigation
 from views.enrollments.approved.approved_view import ApprovedView
 from views.enrollments.module.module_view import ModuleView
 from views.enrollments.student.student_view import StudentView
@@ -30,30 +30,24 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Limkokwing Registry")
         self.setMinimumSize(1100, 750)
 
-        # Central widget
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
 
-        # Main layout
         main_layout = QHBoxLayout(central_widget)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # Navigation panel
         self.navigation = AccordionNavigation()
         self.navigation.navigation_clicked.connect(self.on_navigation_clicked)
         main_layout.addWidget(self.navigation)
 
-        # Vertical separator
         separator = QFrame()
         separator.setFrameShape(QFrame.Shape.VLine)
         separator.setLineWidth(1)
         main_layout.addWidget(separator)
 
-        # Content area with stacked widget
         self.content_stack = QStackedWidget()
 
-        # Welcome page
         welcome_widget = QWidget()
         welcome_layout = QVBoxLayout(welcome_widget)
         welcome_layout.setContentsMargins(40, 40, 40, 40)
@@ -69,7 +63,6 @@ class MainWindow(QMainWindow):
 
         self.content_stack.addWidget(welcome_widget)
 
-        # Initialize all views
         self.views = {
             "sync_students": StudentsView(),
             "sync_structures": StructuresView(),
@@ -80,8 +73,6 @@ class MainWindow(QMainWindow):
             "export_certificates": CertificatesView(),
             "export_reports": ReportsView(),
         }
-
-        # Add all views to stack
         for view in self.views.values():
             self.content_stack.addWidget(view)
 

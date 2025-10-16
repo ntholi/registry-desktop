@@ -124,13 +124,13 @@ class StudentsView(QWidget):
 
         search_layout.addStretch()
 
-        self.pull_button = QPushButton("Pull Selected")
-        self.pull_button.clicked.connect(self.pull_students)
-        self.pull_button.setEnabled(False)
-        self.pull_button.setStyleSheet(
+        self.sync_button = QPushButton("Sync Selected")
+        self.sync_button.clicked.connect(self.sync_students)
+        self.sync_button.setEnabled(False)
+        self.sync_button.setStyleSheet(
             "QPushButton { padding: 8px 16px; font-weight: bold; }"
         )
-        search_layout.addWidget(self.pull_button)
+        search_layout.addWidget(self.sync_button)
 
         layout.addWidget(search_container)
 
@@ -450,7 +450,7 @@ class StudentsView(QWidget):
     def on_row_selection_changed(self):
         selected_count = self.get_selected_count()
         self.selection_label.setText(f"{selected_count} selected")
-        self.pull_button.setEnabled(selected_count > 0)
+        self.sync_button.setEnabled(selected_count > 0)
 
         self.select_all_checkbox.blockSignals(True)
         if selected_count == 0:
@@ -483,8 +483,8 @@ class StudentsView(QWidget):
                         selected_students.append(student_no_item.text())
         return selected_students
 
-    def pull_students(self):
+    def sync_students(self):
         selected_students = self.get_selected_student_numbers()
         if not selected_students:
             return
-        print(f"Pulling {len(selected_students)} students: {selected_students}")
+        print(f"Syncing {len(selected_students)} students: {selected_students}")

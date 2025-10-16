@@ -8,6 +8,6 @@ class StructuresView(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(40, 40, 40, 40)
 
-        label = QLabel("Structures Pull View")
+        label = QLabel("Structures Sync View")
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(label)

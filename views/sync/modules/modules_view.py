@@ -8,6 +8,6 @@ class ModulesView(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(40, 40, 40, 40)
 
-        label = QLabel("Modules Pull View")
+        label = QLabel("Modules Sync View")
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(label)

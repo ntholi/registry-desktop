@@ -1,21 +1,21 @@
 {
   "menu_items": [
     {
-      "title": "Pull",
-      "description": "Copy data from the CMS to the portal",
+      "title": "Sync",
+      "description": "Synchronize data between CMS and the Portal",
       "icon": null,
       "submenu": [
         {
           "title": "Students",
-          "action": "pull_students"
+          "action": "sync_students"
         },
         {
           "title": "Structures",
-          "action": "pull_structures"
+          "action": "sync_structures"
         },
         {
           "title": "Modules",
-          "action": "pull_modules"
+          "action": "sync_modules"
         }
       ]
     },

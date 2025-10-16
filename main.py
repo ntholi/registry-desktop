@@ -19,9 +19,9 @@ from views.enrollments.module.module_view import ModuleView
 from views.enrollments.student.student_view import StudentView
 from views.export.certificates.certificates_view import CertificatesView
 from views.export.reports.reports_view import ReportsView
-from views.pull.modules.modules_view import ModulesView
-from views.pull.structures.structures_view import StructuresView
-from views.pull.students.students_view import StudentsView
+from views.sync.modules.modules_view import ModulesView
+from views.sync.structures.structures_view import StructuresView
+from views.sync.students.students_view import StudentsView
 
 
 class MainWindow(QMainWindow):
@@ -71,9 +71,9 @@ class MainWindow(QMainWindow):
 
         # Initialize all views
         self.views = {
-            "pull_students": StudentsView(),
-            "pull_structures": StructuresView(),
-            "pull_modules": ModulesView(),
+            "sync_students": StudentsView(),
+            "sync_structures": StructuresView(),
+            "sync_modules": ModulesView(),
             "enrollments_approved": ApprovedView(),
             "enrollments_module": ModuleView(),
             "enrollments_student": StudentView(),

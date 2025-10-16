@@ -435,7 +435,11 @@ class StudentsView(QWidget):
             self.load_students()
 
     def on_select_all_changed(self, state):
-        is_checked = state == Qt.CheckState.Checked.value
+        check_state = Qt.CheckState(state)
+        if check_state == Qt.CheckState.PartiallyChecked:
+            return
+
+        is_checked = check_state == Qt.CheckState.Checked
         for row in range(self.table.rowCount()):
             checkbox_widget = self.table.cellWidget(row, 0)
             if checkbox_widget:
@@ -448,12 +452,14 @@ class StudentsView(QWidget):
         self.selection_label.setText(f"{selected_count} selected")
         self.pull_button.setEnabled(selected_count > 0)
 
+        self.select_all_checkbox.blockSignals(True)
         if selected_count == 0:
             self.select_all_checkbox.setCheckState(Qt.CheckState.Unchecked)
         elif selected_count == self.table.rowCount():
             self.select_all_checkbox.setCheckState(Qt.CheckState.Checked)
         else:
             self.select_all_checkbox.setCheckState(Qt.CheckState.PartiallyChecked)
+        self.select_all_checkbox.blockSignals(False)
 
     def get_selected_count(self):
         count = 0

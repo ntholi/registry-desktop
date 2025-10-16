@@ -21,7 +21,7 @@ from features.export.certificates.certificates_view import CertificatesView
 from features.export.reports.reports_view import ReportsView
 from features.sync.modules.modules_view import ModulesView
 from features.sync.structures.structures_view import StructuresView
-from features.sync.students.students_view import StudentsView
+from features.sync.students import StudentsView
 
 
 class MainWindow(QMainWindow):

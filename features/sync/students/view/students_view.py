@@ -2,6 +2,7 @@ from PySide6.QtCore import Qt, QThread, QTimer, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
+    QDialog,
     QFrame,
     QHBoxLayout,
     QHeaderView,
@@ -15,8 +16,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .repository import StudentRepository
-from .service import StudentSyncService
+from ..repository import StudentRepository
+from ..service import StudentSyncService
+from .student_form import StudentFormDialog
 
 
 class PullStudentsWorker(QThread):
@@ -451,6 +453,25 @@ class StudentsView(QWidget):
                         selected_students.append(student_no_item.text())
         return selected_students
 
+    def get_selected_students_data(self):
+        selected_data = []
+        for row in range(self.table.rowCount()):
+            checkbox_widget = self.table.cellWidget(row, 0)
+            if checkbox_widget:
+                checkbox = checkbox_widget.findChild(QCheckBox)
+                if checkbox and checkbox.isChecked():
+                    std_no_item = self.table.item(row, 1)
+                    name_item = self.table.item(row, 2)
+                    gender_item = self.table.item(row, 3)
+                    if std_no_item and name_item and gender_item:
+                        student_data = {
+                            "std_no": std_no_item.text(),
+                            "name": name_item.text(),
+                            "gender": gender_item.text(),
+                        }
+                        selected_data.append(student_data)
+        return selected_data
+
     def pull_students(self):
         selected_students = self.get_selected_student_numbers()
         if not selected_students:
@@ -504,7 +525,37 @@ class StudentsView(QWidget):
         QMessageBox.warning(self, "Error", error_msg)
 
     def push_students(self):
-        selected_students = self.get_selected_student_numbers()
+        selected_students = self.get_selected_students_data()
         if not selected_students:
             return
-        print(f"Pushing {len(selected_students)} students: {selected_students}")
+
+        if len(selected_students) == 1:
+            student_data = selected_students[0]
+            dialog = StudentFormDialog(student_data, self)
+            if dialog.exec():
+                updated_data = dialog.get_updated_data()
+                try:
+                    self.repository.update_student(
+                        updated_data["std_no"],
+                        {
+                            "name": updated_data["name"],
+                            "gender": updated_data["gender"],
+                            "date_of_birth": updated_data["date_of_birth"],
+                        },
+                    )
+                    QMessageBox.information(
+                        self,
+                        "Success",
+                        f"Student {updated_data['std_no']} updated successfully.",
+                    )
+                    self.load_students()
+                except Exception as e:
+                    QMessageBox.critical(
+                        self, "Error", f"Failed to update student: {str(e)}"
+                    )
+        else:
+            QMessageBox.information(
+                self,
+                "Multiple Students",
+                "Please select only one student to update.",
+            )

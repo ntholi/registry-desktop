@@ -1,5 +1,4 @@
 from PySide6.QtCore import Qt, QThread, QTimer, Signal
-from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -15,20 +14,9 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from sqlalchemy import distinct, or_
-from sqlalchemy.orm import Session
 
-from database import (
-    Program,
-    School,
-    Structure,
-    Student,
-    StudentProgram,
-    StudentSemester,
-    get_engine,
-)
-
-from .scraper import scrape_student_data
+from .repository import StudentRepository
+from .service import StudentSyncService
 
 
 class PullStudentsWorker(QThread):
@@ -36,9 +24,10 @@ class PullStudentsWorker(QThread):
     finished = Signal(int, int)
     error = Signal(str)
 
-    def __init__(self, student_numbers):
+    def __init__(self, student_numbers, sync_service):
         super().__init__()
         self.student_numbers = student_numbers
+        self.sync_service = sync_service
         self.should_stop = False
 
     def run(self):
@@ -52,26 +41,10 @@ class PullStudentsWorker(QThread):
             try:
                 self.progress.emit(idx + 1, len(self.student_numbers), std_no)
 
-                scraped_data = scrape_student_data(std_no)
+                was_updated = self.sync_service.pull_student(std_no)
 
-                if scraped_data:
-                    engine = get_engine(use_local=True)
-                    with Session(engine) as session:
-                        student = (
-                            session.query(Student)
-                            .filter(Student.std_no == int(std_no))
-                            .first()
-                        )
-
-                        if student:
-                            for key, value in scraped_data.items():
-                                if value is not None:
-                                    setattr(student, key, value)
-
-                            session.commit()
-                            success_count += 1
-                        else:
-                            failed_count += 1
+                if was_updated:
+                    success_count += 1
                 else:
                     failed_count += 1
 
@@ -100,6 +73,8 @@ class StudentsView(QWidget):
         self.search_timer.setSingleShot(True)
         self.search_timer.timeout.connect(self.perform_search)
         self.pull_worker = None
+        self.repository = StudentRepository()
+        self.sync_service = StudentSyncService(self.repository)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(40, 40, 40, 40)
@@ -273,45 +248,24 @@ class StudentsView(QWidget):
 
     def load_filter_options(self):
         try:
-            engine = get_engine(use_local=True)
-            with Session(engine) as session:
-                schools = (
-                    session.query(School.id, School.name)
-                    .filter(School.is_active == True)
-                    .order_by(School.name)
-                    .all()
+            schools = self.repository.list_active_schools()
+            for school in schools:
+                self.school_filter.addItem(str(school.name))
+                self.school_filter.setItemData(
+                    self.school_filter.count() - 1, school.id
                 )
-                for school in schools:
-                    self.school_filter.addItem(str(school.name))
-                    self.school_filter.setItemData(
-                        self.school_filter.count() - 1, school.id
-                    )
 
-                self.load_programs_for_school(None)
+            self.load_programs_for_school(None)
 
-                terms = (
-                    session.query(distinct(StudentSemester.term))
-                    .filter(StudentSemester.term.isnot(None))
-                    .order_by(StudentSemester.term.desc())
-                    .all()
-                )
-                for term_tuple in terms:
-                    term = term_tuple[0]
-                    self.term_filter.addItem(str(term))
-                    self.term_filter.setItemData(self.term_filter.count() - 1, term)
+            terms = self.repository.list_terms()
+            for term in terms:
+                self.term_filter.addItem(str(term))
+                self.term_filter.setItemData(self.term_filter.count() - 1, term)
 
-                semesters = (
-                    session.query(distinct(StudentSemester.semester_number))
-                    .filter(StudentSemester.semester_number.isnot(None))
-                    .order_by(StudentSemester.semester_number)
-                    .all()
-                )
-                for sem_tuple in semesters:
-                    sem = sem_tuple[0]
-                    self.semester_filter.addItem(f"Semester {sem}")
-                    self.semester_filter.setItemData(
-                        self.semester_filter.count() - 1, sem
-                    )
+            semesters = self.repository.list_semesters()
+            for sem in semesters:
+                self.semester_filter.addItem(f"Semester {sem}")
+                self.semester_filter.setItemData(self.semester_filter.count() - 1, sem)
 
         except Exception as e:
             print(f"Error loading filter options: {str(e)}")
@@ -321,18 +275,13 @@ class StudentsView(QWidget):
             while self.program_filter.count() > 1:
                 self.program_filter.removeItem(1)
 
-            engine = get_engine(use_local=True)
-            with Session(engine) as session:
-                q = session.query(Program.id, Program.name)
-                if school_id:
-                    q = q.filter(Program.school_id == school_id)
-                programs = q.order_by(Program.name).all()
+            programs = self.repository.list_programs(school_id)
 
-                for program in programs:
-                    self.program_filter.addItem(str(program.name))
-                    self.program_filter.setItemData(
-                        self.program_filter.count() - 1, program.id
-                    )
+            for program in programs:
+                self.program_filter.addItem(str(program.name))
+                self.program_filter.setItemData(
+                    self.program_filter.count() - 1, program.id
+                )
         except Exception as e:
             print(f"Error loading programs: {str(e)}")
 
@@ -385,94 +334,38 @@ class StudentsView(QWidget):
 
     def load_students(self):
         try:
-            engine = get_engine(use_local=True)
-            with Session(engine) as session:
-                offset = (self.current_page - 1) * self.page_size
+            students, total = self.repository.fetch_students(
+                school_id=self.selected_school_id,
+                program_id=self.selected_program_id,
+                term=self.selected_term,
+                semester_number=self.selected_semester_number,
+                search_query=self.search_query,
+                page=self.current_page,
+                page_size=self.page_size,
+            )
 
-                query = (
-                    session.query(
-                        Student.std_no,
-                        Student.name,
-                        Student.gender,
-                        School.code.label("faculty_code"),
-                        Program.name.label("program_name"),
-                    )
-                    .outerjoin(
-                        StudentProgram,
-                        (Student.std_no == StudentProgram.std_no)
-                        & (StudentProgram.status == "Active"),
-                    )
-                    .outerjoin(Structure, StudentProgram.structure_id == Structure.id)
-                    .outerjoin(Program, Structure.program_id == Program.id)
-                    .outerjoin(School, Program.school_id == School.id)
-                    .distinct()
-                )
+            self.total_students = total
+            self.table.setRowCount(len(students))
 
-                if self.selected_school_id:
-                    query = query.filter(Program.school_id == self.selected_school_id)
+            for row, student in enumerate(students):
+                checkbox = QCheckBox()
+                checkbox.setStyleSheet("margin-left: 12px;")
+                checkbox.stateChanged.connect(self.on_row_selection_changed)
+                checkbox_widget = QWidget()
+                checkbox_layout = QHBoxLayout(checkbox_widget)
+                checkbox_layout.addWidget(checkbox)
+                checkbox_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                checkbox_layout.setContentsMargins(0, 0, 0, 0)
+                self.table.setCellWidget(row, 0, checkbox_widget)
 
-                if self.selected_program_id:
-                    query = query.filter(Program.id == self.selected_program_id)
+                self.table.setItem(row, 1, QTableWidgetItem(student.std_no))
+                self.table.setItem(row, 2, QTableWidgetItem(student.name or ""))
+                self.table.setItem(row, 3, QTableWidgetItem(student.gender or ""))
+                self.table.setItem(row, 4, QTableWidgetItem(student.faculty_code or ""))
+                self.table.setItem(row, 5, QTableWidgetItem(student.program_name or ""))
 
-                if self.selected_term or self.selected_semester_number:
-                    query = query.join(
-                        StudentSemester,
-                        StudentProgram.id == StudentSemester.student_program_id,
-                    )
-
-                    if self.selected_term:
-                        query = query.filter(StudentSemester.term == self.selected_term)
-
-                    if self.selected_semester_number:
-                        query = query.filter(
-                            StudentSemester.semester_number
-                            == self.selected_semester_number
-                        )
-
-                if self.search_query:
-                    search_term = f"%{self.search_query}%"
-                    query = query.filter(
-                        or_(
-                            Student.std_no.like(search_term),
-                            Student.name.like(search_term),
-                            Student.national_id.like(search_term),
-                        )
-                    )
-
-                query = query.order_by(Student.std_no.desc())
-                self.total_students = query.count()
-
-                students = query.offset(offset).limit(self.page_size).all()
-
-                self.table.setRowCount(len(students))
-
-                for row, student in enumerate(students):
-                    checkbox = QCheckBox()
-                    checkbox.setStyleSheet("margin-left: 12px;")
-                    checkbox.stateChanged.connect(self.on_row_selection_changed)
-                    checkbox_widget = QWidget()
-                    checkbox_layout = QHBoxLayout(checkbox_widget)
-                    checkbox_layout.addWidget(checkbox)
-                    checkbox_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                    checkbox_layout.setContentsMargins(0, 0, 0, 0)
-                    self.table.setCellWidget(row, 0, checkbox_widget)
-
-                    self.table.setItem(row, 1, QTableWidgetItem(str(student.std_no)))
-                    self.table.setItem(
-                        row, 2, QTableWidgetItem(str(student.name or ""))
-                    )
-                    self.table.setItem(
-                        row, 3, QTableWidgetItem(str(student.gender or ""))
-                    )
-                    self.table.setItem(
-                        row, 4, QTableWidgetItem(str(student.faculty_code or ""))
-                    )
-                    self.table.setItem(
-                        row, 5, QTableWidgetItem(str(student.program_name or ""))
-                    )
-
-                self.update_pagination_controls()
-                self.update_total_label()
+            self.update_pagination_controls()
+            self.update_total_label()
 
         except Exception as e:
             print(f"Error loading students: {str(e)}")
@@ -578,7 +471,7 @@ class StudentsView(QWidget):
         self.push_button.setEnabled(False)
         self.progress_label.show()
 
-        self.pull_worker = PullStudentsWorker(selected_students)
+        self.pull_worker = PullStudentsWorker(selected_students, self.sync_service)
         self.pull_worker.progress.connect(self.on_pull_progress)
         self.pull_worker.finished.connect(self.on_pull_finished)
         self.pull_worker.error.connect(self.on_pull_error)

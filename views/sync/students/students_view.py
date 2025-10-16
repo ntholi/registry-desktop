@@ -1,4 +1,4 @@
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QThread, QTimer, Signal
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -27,6 +28,62 @@ from database import (
     get_engine,
 )
 
+from .scraper import scrape_student_data
+
+
+class PullStudentsWorker(QThread):
+    progress = Signal(int, int, str)
+    finished = Signal(int, int)
+    error = Signal(str)
+
+    def __init__(self, student_numbers):
+        super().__init__()
+        self.student_numbers = student_numbers
+        self.should_stop = False
+
+    def run(self):
+        success_count = 0
+        failed_count = 0
+
+        for idx, std_no in enumerate(self.student_numbers):
+            if self.should_stop:
+                break
+
+            try:
+                self.progress.emit(idx + 1, len(self.student_numbers), std_no)
+
+                scraped_data = scrape_student_data(std_no)
+
+                if scraped_data:
+                    engine = get_engine(use_local=True)
+                    with Session(engine) as session:
+                        student = (
+                            session.query(Student)
+                            .filter(Student.std_no == int(std_no))
+                            .first()
+                        )
+
+                        if student:
+                            for key, value in scraped_data.items():
+                                if value is not None:
+                                    setattr(student, key, value)
+
+                            session.commit()
+                            success_count += 1
+                        else:
+                            failed_count += 1
+                else:
+                    failed_count += 1
+
+            except Exception as e:
+                self.error.emit(f"Error pulling student {std_no}: {str(e)}")
+                failed_count += 1
+
+        self.finished.emit(success_count, failed_count)
+
+    def stop(self):
+        self.should_stop = True
+
 
 class StudentsView(QWidget):
     def __init__(self):
@@ -42,6 +99,7 @@ class StudentsView(QWidget):
         self.search_timer = QTimer()
         self.search_timer.setSingleShot(True)
         self.search_timer.timeout.connect(self.perform_search)
+        self.pull_worker = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(40, 40, 40, 40)
@@ -155,6 +213,13 @@ class StudentsView(QWidget):
         self.selection_label = QLabel("0 selected")
         self.selection_label.setStyleSheet("color: #666; margin-left: 10px;")
         selection_layout.addWidget(self.selection_label)
+
+        self.progress_label = QLabel("")
+        self.progress_label.setStyleSheet(
+            "color: #0066cc; margin-left: 20px; font-weight: bold;"
+        )
+        self.progress_label.hide()
+        selection_layout.addWidget(self.progress_label)
 
         selection_layout.addStretch()
 
@@ -497,7 +562,53 @@ class StudentsView(QWidget):
         selected_students = self.get_selected_student_numbers()
         if not selected_students:
             return
-        print(f"Pulling {len(selected_students)} students: {selected_students}")
+
+        reply = QMessageBox.question(
+            self,
+            "Confirm Pull",
+            f"Pull data for {len(selected_students)} student(s) from the web?\n\nThis will update the local database with data from the registry system.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        self.pull_button.setEnabled(False)
+        self.push_button.setEnabled(False)
+        self.progress_label.show()
+
+        self.pull_worker = PullStudentsWorker(selected_students)
+        self.pull_worker.progress.connect(self.on_pull_progress)
+        self.pull_worker.finished.connect(self.on_pull_finished)
+        self.pull_worker.error.connect(self.on_pull_error)
+        self.pull_worker.start()
+
+    def on_pull_progress(self, current, total, std_no):
+        self.progress_label.setText(f"Pulling student {current}/{total}: {std_no}...")
+
+    def on_pull_finished(self, success_count, failed_count):
+        self.progress_label.hide()
+        self.pull_button.setEnabled(True)
+        self.push_button.setEnabled(True)
+
+        if failed_count > 0:
+            QMessageBox.information(
+                self,
+                "Pull Complete",
+                f"Successfully pulled {success_count} student(s).\n{failed_count} failed.",
+            )
+        else:
+            QMessageBox.information(
+                self,
+                "Pull Complete",
+                f"Successfully pulled data for {success_count} student(s).",
+            )
+
+        self.load_students()
+
+    def on_pull_error(self, error_msg):
+        QMessageBox.warning(self, "Error", error_msg)
 
     def push_students(self):
         selected_students = self.get_selected_student_numbers()

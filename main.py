@@ -14,14 +14,14 @@ from PySide6.QtWidgets import (
 )
 
 from base.nav import AccordionNavigation
-from views.enrollments.approved.approved_view import ApprovedView
-from views.enrollments.module.module_view import ModuleView
-from views.enrollments.student.student_view import StudentView
-from views.export.certificates.certificates_view import CertificatesView
-from views.export.reports.reports_view import ReportsView
-from views.sync.modules.modules_view import ModulesView
-from views.sync.structures.structures_view import StructuresView
-from views.sync.students.students_view import StudentsView
+from features.enrollments.approved.approved_view import ApprovedView
+from features.enrollments.module.module_view import ModuleView
+from features.enrollments.student.student_view import StudentView
+from features.export.certificates.certificates_view import CertificatesView
+from features.export.reports.reports_view import ReportsView
+from features.sync.modules.modules_view import ModulesView
+from features.sync.structures.structures_view import StructuresView
+from features.sync.students.students_view import StudentsView
 
 
 class MainWindow(QMainWindow):

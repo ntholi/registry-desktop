@@ -535,20 +535,25 @@ class StudentsView(QWidget):
             if dialog.exec():
                 updated_data = dialog.get_updated_data()
                 try:
-                    self.repository.update_student(
+                    success, message = self.sync_service.push_student(
                         updated_data["std_no"],
                         {
                             "name": updated_data["name"],
                             "gender": updated_data["gender"],
                             "date_of_birth": updated_data["date_of_birth"],
+                            "email": updated_data["email"],
                         },
                     )
-                    QMessageBox.information(
-                        self,
-                        "Success",
-                        f"Student {updated_data['std_no']} updated successfully.",
-                    )
-                    self.load_students()
+
+                    if success:
+                        QMessageBox.information(
+                            self,
+                            "Success",
+                            f"Student {updated_data['std_no']} updated successfully.",
+                        )
+                        self.load_students()
+                    else:
+                        QMessageBox.critical(self, "Update Failed", message)
                 except Exception as e:
                     QMessageBox.critical(
                         self, "Error", f"Failed to update student: {str(e)}"

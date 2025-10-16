@@ -13,3 +13,4 @@ wheels/
 # Database
 local.db
 /samples
+/session.pkl

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Callable, Optional
 
 from bs4 import BeautifulSoup
 
@@ -24,10 +24,18 @@ class StudentSyncService:
             return False
         return self._repository.update_student(student_number, scraped_data)
 
-    def push_student(self, student_number: str, data: dict) -> tuple[bool, str]:
+    def push_student(
+        self,
+        student_number: str,
+        data: dict,
+        progress_callback: Optional[Callable[[str], None]] = None,
+    ) -> tuple[bool, str]:
         url = f"{BASE_URL}/r_studentedit.php?StudentID={student_number}"
 
         try:
+            if progress_callback:
+                progress_callback(f"Fetching edit form for {student_number}...")
+
             response = self._browser.fetch(url)
             page = BeautifulSoup(response.text, "lxml")
             form = page.select_one("form#fr_studentedit")
@@ -35,6 +43,9 @@ class StudentSyncService:
             if not form:
                 logger.error(f"Could not find edit form for student {student_number}")
                 return False, "Could not find edit form"
+
+            if progress_callback:
+                progress_callback(f"Preparing data for {student_number}...")
 
             form_data = get_form_payload(form)
 
@@ -60,11 +71,17 @@ class StudentSyncService:
             if "email" in data:
                 form_data["x_StdEmail"] = data["email"]
 
+            if progress_callback:
+                progress_callback(f"Pushing {student_number} to website...")
+
             logger.info(f"Posting update for student {student_number}")
             post_response = self._browser.post(url, form_data)
 
             if "Successful" in post_response.text:
                 logger.info(f"Successfully posted student {student_number} to web")
+
+                if progress_callback:
+                    progress_callback(f"Saving {student_number} to database...")
 
                 update_success = self._repository.update_student(student_number, data)
                 if update_success:

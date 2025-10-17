@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 )
 
 from base.nav import AccordionNavigation
+from base.status.status_bar import StatusBar
 from features.enrollments.approved.approved_view import ApprovedView
 from features.enrollments.module.module_view import ModuleView
 from features.enrollments.student.student_view import StudentView
@@ -33,7 +34,11 @@ class MainWindow(QMainWindow):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
 
-        main_layout = QHBoxLayout(central_widget)
+        root_layout = QVBoxLayout(central_widget)
+        root_layout.setContentsMargins(0, 0, 0, 0)
+        root_layout.setSpacing(0)
+
+        main_layout = QHBoxLayout()
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
@@ -63,8 +68,10 @@ class MainWindow(QMainWindow):
 
         self.content_stack.addWidget(welcome_widget)
 
+        self.status_bar = StatusBar()
+
         self.views = {
-            "sync_students": StudentsView(),
+            "sync_students": StudentsView(self.status_bar),
             "sync_structures": StructuresView(),
             "sync_modules": ModulesView(),
             "enrollments_approved": ApprovedView(),
@@ -77,6 +84,15 @@ class MainWindow(QMainWindow):
             self.content_stack.addWidget(view)
 
         main_layout.addWidget(self.content_stack, 1)
+
+        root_layout.addLayout(main_layout, 1)
+
+        separator = QFrame()
+        separator.setFrameShape(QFrame.Shape.HLine)
+        separator.setLineWidth(1)
+        root_layout.addWidget(separator)
+
+        root_layout.addWidget(self.status_bar)
 
     def on_navigation_clicked(self, action):
         """Handle navigation item clicks"""

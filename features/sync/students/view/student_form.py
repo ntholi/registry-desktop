@@ -17,9 +17,10 @@ from PySide6.QtWidgets import (
 class StudentFormDialog(QDialog):
     student_updated = Signal(dict)
 
-    def __init__(self, student_data, parent=None):
+    def __init__(self, student_data, parent=None, status_bar=None):
         super().__init__(parent)
         self.student_data = student_data
+        self.status_bar = status_bar
         self.setWindowTitle(f"Update Student: {student_data.get('std_no', '')}")
         self.setModal(True)
         self.setMinimumWidth(400)

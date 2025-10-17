@@ -22,7 +22,7 @@ from .student_form import StudentFormDialog
 
 
 class PullStudentsWorker(QThread):
-    progress = Signal(int, int, str)
+    progress = Signal(str, int, int)
     finished = Signal(int, int)
     error = Signal(str)
 
@@ -35,18 +35,34 @@ class PullStudentsWorker(QThread):
     def run(self):
         success_count = 0
         failed_count = 0
+        total_steps = len(self.student_numbers) * 3
 
         for idx, std_no in enumerate(self.student_numbers):
             if self.should_stop:
                 break
 
             try:
-                self.progress.emit(idx + 1, len(self.student_numbers), std_no)
+                current_step = idx * 3
+
+                self.progress.emit(
+                    f"Pulling student details for {std_no}...",
+                    current_step + 1,
+                    total_steps,
+                )
+
+                self.progress.emit(
+                    f"Pulling student info for {std_no}...",
+                    current_step + 2,
+                    total_steps,
+                )
 
                 was_updated = self.sync_service.pull_student(std_no)
 
                 if was_updated:
                     success_count += 1
+                    self.progress.emit(
+                        f"Saving {std_no} to database...", current_step + 3, total_steps
+                    )
                 else:
                     failed_count += 1
 
@@ -60,9 +76,47 @@ class PullStudentsWorker(QThread):
         self.should_stop = True
 
 
-class StudentsView(QWidget):
-    def __init__(self):
+class PushStudentsWorker(QThread):
+    progress = Signal(str, int, int)
+    finished = Signal(bool, str)
+    error = Signal(str)
+
+    def __init__(self, student_number, student_data, sync_service):
         super().__init__()
+        self.student_number = student_number
+        self.student_data = student_data
+        self.sync_service = sync_service
+        self.should_stop = False
+        self.current_step = 0
+        self.total_steps = 4
+
+    def emit_progress(self, message: str):
+        self.current_step += 1
+        self.progress.emit(message, self.current_step, self.total_steps)
+
+    def run(self):
+        try:
+            if self.should_stop:
+                return
+
+            success, message = self.sync_service.push_student(
+                self.student_number, self.student_data, self.emit_progress
+            )
+
+            self.finished.emit(success, message)
+
+        except Exception as e:
+            self.error.emit(f"Error pushing student {self.student_number}: {str(e)}")
+            self.finished.emit(False, str(e))
+
+    def stop(self):
+        self.should_stop = True
+
+
+class StudentsView(QWidget):
+    def __init__(self, status_bar=None):
+        super().__init__()
+        self.status_bar = status_bar
         self.current_page = 1
         self.page_size = 30
         self.total_students = 0
@@ -75,6 +129,7 @@ class StudentsView(QWidget):
         self.search_timer.setSingleShot(True)
         self.search_timer.timeout.connect(self.perform_search)
         self.pull_worker = None
+        self.push_worker = None
         self.repository = StudentRepository()
         self.sync_service = StudentSyncService(self.repository)
 
@@ -190,13 +245,6 @@ class StudentsView(QWidget):
         self.selection_label = QLabel("0 selected")
         self.selection_label.setStyleSheet("color: #666; margin-left: 10px;")
         selection_layout.addWidget(self.selection_label)
-
-        self.progress_label = QLabel("")
-        self.progress_label.setStyleSheet(
-            "color: #0066cc; margin-left: 20px; font-weight: bold;"
-        )
-        self.progress_label.hide()
-        selection_layout.addWidget(self.progress_label)
 
         selection_layout.addStretch()
 
@@ -490,7 +538,6 @@ class StudentsView(QWidget):
 
         self.pull_button.setEnabled(False)
         self.push_button.setEnabled(False)
-        self.progress_label.show()
 
         self.pull_worker = PullStudentsWorker(selected_students, self.sync_service)
         self.pull_worker.progress.connect(self.on_pull_progress)
@@ -498,11 +545,13 @@ class StudentsView(QWidget):
         self.pull_worker.error.connect(self.on_pull_error)
         self.pull_worker.start()
 
-    def on_pull_progress(self, current, total, std_no):
-        self.progress_label.setText(f"Pulling student {current}/{total}: {std_no}...")
+    def on_pull_progress(self, message, current, total):
+        if self.status_bar:
+            self.status_bar.show_progress(message, current, total)
 
     def on_pull_finished(self, success_count, failed_count):
-        self.progress_label.hide()
+        if self.status_bar:
+            self.status_bar.clear()
         self.pull_button.setEnabled(True)
         self.push_button.setEnabled(True)
 
@@ -531,36 +580,55 @@ class StudentsView(QWidget):
 
         if len(selected_students) == 1:
             student_data = selected_students[0]
-            dialog = StudentFormDialog(student_data, self)
+            dialog = StudentFormDialog(student_data, self, self.status_bar)
             if dialog.exec():
                 updated_data = dialog.get_updated_data()
-                try:
-                    success, message = self.sync_service.push_student(
-                        updated_data["std_no"],
-                        {
-                            "name": updated_data["name"],
-                            "gender": updated_data["gender"],
-                            "date_of_birth": updated_data["date_of_birth"],
-                            "email": updated_data["email"],
-                        },
-                    )
 
-                    if success:
-                        QMessageBox.information(
-                            self,
-                            "Success",
-                            f"Student {updated_data['std_no']} updated successfully.",
-                        )
-                        self.load_students()
-                    else:
-                        QMessageBox.critical(self, "Update Failed", message)
-                except Exception as e:
-                    QMessageBox.critical(
-                        self, "Error", f"Failed to update student: {str(e)}"
-                    )
+                self.pull_button.setEnabled(False)
+                self.push_button.setEnabled(False)
+
+                self.push_worker = PushStudentsWorker(
+                    updated_data["std_no"],
+                    {
+                        "name": updated_data["name"],
+                        "gender": updated_data["gender"],
+                        "date_of_birth": updated_data["date_of_birth"],
+                        "email": updated_data["email"],
+                    },
+                    self.sync_service,
+                )
+                self.push_worker.progress.connect(self.on_push_progress)
+                self.push_worker.finished.connect(self.on_push_finished)
+                self.push_worker.error.connect(self.on_push_error)
+                self.push_worker.start()
         else:
             QMessageBox.information(
                 self,
                 "Multiple Students",
                 "Please select only one student to update.",
             )
+
+    def on_push_progress(self, message, current, total):
+        if self.status_bar:
+            self.status_bar.show_progress(message, current, total)
+
+    def on_push_finished(self, success, message):
+        if self.status_bar:
+            self.status_bar.clear()
+        self.pull_button.setEnabled(True)
+        self.push_button.setEnabled(True)
+
+        if success:
+            QMessageBox.information(
+                self,
+                "Success",
+                f"Student updated successfully.",
+            )
+            self.load_students()
+        else:
+            QMessageBox.critical(self, "Update Failed", message)
+
+    def on_push_error(self, error_msg):
+        if self.status_bar:
+            self.status_bar.clear()
+        QMessageBox.warning(self, "Error", error_msg)

@@ -140,12 +140,17 @@ class StudentsView(QWidget):
 
         title = QLabel("Students")
         title_font = QFont()
-        title_font.setPointSize(24)
+        title_font.setPointSize(18)
         title_font.setBold(True)
         title.setFont(title_font)
         layout.addWidget(title)
 
-        layout.addSpacing(30)
+        title_separator = QFrame()
+        title_separator.setFrameShape(QFrame.Shape.HLine)
+        title_separator.setFrameShadow(QFrame.Shadow.Sunken)
+        layout.addWidget(title_separator)
+
+        layout.addSpacing(20)
 
         filters_label = QLabel("Filters")
         filters_label_font = QFont()
@@ -198,31 +203,13 @@ class StudentsView(QWidget):
 
         layout.addSpacing(20)
 
-        separator1 = QFrame()
-        separator1.setFrameShape(QFrame.Shape.HLine)
-        separator1.setFrameShadow(QFrame.Shadow.Sunken)
-        layout.addWidget(separator1)
-
-        layout.addSpacing(20)
-
-        search_tools_label = QLabel("Search & Actions")
-        search_tools_label_font = QFont()
-        search_tools_label_font.setPointSize(12)
-        search_tools_label_font.setBold(True)
-        search_tools_label.setFont(search_tools_label_font)
-        layout.addWidget(search_tools_label)
-
-        layout.addSpacing(10)
-
         search_container = QWidget()
         search_layout = QHBoxLayout(search_container)
         search_layout.setContentsMargins(0, 0, 0, 0)
         search_layout.setSpacing(10)
 
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText(
-            "Search by student number, name, or national ID..."
-        )
+        self.search_input.setPlaceholderText("Search by student number, name...")
         self.search_input.textChanged.connect(self.on_search_changed)
         self.search_input.setMinimumWidth(400)
         search_layout.addWidget(self.search_input)
@@ -254,10 +241,9 @@ class StudentsView(QWidget):
 
         layout.addSpacing(15)
 
-        separator2 = QFrame()
-        separator2.setFrameShape(QFrame.Shape.HLine)
-        separator2.setFrameShadow(QFrame.Shadow.Sunken)
-        layout.addWidget(separator2)
+        separator1 = QFrame()
+        separator1.setFrameShape(QFrame.Shape.HLine)
+        layout.addWidget(separator1)
 
         layout.addSpacing(15)
 

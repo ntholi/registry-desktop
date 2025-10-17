@@ -12,7 +12,6 @@ class StatusBar(QWidget):
         layout.setSpacing(10)
 
         self.message_label = QLabel()
-        self.message_label.setStyleSheet("color: #666;")
         layout.addWidget(self.message_label)
 
         layout.addStretch()

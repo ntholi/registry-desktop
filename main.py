@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from base.menu_bar import AppMenuBar
 from base.nav import AccordionNavigation
 from base.status.status_bar import StatusBar
 from features.enrollments.approved.approved_view import ApprovedView
@@ -30,6 +31,8 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("Limkokwing Registry")
         self.setMinimumSize(1100, 750)
+
+        self.menu_bar = AppMenuBar(self)
 
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -95,7 +98,6 @@ class MainWindow(QMainWindow):
         root_layout.addWidget(self.status_bar)
 
     def on_navigation_clicked(self, action):
-        """Handle navigation item clicks"""
         if action in self.views:
             view = self.views[action]
             self.content_stack.setCurrentWidget(view)

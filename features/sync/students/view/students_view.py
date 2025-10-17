@@ -1,4 +1,5 @@
 from PySide6.QtCore import Qt, QThread, QTimer, Signal
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -141,13 +142,18 @@ class StudentsView(QWidget):
         header_layout.setSpacing(20)
 
         title = QLabel("Students")
-        title.setStyleSheet("font-size: 24px; font-weight: bold;")
+        title_font = QFont()
+        title_font.setPointSize(24)
+        title_font.setBold(True)
+        title.setFont(title_font)
         header_layout.addWidget(title)
 
         header_layout.addStretch()
 
         self.total_label = QLabel()
-        self.total_label.setStyleSheet("font-size: 14px; color: #666;")
+        total_font = QFont()
+        total_font.setPointSize(14)
+        self.total_label.setFont(total_font)
         header_layout.addWidget(self.total_label)
 
         layout.addLayout(header_layout)
@@ -242,8 +248,9 @@ class StudentsView(QWidget):
         self.select_all_checkbox.stateChanged.connect(self.on_select_all_changed)
         selection_layout.addWidget(self.select_all_checkbox)
 
+        selection_layout.addSpacing(10)
+
         self.selection_label = QLabel("0 selected")
-        self.selection_label.setStyleSheet("color: #666; margin-left: 10px;")
         selection_layout.addWidget(self.selection_label)
 
         selection_layout.addStretch()
@@ -275,6 +282,7 @@ class StudentsView(QWidget):
         layout.addWidget(self.table)
 
         pagination_layout = QHBoxLayout()
+        pagination_layout.setSpacing(15)
         pagination_layout.addStretch()
 
         self.prev_button = QPushButton("Previous")
@@ -283,7 +291,6 @@ class StudentsView(QWidget):
         pagination_layout.addWidget(self.prev_button)
 
         self.page_label = QLabel()
-        self.page_label.setStyleSheet("margin: 0 15px;")
         pagination_layout.addWidget(self.page_label)
 
         self.next_button = QPushButton("Next")
@@ -399,13 +406,12 @@ class StudentsView(QWidget):
 
             for row, student in enumerate(students):
                 checkbox = QCheckBox()
-                checkbox.setStyleSheet("margin-left: 12px;")
                 checkbox.stateChanged.connect(self.on_row_selection_changed)
                 checkbox_widget = QWidget()
                 checkbox_layout = QHBoxLayout(checkbox_widget)
                 checkbox_layout.addWidget(checkbox)
                 checkbox_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                checkbox_layout.setContentsMargins(0, 0, 0, 0)
+                checkbox_layout.setContentsMargins(12, 0, 0, 0)
                 self.table.setCellWidget(row, 0, checkbox_widget)
 
                 self.table.setItem(row, 1, QTableWidgetItem(student.std_no))

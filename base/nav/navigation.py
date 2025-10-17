@@ -31,7 +31,7 @@ class AccordionItem(QWidget):
     def setup_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
+        layout.setSpacing(2)
 
         # Header container
         self.header_btn = QPushButton()
@@ -75,13 +75,12 @@ class AccordionItem(QWidget):
         self.submenu_container = QWidget()
         self.submenu_layout = QVBoxLayout(self.submenu_container)
         self.submenu_layout.setContentsMargins(0, 0, 0, 0)
-        self.submenu_layout.setSpacing(0)
+        self.submenu_layout.setSpacing(2)
 
         # Add submenu items
         for item in self.submenu_items:
             submenu_btn = QPushButton(item["title"])
             submenu_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-            submenu_btn.setFlat(True)
             submenu_btn.clicked.connect(
                 lambda checked=False, action=item["action"]: self.on_submenu_clicked(
                     action
@@ -95,12 +94,7 @@ class AccordionItem(QWidget):
             submenu_btn.setSizePolicy(
                 QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
             )
-            submenu_btn.setMinimumHeight(36)
-
-            # Use stylesheet for padding
-            submenu_btn.setStyleSheet(
-                "QPushButton { text-align: left; padding-left: 32px; }"
-            )
+            submenu_btn.setMinimumHeight(32)
 
             self.submenu_layout.addWidget(submenu_btn)
 
@@ -197,7 +191,7 @@ class AccordionNavigation(QWidget):
         self.accordion_container = QWidget()
         self.accordion_layout = QVBoxLayout(self.accordion_container)
         self.accordion_layout.setContentsMargins(0, 0, 0, 0)
-        self.accordion_layout.setSpacing(1)
+        self.accordion_layout.setSpacing(2)
         self.accordion_layout.addStretch()
 
         scroll_area.setWidget(self.accordion_container)

@@ -136,35 +136,30 @@ class StudentsView(QWidget):
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(40, 40, 40, 40)
-        layout.setSpacing(20)
-
-        header_layout = QHBoxLayout()
-        header_layout.setSpacing(20)
+        layout.setSpacing(0)
 
         title = QLabel("Students")
         title_font = QFont()
         title_font.setPointSize(24)
         title_font.setBold(True)
         title.setFont(title_font)
-        header_layout.addWidget(title)
+        layout.addWidget(title)
 
-        header_layout.addStretch()
+        layout.addSpacing(30)
 
-        self.total_label = QLabel()
-        total_font = QFont()
-        total_font.setPointSize(14)
-        self.total_label.setFont(total_font)
-        header_layout.addWidget(self.total_label)
+        filters_label = QLabel("Filters")
+        filters_label_font = QFont()
+        filters_label_font.setPointSize(12)
+        filters_label_font.setBold(True)
+        filters_label.setFont(filters_label_font)
+        layout.addWidget(filters_label)
 
-        layout.addLayout(header_layout)
+        layout.addSpacing(10)
 
-        filters_container = QFrame()
+        filters_container = QWidget()
         filters_layout = QHBoxLayout(filters_container)
         filters_layout.setContentsMargins(0, 0, 0, 0)
         filters_layout.setSpacing(10)
-
-        filters_label = QLabel("Filters:")
-        filters_layout.addWidget(filters_label)
 
         self.school_filter = QComboBox()
         self.school_filter.addItem("All Schools", None)
@@ -190,21 +185,39 @@ class StudentsView(QWidget):
         self.semester_filter.setMinimumWidth(150)
         filters_layout.addWidget(self.semester_filter)
 
-        self.clear_filters_button = QPushButton("Clear Filters")
-        self.clear_filters_button.clicked.connect(self.clear_filters)
-        filters_layout.addWidget(self.clear_filters_button)
-
         filters_layout.addStretch()
+
+        self.records_label = QLabel()
+        records_font = QFont()
+        records_font.setPointSize(10)
+        records_font.setBold(True)
+        self.records_label.setFont(records_font)
+        filters_layout.addWidget(self.records_label)
 
         layout.addWidget(filters_container)
 
-        search_container = QFrame()
+        layout.addSpacing(20)
+
+        separator1 = QFrame()
+        separator1.setFrameShape(QFrame.Shape.HLine)
+        separator1.setFrameShadow(QFrame.Shadow.Sunken)
+        layout.addWidget(separator1)
+
+        layout.addSpacing(20)
+
+        search_tools_label = QLabel("Search & Actions")
+        search_tools_label_font = QFont()
+        search_tools_label_font.setPointSize(12)
+        search_tools_label_font.setBold(True)
+        search_tools_label.setFont(search_tools_label_font)
+        layout.addWidget(search_tools_label)
+
+        layout.addSpacing(10)
+
+        search_container = QWidget()
         search_layout = QHBoxLayout(search_container)
         search_layout.setContentsMargins(0, 0, 0, 0)
         search_layout.setSpacing(10)
-
-        search_label = QLabel("Search:")
-        search_layout.addWidget(search_label)
 
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText(
@@ -239,7 +252,16 @@ class StudentsView(QWidget):
 
         layout.addWidget(search_container)
 
-        selection_container = QFrame()
+        layout.addSpacing(15)
+
+        separator2 = QFrame()
+        separator2.setFrameShape(QFrame.Shape.HLine)
+        separator2.setFrameShadow(QFrame.Shadow.Sunken)
+        layout.addWidget(separator2)
+
+        layout.addSpacing(15)
+
+        selection_container = QWidget()
         selection_layout = QHBoxLayout(selection_container)
         selection_layout.setContentsMargins(0, 0, 0, 0)
         selection_layout.setSpacing(10)
@@ -256,6 +278,8 @@ class StudentsView(QWidget):
         selection_layout.addStretch()
 
         layout.addWidget(selection_container)
+
+        layout.addSpacing(10)
 
         self.table = QTableWidget()
         self.table.setColumnCount(6)
@@ -279,7 +303,10 @@ class StudentsView(QWidget):
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setAlternatingRowColors(True)
+        self.table.setFrameStyle(QFrame.Shape.Box)
         layout.addWidget(self.table)
+
+        layout.addSpacing(10)
 
         pagination_layout = QHBoxLayout()
         pagination_layout.setSpacing(15)
@@ -427,16 +454,12 @@ class StudentsView(QWidget):
             print(f"Error loading students: {str(e)}")
             self.table.setRowCount(0)
             self.page_label.setText("No data available")
-            self.total_label.setText("")
+            self.records_label.setText("")
 
     def update_total_label(self):
-        if self.search_query:
-            self.total_label.setText(
-                f"Found {self.total_students} student{'s' if self.total_students != 1 else ''}"
-            )
-        else:
-            self.total_label.setText(
-                f"Total: {self.total_students} student{'s' if self.total_students != 1 else ''}"
+        if self.total_students > 0:
+            self.records_label.setText(
+                f"{self.total_students} Record{'s' if self.total_students != 1 else ''}"
             )
 
     def update_pagination_controls(self):

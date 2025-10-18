@@ -23,8 +23,10 @@ class StudentRow:
     std_no: str
     name: Optional[str]
     gender: Optional[str]
+    date_of_birth: Optional[str]
     faculty_code: Optional[str]
     program_name: Optional[str]
+    phone1: Optional[str]
 
 
 class StudentRepository:
@@ -90,8 +92,10 @@ class StudentRepository:
                     Student.std_no,
                     Student.name,
                     Student.gender,
+                    Student.date_of_birth,
                     School.code.label("faculty_code"),
                     Program.name.label("program_name"),
+                    Student.phone1,
                 )
                 .outerjoin(
                     StudentProgram,
@@ -141,8 +145,10 @@ class StudentRepository:
                 std_no=str(result.std_no),
                 name=result.name,
                 gender=result.gender,
+                date_of_birth=result.date_of_birth,
                 faculty_code=result.faculty_code,
                 program_name=result.program_name,
+                phone1=result.phone1,
             )
             for result in results
         ]

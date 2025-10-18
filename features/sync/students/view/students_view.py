@@ -1,4 +1,5 @@
 import threading
+from datetime import datetime
 
 import wx
 import wx.dataview as dv
@@ -237,8 +238,10 @@ class StudentsView(wx.Panel):
         self.list_ctrl.AppendColumn("Student No", width=150)
         self.list_ctrl.AppendColumn("Name", width=250)
         self.list_ctrl.AppendColumn("Gender", width=100)
-        self.list_ctrl.AppendColumn("Faculty Code", width=120)
-        self.list_ctrl.AppendColumn("Program Name", width=200)
+        self.list_ctrl.AppendColumn("Age", width=60)
+        self.list_ctrl.AppendColumn("Faculty", width=80)
+        self.list_ctrl.AppendColumn("Program", width=280)
+        self.list_ctrl.AppendColumn("Phone", width=150)
 
         self.list_ctrl.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.on_list_item_clicked)
         self.list_ctrl.Bind(wx.EVT_LEFT_DOWN, self.on_list_left_down)
@@ -298,6 +301,24 @@ class StudentsView(wx.Panel):
 
         dc.SelectObject(wx.NullBitmap)
         return bmp
+
+    def _calculate_age(self, date_of_birth):
+        if not date_of_birth:
+            return ""
+        try:
+            if isinstance(date_of_birth, str):
+                date_of_birth = datetime.fromisoformat(
+                    date_of_birth.replace("Z", "+00:00")
+                )
+            today = datetime.now()
+            age = (
+                today.year
+                - date_of_birth.year
+                - ((today.month, today.day) < (date_of_birth.month, date_of_birth.day))
+            )
+            return str(age)
+        except Exception:
+            return ""
 
     def on_list_left_down(self, event):
         item, flags, col = self.list_ctrl.HitTestSubItem(event.GetPosition())
@@ -456,8 +477,12 @@ class StudentsView(wx.Panel):
                 self.list_ctrl.SetItem(index, 1, student.std_no)
                 self.list_ctrl.SetItem(index, 2, student.name or "")
                 self.list_ctrl.SetItem(index, 3, student.gender or "")
-                self.list_ctrl.SetItem(index, 4, student.faculty_code or "")
-                self.list_ctrl.SetItem(index, 5, student.program_name or "")
+                self.list_ctrl.SetItem(
+                    index, 4, self._calculate_age(student.date_of_birth)
+                )
+                self.list_ctrl.SetItem(index, 5, student.faculty_code or "")
+                self.list_ctrl.SetItem(index, 6, student.program_name or "")
+                self.list_ctrl.SetItem(index, 7, student.phone1 or "")
                 self.list_ctrl.SetItemData(index, row)
 
             self.update_pagination_controls()

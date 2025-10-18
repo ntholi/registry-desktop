@@ -2,12 +2,12 @@
 
 ## Project Overview
 
-PySide6-based desktop application for Limkokwing University Registry management. Syncs student/module data between the database and legacy web-based CMS using web scraping and form automation.
+wxPython-based desktop application for Limkokwing University Registry management. Syncs student/module data between the database and legacy web-based CMS using web scraping and form automation.
 
 ## Technology Stack
 
 - **Python**: 3.12+ (strict requirement, see `.python-version`)
-- **UI Framework**: PySide6 (Qt for Python) >=6.10.0
+- **UI Framework**: wxPython >=4.2.0
 - **Package Manager**: `uv` (modern Python package manager, replaces pip/poetry)
 - **Database**: SQLAlchemy ORM with Turso (remote) or local SQLite
 - **Web Automation**: Selenium (login), Requests + BeautifulSoup (scraping/posting)
@@ -36,15 +36,15 @@ PySide6-based desktop application for Limkokwing University Registry management.
 
 ### Main Application Structure
 
-- `main.py`: Single `MainWindow` with `QStackedWidget` for view switching
-- `base/nav/menu.json`: Defines accordion navigation structure
+- `main.py`: Single `wx.Frame` with manual view switching (show/hide panels)
+- `base/nav/menu.json`: Defines navigation structure using CustomTreeCtrl
 - Action names (e.g., `sync_students`) map to view instances in `MainWindow.views` dict
 
 ### Feature Organization
 
 ```
 features/<category>/<feature>/
-  - <feature>_view.py   # PySide6 UI (inherits QWidget) or view/<multiple files>.py
+  - <feature>_view.py   # wxPython UI (inherits wx.Panel) or view/<multiple files>.py
   - service.py          # Business logic
   - repository.py       # Database operations (SQLAlchemy)
   - scraper.py          # Web scraping (BeautifulSoup)
@@ -54,11 +54,11 @@ features/<category>/<feature>/
 
 **Pull (Web → DB)**:
 
-1. `StudentsView` → `PullStudentsWorker` (QThread)
+1. `StudentsView` → `PullStudentsWorker` (threading.Thread)
 2. Worker calls `StudentSyncService.pull_student(std_no)`
 3. Service calls `scraper.scrape_student_data(std_no)` → parses HTML tables
 4. Service calls `repository.update_student(std_no, data)` → saves to DB
-5. Progress signals update `StatusBar` via `status_bar.show_progress(msg, current, total)`
+5. Progress callbacks update `StatusBar` via `status_bar.show_progress(msg, current, total)`
 
 **Push (DB → Web)**:
 
@@ -70,10 +70,10 @@ features/<category>/<feature>/
 
 ### Threading
 
-- Long-running tasks use `QThread` workers (e.g., `PullStudentsWorker`, `PushStudentsWorker`)
-- Workers emit `progress`, `finished`, `error` signals
-- UI connects signals to update `StatusBar` and show completion dialogs
+- Long-running tasks use `threading.Thread` with daemon=True
+- Workers use callback functions with `wx.CallAfter` for thread-safe UI updates
 - Workers have `should_stop` flag for cancellation
+- Callbacks receive event_type and args: `callback("progress", message, current, total)`
 
 ### Database Models
 
@@ -90,11 +90,12 @@ features/<category>/<feature>/
 
 ## UI Conventions
 
-- **Minimal styling**: Rely on native Qt widgets, avoid custom CSS, and avoid setting colors because the app uses system themes and custom themes.
-- **Separation**: Use `QFrame.HLine` separators between logical sections
-- **Fonts**: Title=24pt bold, Section=12pt bold, Body=9-10pt
-- **Tables**: `QTableWidget` with alternating row colors, stretch columns
+- **Native wxPython**: Use standard wx controls, rely on native platform appearance
+- **Separators**: Use `wx.StaticLine` with `wx.LI_HORIZONTAL` or `wx.LI_VERTICAL`
+- **Fonts**: Modify via `GetFont()`, set size with `PointSize`, use `Bold()` for emphasis
+- **Tables**: `wx.ListCtrl` with `wx.LC_REPORT` style for data grids
 - **Status feedback**: All async operations show progress in shared `StatusBar`
+- **Threading**: Always use `wx.CallAfter` when updating UI from worker threads
 
 ## Critical Implementation Details
 
@@ -103,18 +104,20 @@ features/<category>/<feature>/
 **ALL browser operations (`Browser.fetch()`, `Browser.post()`) and database operations MUST display progress in the status bar.**
 
 - Views MUST accept `status_bar` parameter and pass to workers/services
-- Workers MUST emit `progress` signals with descriptive messages
+- Workers MUST use callback functions for progress updates
 - Use `status_bar.show_progress(message, current, total)` for operations
 - Use `status_bar.show_message(message)` for operations without progress tracking
 - Always call `status_bar.clear()` when operations complete (success or failure)
+- Use `wx.CallAfter` to ensure thread-safe updates
 
 Example in worker:
 
 ```python
-self.progress.emit(f"Fetching data for {std_no}...", 1, 3)
-response = browser.fetch(url)
-self.progress.emit(f"Saving {std_no} to database...", 2, 3)
-repository.update_student(std_no, data)
+def run(self):
+    self.callback("progress", f"Fetching data for {std_no}...", 1, 3)
+    response = browser.fetch(url)
+    self.callback("progress", f"Saving {std_no} to database...", 2, 3)
+    repository.update_student(std_no, data)
 ```
 
 ### Form Scraping Pattern
@@ -129,7 +132,9 @@ response = browser.post(url, form_data)
 ### View Registration
 
 - Add new views to `MainWindow.views` dict with action key matching `menu.json`
+- Views MUST accept `parent` parameter (the content panel)
 - Views MUST accept `status_bar` parameter for progress updates (non-optional for sync operations)
+- All views inherit from `wx.Panel`
 
 ## Environment & Constraints
 

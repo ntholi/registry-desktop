@@ -1,13 +1,12 @@
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
+import wx
 
 
-class ApprovedView(QWidget):
-    def __init__(self):
-        super().__init__()
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(40, 40, 40, 40)
+class ApprovedView(wx.Panel):
+    def __init__(self, parent):
+        super().__init__(parent)
+        sizer = wx.BoxSizer(wx.VERTICAL)
 
-        label = QLabel("Approved Enrollments View")
-        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(label)
+        label = wx.StaticText(self, label="Approved Enrollments View")
+        sizer.Add(label, 1, wx.ALIGN_CENTER | wx.ALL, 40)
+
+        self.SetSizer(sizer)

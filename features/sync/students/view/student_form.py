@@ -1,116 +1,139 @@
 from datetime import datetime
 
-from PySide6.QtCore import QDate, Signal
-from PySide6.QtWidgets import (
-    QDateEdit,
-    QDialog,
-    QFormLayout,
-    QHBoxLayout,
-    QLabel,
-    QLineEdit,
-    QMessageBox,
-    QPushButton,
-    QVBoxLayout,
-)
+import wx
+import wx.adv
 
 
-class StudentFormDialog(QDialog):
-    student_updated = Signal(dict)
-
+class StudentFormDialog(wx.Dialog):
     def __init__(self, student_data, parent=None, status_bar=None):
-        super().__init__(parent)
+        super().__init__(
+            parent,
+            title=f"Update Student: {student_data.get('std_no', '')}",
+            style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
+        )
         self.student_data = student_data
         self.status_bar = status_bar
-        self.setWindowTitle(f"Update Student: {student_data.get('std_no', '')}")
-        self.setModal(True)
-        self.setMinimumWidth(400)
+        self.SetSize((450, 300))
         self.init_ui()
 
     def init_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setSpacing(15)
-        layout.setContentsMargins(20, 20, 20, 20)
+        panel = wx.Panel(self)
+        main_sizer = wx.BoxSizer(wx.VERTICAL)
 
-        form_layout = QFormLayout()
-        form_layout.setSpacing(10)
+        # Form fields
+        form_sizer = wx.FlexGridSizer(rows=5, cols=2, vgap=10, hgap=10)
+        form_sizer.AddGrowableCol(1)
 
-        student_no_label = QLabel(str(self.student_data.get("std_no", "")))
-        form_layout.addRow("Student Number:", student_no_label)
+        # Student Number (read-only)
+        form_sizer.Add(
+            wx.StaticText(panel, label="Student Number:"),
+            0,
+            wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL,
+        )
+        student_no_text = wx.StaticText(
+            panel, label=str(self.student_data.get("std_no", ""))
+        )
+        form_sizer.Add(student_no_text, 0, wx.EXPAND)
 
-        self.name_input = QLineEdit()
-        self.name_input.setText(self.student_data.get("name", "") or "")
-        form_layout.addRow("Name:", self.name_input)
+        # Name
+        form_sizer.Add(
+            wx.StaticText(panel, label="Name:"),
+            0,
+            wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL,
+        )
+        self.name_input = wx.TextCtrl(
+            panel, value=self.student_data.get("name", "") or ""
+        )
+        form_sizer.Add(self.name_input, 0, wx.EXPAND)
 
-        self.gender_input = QLineEdit()
-        self.gender_input.setText(self.student_data.get("gender", "") or "")
-        form_layout.addRow("Gender:", self.gender_input)
+        # Gender
+        form_sizer.Add(
+            wx.StaticText(panel, label="Gender:"),
+            0,
+            wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL,
+        )
+        self.gender_input = wx.TextCtrl(
+            panel, value=self.student_data.get("gender", "") or ""
+        )
+        form_sizer.Add(self.gender_input, 0, wx.EXPAND)
 
-        self.dob_input = QDateEdit()
-        self.dob_input.setCalendarPopup(True)
+        # Date of Birth
+        form_sizer.Add(
+            wx.StaticText(panel, label="Date of Birth:"),
+            0,
+            wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL,
+        )
+        self.dob_input = wx.adv.DatePickerCtrl(
+            panel, style=wx.adv.DP_DROPDOWN | wx.adv.DP_SHOWCENTURY
+        )
         date_of_birth = self.student_data.get("date_of_birth")
         if date_of_birth:
             if isinstance(date_of_birth, str):
                 dt = datetime.fromisoformat(date_of_birth)
-                self.dob_input.setDate(QDate(dt.year, dt.month, dt.day))
             else:
-                self.dob_input.setDate(
-                    QDate(date_of_birth.year, date_of_birth.month, date_of_birth.day)
-                )
-        else:
-            today = datetime.now()
-            self.dob_input.setDate(QDate(today.year, today.month, today.day))
-        form_layout.addRow("Date of Birth:", self.dob_input)
+                dt = date_of_birth
+            self.dob_input.SetValue(wx.DateTime.FromDMY(dt.day, dt.month - 1, dt.year))
+        form_sizer.Add(self.dob_input, 0, wx.EXPAND)
 
-        self.email_input = QLineEdit()
-        self.email_input.setText(self.student_data.get("email", "") or "")
-        self.email_input.setPlaceholderText("user@example.com")
-        form_layout.addRow("Email:", self.email_input)
+        # Email
+        form_sizer.Add(
+            wx.StaticText(panel, label="Email:"),
+            0,
+            wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL,
+        )
+        self.email_input = wx.TextCtrl(
+            panel,
+            value=self.student_data.get("email", "") or "",
+        )
+        form_sizer.Add(self.email_input, 0, wx.EXPAND)
 
-        layout.addLayout(form_layout)
+        main_sizer.Add(form_sizer, 0, wx.ALL | wx.EXPAND, 20)
 
-        button_layout = QHBoxLayout()
-        button_layout.addStretch()
+        # Buttons
+        button_sizer = wx.StdDialogButtonSizer()
+        save_btn = wx.Button(panel, wx.ID_OK, "Save")
+        save_btn.Bind(wx.EVT_BUTTON, self.on_save)
+        button_sizer.AddButton(save_btn)
 
-        self.save_button = QPushButton("Save")
-        self.save_button.clicked.connect(self.save_student)
-        button_layout.addWidget(self.save_button)
+        cancel_btn = wx.Button(panel, wx.ID_CANCEL, "Cancel")
+        button_sizer.AddButton(cancel_btn)
+        button_sizer.Realize()
 
-        self.cancel_button = QPushButton("Cancel")
-        self.cancel_button.clicked.connect(self.reject)
-        button_layout.addWidget(self.cancel_button)
+        main_sizer.Add(button_sizer, 0, wx.ALL | wx.ALIGN_RIGHT, 20)
 
-        layout.addLayout(button_layout)
+        panel.SetSizer(main_sizer)
 
-    def save_student(self):
-        name = self.name_input.text().strip()
-        gender = self.gender_input.text().strip()
-        email = self.email_input.text().strip()
-        dob = self.dob_input.date().toPython()
+    def on_save(self, event):
+        name = self.name_input.GetValue().strip()
+        gender = self.gender_input.GetValue().strip()
+        email = self.email_input.GetValue().strip()
 
         if not name:
-            QMessageBox.warning(self, "Validation Error", "Name cannot be empty")
+            wx.MessageBox(
+                "Name cannot be empty", "Validation Error", wx.OK | wx.ICON_WARNING
+            )
             return
 
         if email and "@" not in email:
-            QMessageBox.warning(self, "Validation Error", "Please enter a valid email")
+            wx.MessageBox(
+                "Please enter a valid email",
+                "Validation Error",
+                wx.OK | wx.ICON_WARNING,
+            )
             return
 
-        updated_data = {
-            "std_no": self.student_data.get("std_no"),
-            "name": name,
-            "gender": gender,
-            "date_of_birth": dob,
-            "email": email,
-        }
-
-        self.student_updated.emit(updated_data)
-        self.accept()
+        event.Skip()
 
     def get_updated_data(self):
+        wx_date = self.dob_input.GetValue()
+        dob = datetime(
+            wx_date.GetYear(), wx_date.GetMonth() + 1, wx_date.GetDay()
+        ).date()
+
         return {
             "std_no": self.student_data.get("std_no"),
-            "name": self.name_input.text().strip(),
-            "gender": self.gender_input.text().strip(),
-            "date_of_birth": self.dob_input.date().toPython(),
-            "email": self.email_input.text().strip(),
+            "name": self.name_input.GetValue().strip(),
+            "gender": self.gender_input.GetValue().strip(),
+            "date_of_birth": dob,
+            "email": self.email_input.GetValue().strip(),
         }

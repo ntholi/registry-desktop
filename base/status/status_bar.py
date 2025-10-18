@@ -1,46 +1,52 @@
-from PySide6.QtCore import Qt, Signal, Slot
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QProgressBar, QWidget
+import wx
 
 
-class StatusBar(QWidget):
-    def __init__(self):
-        super().__init__()
-        self.setFixedHeight(30)
+class StatusBar(wx.Panel):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.SetMinSize((-1, 30))
 
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(10, 0, 10, 0)
-        layout.setSpacing(10)
+        sizer = wx.BoxSizer(wx.HORIZONTAL)
 
-        self.message_label = QLabel()
-        layout.addWidget(self.message_label)
+        self.message_text = wx.StaticText(self, label="")
+        sizer.Add(self.message_text, 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 10)
 
-        layout.addStretch()
+        sizer.AddStretchSpacer()
 
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setFixedWidth(200)
-        self.progress_bar.setFixedHeight(18)
-        self.progress_bar.setTextVisible(True)
-        self.progress_bar.hide()
-        layout.addWidget(self.progress_bar)
+        self.progress_bar = wx.Gauge(self, range=100, size=(200, 18))
+        self.progress_bar.Hide()
+        sizer.Add(self.progress_bar, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 10)
 
-        self.hide()
+        self.SetSizer(sizer)
+        self.Hide()
 
-    @Slot(str, int, int)
     def show_progress(self, message: str, current: int, total: int):
-        self.message_label.setText(message)
-        self.progress_bar.setMaximum(total)
-        self.progress_bar.setValue(current)
-        self.progress_bar.show()
-        self.show()
+        wx.CallAfter(self._show_progress_impl, message, current, total)
 
-    @Slot(str)
+    def _show_progress_impl(self, message: str, current: int, total: int):
+        self.message_text.SetLabel(message)
+        if total > 0:
+            percentage = int((current / total) * 100)
+            self.progress_bar.SetRange(100)
+            self.progress_bar.SetValue(percentage)
+        self.progress_bar.Show()
+        self.Show()
+        self.GetParent().Layout()
+
     def show_message(self, message: str):
-        self.message_label.setText(message)
-        self.progress_bar.hide()
-        self.show()
+        wx.CallAfter(self._show_message_impl, message)
 
-    @Slot()
+    def _show_message_impl(self, message: str):
+        self.message_text.SetLabel(message)
+        self.progress_bar.Hide()
+        self.Show()
+        self.GetParent().Layout()
+
     def clear(self):
-        self.message_label.clear()
-        self.progress_bar.hide()
-        self.hide()
+        wx.CallAfter(self._clear_impl)
+
+    def _clear_impl(self):
+        self.message_text.SetLabel("")
+        self.progress_bar.Hide()
+        self.Hide()
+        self.GetParent().Layout()

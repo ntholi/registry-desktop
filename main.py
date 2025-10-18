@@ -1,17 +1,6 @@
 import sys
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
-from PySide6.QtWidgets import (
-    QApplication,
-    QFrame,
-    QHBoxLayout,
-    QLabel,
-    QMainWindow,
-    QStackedWidget,
-    QVBoxLayout,
-    QWidget,
-)
+import wx
 
 from base.menu_bar import AppMenuBar
 from base.nav import AccordionNavigation
@@ -26,88 +15,86 @@ from features.sync.structures.structures_view import StructuresView
 from features.sync.students import StudentsView
 
 
-class MainWindow(QMainWindow):
+class MainWindow(wx.Frame):
     def __init__(self):
-        super().__init__()
-        self.setWindowTitle("Limkokwing Registry")
-        self.setMinimumSize(1100, 750)
+        super().__init__(None, title="Limkokwing Registry", size=(1100, 750))
 
         self.menu_bar = AppMenuBar(self)
 
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
+        panel = wx.Panel(self)
+        root_sizer = wx.BoxSizer(wx.VERTICAL)
 
-        root_layout = QVBoxLayout(central_widget)
-        root_layout.setContentsMargins(0, 0, 0, 0)
-        root_layout.setSpacing(0)
+        main_sizer = wx.BoxSizer(wx.HORIZONTAL)
 
-        main_layout = QHBoxLayout()
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(0)
+        self.navigation = AccordionNavigation(panel, self.on_navigation_clicked)
+        main_sizer.Add(self.navigation, 0, wx.EXPAND)
 
-        self.navigation = AccordionNavigation()
-        self.navigation.navigation_clicked.connect(self.on_navigation_clicked)
-        main_layout.addWidget(self.navigation)
+        separator = wx.StaticLine(panel, style=wx.LI_VERTICAL)
+        main_sizer.Add(separator, 0, wx.EXPAND)
 
-        separator = QFrame()
-        separator.setFrameShape(QFrame.Shape.VLine)
-        separator.setLineWidth(1)
-        main_layout.addWidget(separator)
+        self.content_panel = wx.Panel(panel)
+        self.content_sizer = wx.BoxSizer(wx.VERTICAL)
 
-        self.content_stack = QStackedWidget()
-
-        welcome_widget = QWidget()
-        welcome_layout = QVBoxLayout(welcome_widget)
-        welcome_layout.setContentsMargins(40, 40, 40, 40)
-        welcome_label = QLabel(
-            "Welcome to Limkokwing Registry\n\nSelect an item from the navigation menu to get started"
+        welcome_panel = wx.Panel(self.content_panel)
+        welcome_sizer = wx.BoxSizer(wx.VERTICAL)
+        welcome_label = wx.StaticText(
+            welcome_panel,
+            label="Welcome to Limkokwing Registry\n\nSelect an item from the navigation menu to get started",
+            style=wx.ALIGN_CENTER,
         )
-        welcome_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        welcome_label.setWordWrap(True)
-        content_font = QFont()
-        content_font.setPointSize(12)
-        welcome_label.setFont(content_font)
-        welcome_layout.addWidget(welcome_label)
+        font = welcome_label.GetFont()
+        font.PointSize = 12
+        welcome_label.SetFont(font)
+        welcome_sizer.Add(welcome_label, 1, wx.ALIGN_CENTER | wx.ALL, 40)
+        welcome_panel.SetSizer(welcome_sizer)
 
-        self.content_stack.addWidget(welcome_widget)
-
-        self.status_bar = StatusBar()
+        self.status_bar = StatusBar(panel)
 
         self.views = {
-            "sync_students": StudentsView(self.status_bar),
-            "sync_structures": StructuresView(),
-            "sync_modules": ModulesView(),
-            "enrollments_approved": ApprovedView(),
-            "enrollments_module": ModuleView(),
-            "enrollments_student": StudentView(),
-            "export_certificates": CertificatesView(),
-            "export_reports": ReportsView(),
+            "sync_students": StudentsView(self.content_panel, self.status_bar),
+            "sync_structures": StructuresView(self.content_panel),
+            "sync_modules": ModulesView(self.content_panel),
+            "enrollments_approved": ApprovedView(self.content_panel),
+            "enrollments_module": ModuleView(self.content_panel),
+            "enrollments_student": StudentView(self.content_panel),
+            "export_certificates": CertificatesView(self.content_panel),
+            "export_reports": ReportsView(self.content_panel),
         }
+
+        self.content_sizer.Add(welcome_panel, 1, wx.EXPAND)
         for view in self.views.values():
-            self.content_stack.addWidget(view)
+            self.content_sizer.Add(view, 1, wx.EXPAND)
+            view.Hide()
 
-        main_layout.addWidget(self.content_stack, 1)
+        self.content_panel.SetSizer(self.content_sizer)
+        main_sizer.Add(self.content_panel, 1, wx.EXPAND)
 
-        root_layout.addLayout(main_layout, 1)
+        root_sizer.Add(main_sizer, 1, wx.EXPAND)
 
-        separator = QFrame()
-        separator.setFrameShape(QFrame.Shape.HLine)
-        separator.setLineWidth(1)
-        root_layout.addWidget(separator)
+        separator = wx.StaticLine(panel, style=wx.LI_HORIZONTAL)
+        root_sizer.Add(separator, 0, wx.EXPAND)
 
-        root_layout.addWidget(self.status_bar)
+        root_sizer.Add(self.status_bar, 0, wx.EXPAND)
+
+        panel.SetSizer(root_sizer)
+
+        self.current_view = welcome_panel
 
     def on_navigation_clicked(self, action):
         if action in self.views:
+            self.current_view.Hide()
             view = self.views[action]
-            self.content_stack.setCurrentWidget(view)
+            view.Show()
+            self.current_view = view
+            self.content_panel.Layout()
 
 
 def main():
-    app = QApplication(sys.argv)
+    app = wx.App()
     window = MainWindow()
-    window.showMaximized()
-    sys.exit(app.exec())
+    window.Maximize()
+    window.Show()
+    app.MainLoop()
 
 
 if __name__ == "__main__":

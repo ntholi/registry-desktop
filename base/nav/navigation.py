@@ -1,205 +1,63 @@
 import json
 from pathlib import Path
 
-from PySide6.QtCore import QEasingCurve, QPropertyAnimation, Qt, Signal
-from PySide6.QtGui import QCursor, QFont
-from PySide6.QtWidgets import (
-    QFrame,
-    QLabel,
-    QPushButton,
-    QScrollArea,
-    QSizePolicy,
-    QVBoxLayout,
-    QWidget,
-)
+import wx
+import wx.lib.agw.customtreectrl as CT
 
 
-class AccordionItem(QWidget):
-    """A single accordion item with expandable submenu"""
+class AccordionNavigation(wx.Panel):
+    """Navigation panel using CustomTreeCtrl for accordion-like behavior"""
 
-    item_clicked = Signal(str)  # Emits the action name when submenu item is clicked
-
-    def __init__(self, title, description, submenu_items, parent=None):
+    def __init__(self, parent, on_navigation_clicked=None):
         super().__init__(parent)
-        self.title = title
-        self.description = description
-        self.submenu_items = submenu_items
-        self.is_expanded = False
-
-        self.setup_ui()
-
-    def setup_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(2)
-
-        # Header container
-        self.header_btn = QPushButton()
-        self.header_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        self.header_btn.clicked.connect(self.toggle_expand)
-        self.header_btn.setFlat(True)
-        self.header_btn.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum
-        )
-
-        # Header widget
-        header_widget = QWidget()
-        header_layout = QVBoxLayout(header_widget)
-        header_layout.setContentsMargins(16, 14, 16, 14)
-        header_layout.setSpacing(4)
-
-        # Title
-        title_label = QLabel(self.title)
-        title_font = QFont()
-        title_font.setPointSize(10)
-        title_font.setBold(True)
-        title_label.setFont(title_font)
-        header_layout.addWidget(title_label)
-
-        # Description
-        desc_label = QLabel(self.description)
-        desc_label.setWordWrap(True)
-        desc_font = QFont()
-        desc_font.setPointSize(8)
-        desc_label.setFont(desc_font)
-        header_layout.addWidget(desc_label)
-
-        # Set header widget as button's layout
-        btn_layout = QVBoxLayout(self.header_btn)
-        btn_layout.setContentsMargins(0, 0, 0, 0)
-        btn_layout.addWidget(header_widget)
-
-        layout.addWidget(self.header_btn)
-
-        # Submenu container
-        self.submenu_container = QWidget()
-        self.submenu_layout = QVBoxLayout(self.submenu_container)
-        self.submenu_layout.setContentsMargins(0, 0, 0, 0)
-        self.submenu_layout.setSpacing(2)
-
-        # Add submenu items
-        for item in self.submenu_items:
-            submenu_btn = QPushButton(item["title"])
-            submenu_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-            submenu_btn.clicked.connect(
-                lambda checked=False, action=item["action"]: self.on_submenu_clicked(
-                    action
-                )
-            )
-
-            # Style submenu button
-            submenu_font = QFont()
-            submenu_font.setPointSize(9)
-            submenu_btn.setFont(submenu_font)
-            submenu_btn.setSizePolicy(
-                QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
-            )
-            submenu_btn.setMinimumHeight(32)
-
-            self.submenu_layout.addWidget(submenu_btn)
-
-        self.submenu_container.setMaximumHeight(0)
-        self.submenu_container.setVisible(False)
-        layout.addWidget(self.submenu_container)
-
-    def toggle_expand(self):
-        """Toggle the expansion state of the accordion item"""
-        self.is_expanded = not self.is_expanded
-
-        if self.is_expanded:
-            self.submenu_container.setVisible(True)
-            target_height = self.submenu_container.sizeHint().height()
-
-            # Animate expansion
-            self.animation = QPropertyAnimation(
-                self.submenu_container, b"maximumHeight"
-            )
-            self.animation.setDuration(200)
-            self.animation.setStartValue(0)
-            self.animation.setEndValue(target_height)
-            self.animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
-            self.animation.start()
-        else:
-            # Animate collapse
-            self.animation = QPropertyAnimation(
-                self.submenu_container, b"maximumHeight"
-            )
-            self.animation.setDuration(200)
-            self.animation.setStartValue(self.submenu_container.height())
-            self.animation.setEndValue(0)
-            self.animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
-            self.animation.finished.connect(
-                lambda: self.submenu_container.setVisible(False)
-            )
-            self.animation.start()
-
-    def on_submenu_clicked(self, action):
-        """Handle submenu item click"""
-        self.item_clicked.emit(action)
-
-
-class AccordionNavigation(QWidget):
-    """Main accordion navigation widget"""
-
-    navigation_clicked = Signal(
-        str
-    )  # Emits action name when any navigation item is clicked
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
+        self.on_navigation_clicked = on_navigation_clicked
         self.setup_ui()
         self.load_menu()
 
     def setup_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
+        sizer = wx.BoxSizer(wx.VERTICAL)
 
-        # Title
-        title_widget = QWidget()
-        title_layout = QVBoxLayout(title_widget)
-        title_layout.setContentsMargins(16, 20, 16, 16)
-        title_layout.setSpacing(2)
+        # Title section
+        title_panel = wx.Panel(self)
+        title_sizer = wx.BoxSizer(wx.VERTICAL)
 
-        title_label = QLabel("Registry")
-        title_font = QFont()
-        title_font.setPointSize(16)
-        title_font.setBold(True)
-        title_label.setFont(title_font)
-        title_layout.addWidget(title_label)
+        title_label = wx.StaticText(title_panel, label="Registry")
+        title_font = title_label.GetFont()
+        title_font.PointSize = 16
+        title_font = title_font.Bold()
+        title_label.SetFont(title_font)
+        title_sizer.Add(title_label, 0, wx.LEFT | wx.TOP, 16)
 
-        subtitle_label = QLabel("Navigation Menu")
-        subtitle_font = QFont()
-        subtitle_font.setPointSize(9)
-        subtitle_label.setFont(subtitle_font)
-        title_layout.addWidget(subtitle_label)
+        subtitle_label = wx.StaticText(title_panel, label="Navigation Menu")
+        subtitle_font = subtitle_label.GetFont()
+        subtitle_font.PointSize = 9
+        subtitle_label.SetFont(subtitle_font)
+        title_sizer.Add(subtitle_label, 0, wx.LEFT | wx.BOTTOM, 16)
 
-        layout.addWidget(title_widget)
+        title_panel.SetSizer(title_sizer)
+        sizer.Add(title_panel, 0, wx.EXPAND)
 
         # Separator
-        separator = QFrame()
-        separator.setFrameShape(QFrame.Shape.HLine)
-        separator.setLineWidth(1)
-        layout.addWidget(separator)
+        line = wx.StaticLine(self)
+        sizer.Add(line, 0, wx.EXPAND)
 
-        # Scroll area for accordion items
-        scroll_area = QScrollArea()
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        # Tree control for accordion
+        self.tree = CT.CustomTreeCtrl(
+            self,
+            agwStyle=(
+                wx.TR_DEFAULT_STYLE
+                | wx.TR_HIDE_ROOT
+                | wx.TR_NO_LINES
+                | CT.TR_AUTO_CHECK_CHILD
+                | CT.TR_HAS_VARIABLE_ROW_HEIGHT
+            ),
+        )
+        self.tree.Bind(wx.EVT_TREE_ITEM_ACTIVATED, self.on_item_activated)
+        sizer.Add(self.tree, 1, wx.EXPAND)
 
-        # Container for accordion items
-        self.accordion_container = QWidget()
-        self.accordion_layout = QVBoxLayout(self.accordion_container)
-        self.accordion_layout.setContentsMargins(0, 0, 0, 0)
-        self.accordion_layout.setSpacing(2)
-        self.accordion_layout.addStretch()
-
-        scroll_area.setWidget(self.accordion_container)
-        layout.addWidget(scroll_area)
-
-        # Set width
-        self.setMinimumWidth(260)
-        self.setMaximumWidth(320)
+        self.SetSizer(sizer)
+        self.SetMinSize((260, -1))
+        self.SetMaxSize((320, -1))
 
     def load_menu(self):
         """Load menu configuration from JSON file"""
@@ -209,34 +67,41 @@ class AccordionNavigation(QWidget):
             with open(config_path, "r") as f:
                 config = json.load(f)
 
-            # Remove stretch before adding items
-            if self.accordion_layout.count() > 0:
-                self.accordion_layout.takeAt(self.accordion_layout.count() - 1)
+            root = self.tree.AddRoot("Root")
 
-            # Create accordion items
             for item_config in config["menu_items"]:
-                accordion_item = AccordionItem(
-                    title=item_config["title"],
-                    description=item_config["description"],
-                    submenu_items=item_config["submenu"],
+                # Add category as parent
+                parent_item = self.tree.AppendItem(
+                    root,
+                    f"{item_config['title']}\n{item_config['description']}",
                 )
-                accordion_item.item_clicked.connect(self.on_navigation_clicked)
-                self.accordion_layout.addWidget(accordion_item)
+                parent_font = self.tree.GetItemFont(parent_item)
+                parent_font.PointSize = 10
+                parent_font = parent_font.Bold()
+                self.tree.SetItemFont(parent_item, parent_font)
 
-                # Add separator between items
-                separator = QFrame()
-                separator.setFrameShape(QFrame.Shape.HLine)
-                self.accordion_layout.addWidget(separator)
+                # Add submenu items
+                for submenu in item_config["submenu"]:
+                    child_item = self.tree.AppendItem(
+                        parent_item, submenu["title"], data=submenu["action"]
+                    )
+                    child_font = self.tree.GetItemFont(child_item)
+                    child_font.PointSize = 9
+                    self.tree.SetItemFont(child_item, child_font)
 
-            # Add stretch at the end
-            self.accordion_layout.addStretch()
+            # Expand all categories
+            self.tree.ExpandAll()
 
         except FileNotFoundError:
             print(f"Menu configuration file not found: {config_path}")
         except json.JSONDecodeError as e:
             print(f"Error parsing menu configuration: {e}")
 
-    def on_navigation_clicked(self, action):
-        """Handle navigation item click"""
-        print(f"Navigation clicked: {action}")
-        self.navigation_clicked.emit(action)
+    def on_item_activated(self, event):
+        """Handle tree item activation (double-click or enter)"""
+        item = event.GetItem()
+        if item and self.tree.GetItemData(item):
+            action = self.tree.GetItemData(item)
+            print(f"Navigation clicked: {action}")
+            if self.on_navigation_clicked:
+                self.on_navigation_clicked(action)

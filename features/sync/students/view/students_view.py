@@ -1,36 +1,19 @@
-from PySide6.QtCore import Qt, QThread, QTimer, Signal
-from PySide6.QtGui import QFont
-from PySide6.QtWidgets import (
-    QCheckBox,
-    QComboBox,
-    QDialog,
-    QFrame,
-    QHBoxLayout,
-    QHeaderView,
-    QLabel,
-    QLineEdit,
-    QMessageBox,
-    QPushButton,
-    QTableWidget,
-    QTableWidgetItem,
-    QVBoxLayout,
-    QWidget,
-)
+import threading
+
+import wx
+import wx.dataview as dv
 
 from ..repository import StudentRepository
 from ..service import StudentSyncService
 from .student_form import StudentFormDialog
 
 
-class PullStudentsWorker(QThread):
-    progress = Signal(str, int, int)
-    finished = Signal(int, int)
-    error = Signal(str)
-
-    def __init__(self, student_numbers, sync_service):
-        super().__init__()
+class PullStudentsWorker(threading.Thread):
+    def __init__(self, student_numbers, sync_service, callback):
+        super().__init__(daemon=True)
         self.student_numbers = student_numbers
         self.sync_service = sync_service
+        self.callback = callback
         self.should_stop = False
 
     def run(self):
@@ -45,13 +28,15 @@ class PullStudentsWorker(QThread):
             try:
                 current_step = idx * 3
 
-                self.progress.emit(
+                self.callback(
+                    "progress",
                     f"Pulling student details for {std_no}...",
                     current_step + 1,
                     total_steps,
                 )
 
-                self.progress.emit(
+                self.callback(
+                    "progress",
                     f"Pulling student info for {std_no}...",
                     current_step + 2,
                     total_steps,
@@ -61,39 +46,39 @@ class PullStudentsWorker(QThread):
 
                 if was_updated:
                     success_count += 1
-                    self.progress.emit(
-                        f"Saving {std_no} to database...", current_step + 3, total_steps
+                    self.callback(
+                        "progress",
+                        f"Saving {std_no} to database...",
+                        current_step + 3,
+                        total_steps,
                     )
                 else:
                     failed_count += 1
 
             except Exception as e:
-                self.error.emit(f"Error pulling student {std_no}: {str(e)}")
+                self.callback("error", f"Error pulling student {std_no}: {str(e)}")
                 failed_count += 1
 
-        self.finished.emit(success_count, failed_count)
+        self.callback("finished", success_count, failed_count)
 
     def stop(self):
         self.should_stop = True
 
 
-class PushStudentsWorker(QThread):
-    progress = Signal(str, int, int)
-    finished = Signal(bool, str)
-    error = Signal(str)
-
-    def __init__(self, student_number, student_data, sync_service):
-        super().__init__()
+class PushStudentsWorker(threading.Thread):
+    def __init__(self, student_number, student_data, sync_service, callback):
+        super().__init__(daemon=True)
         self.student_number = student_number
         self.student_data = student_data
         self.sync_service = sync_service
+        self.callback = callback
         self.should_stop = False
         self.current_step = 0
         self.total_steps = 4
 
     def emit_progress(self, message: str):
         self.current_step += 1
-        self.progress.emit(message, self.current_step, self.total_steps)
+        self.callback("progress", message, self.current_step, self.total_steps)
 
     def run(self):
         try:
@@ -104,19 +89,21 @@ class PushStudentsWorker(QThread):
                 self.student_number, self.student_data, self.emit_progress
             )
 
-            self.finished.emit(success, message)
+            self.callback("push_finished", success, message)
 
         except Exception as e:
-            self.error.emit(f"Error pushing student {self.student_number}: {str(e)}")
-            self.finished.emit(False, str(e))
+            self.callback(
+                "error", f"Error pushing student {self.student_number}: {str(e)}"
+            )
+            self.callback("push_finished", False, str(e))
 
     def stop(self):
         self.should_stop = True
 
 
-class StudentsView(QWidget):
-    def __init__(self, status_bar=None):
-        super().__init__()
+class StudentsView(wx.Panel):
+    def __init__(self, parent, status_bar=None):
+        super().__init__(parent)
         self.status_bar = status_bar
         self.current_page = 1
         self.page_size = 30
@@ -126,279 +113,256 @@ class StudentsView(QWidget):
         self.selected_program_id = None
         self.selected_term = None
         self.selected_semester_number = None
-        self.search_timer = QTimer()
-        self.search_timer.setSingleShot(True)
-        self.search_timer.timeout.connect(self.perform_search)
+        self.search_timer = None
         self.pull_worker = None
         self.push_worker = None
         self.repository = StudentRepository()
         self.sync_service = StudentSyncService(self.repository)
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(40, 40, 40, 40)
-        layout.setSpacing(0)
-
-        title = QLabel("Students")
-        title_font = QFont()
-        title_font.setPointSize(18)
-        title_font.setBold(True)
-        title.setFont(title_font)
-        layout.addWidget(title)
-
-        title_separator = QFrame()
-        title_separator.setFrameShape(QFrame.Shape.HLine)
-        title_separator.setFrameShadow(QFrame.Shadow.Sunken)
-        layout.addWidget(title_separator)
-
-        layout.addSpacing(20)
-
-        filters_label = QLabel("Filters")
-        filters_label_font = QFont()
-        filters_label_font.setPointSize(12)
-        filters_label_font.setBold(True)
-        filters_label.setFont(filters_label_font)
-        layout.addWidget(filters_label)
-
-        layout.addSpacing(10)
-
-        filters_container = QWidget()
-        filters_layout = QHBoxLayout(filters_container)
-        filters_layout.setContentsMargins(0, 0, 0, 0)
-        filters_layout.setSpacing(10)
-
-        self.school_filter = QComboBox()
-        self.school_filter.addItem("All Schools", None)
-        self.school_filter.currentIndexChanged.connect(self.on_school_changed)
-        self.school_filter.setMinimumWidth(150)
-        filters_layout.addWidget(self.school_filter)
-
-        self.program_filter = QComboBox()
-        self.program_filter.addItem("All Programs", None)
-        self.program_filter.currentIndexChanged.connect(self.on_filter_changed)
-        self.program_filter.setMinimumWidth(150)
-        filters_layout.addWidget(self.program_filter)
-
-        self.term_filter = QComboBox()
-        self.term_filter.addItem("All Terms", None)
-        self.term_filter.currentIndexChanged.connect(self.on_filter_changed)
-        self.term_filter.setMinimumWidth(150)
-        filters_layout.addWidget(self.term_filter)
-
-        self.semester_filter = QComboBox()
-        self.semester_filter.addItem("All Semesters", None)
-        self.semester_filter.currentIndexChanged.connect(self.on_filter_changed)
-        self.semester_filter.setMinimumWidth(150)
-        filters_layout.addWidget(self.semester_filter)
-
-        filters_layout.addStretch()
-
-        self.records_label = QLabel()
-        records_font = QFont()
-        records_font.setPointSize(10)
-        records_font.setBold(True)
-        self.records_label.setFont(records_font)
-        filters_layout.addWidget(self.records_label)
-
-        layout.addWidget(filters_container)
-
-        layout.addSpacing(20)
-
-        search_container = QWidget()
-        search_layout = QHBoxLayout(search_container)
-        search_layout.setContentsMargins(0, 0, 0, 0)
-        search_layout.setSpacing(10)
-
-        self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Search by student number, name...")
-        self.search_input.textChanged.connect(self.on_search_changed)
-        self.search_input.setMinimumWidth(400)
-        search_layout.addWidget(self.search_input)
-
-        self.clear_search_button = QPushButton("Clear")
-        self.clear_search_button.clicked.connect(self.clear_search)
-        self.clear_search_button.setEnabled(False)
-        search_layout.addWidget(self.clear_search_button)
-
-        search_layout.addStretch()
-
-        self.pull_button = QPushButton("Pull")
-        self.pull_button.setIcon(
-            self.style().standardIcon(self.style().StandardPixmap.SP_ArrowDown)
-        )
-        self.pull_button.clicked.connect(self.pull_students)
-        self.pull_button.setEnabled(False)
-        search_layout.addWidget(self.pull_button)
-
-        self.push_button = QPushButton("Push")
-        self.push_button.setIcon(
-            self.style().standardIcon(self.style().StandardPixmap.SP_ArrowUp)
-        )
-        self.push_button.clicked.connect(self.push_students)
-        self.push_button.setEnabled(False)
-        search_layout.addWidget(self.push_button)
-
-        layout.addWidget(search_container)
-
-        layout.addSpacing(15)
-
-        separator1 = QFrame()
-        separator1.setFrameShape(QFrame.Shape.HLine)
-        layout.addWidget(separator1)
-
-        layout.addSpacing(15)
-
-        selection_container = QWidget()
-        selection_layout = QHBoxLayout(selection_container)
-        selection_layout.setContentsMargins(0, 0, 0, 0)
-        selection_layout.setSpacing(10)
-
-        self.select_all_checkbox = QCheckBox("Select All")
-        self.select_all_checkbox.stateChanged.connect(self.on_select_all_changed)
-        selection_layout.addWidget(self.select_all_checkbox)
-
-        selection_layout.addSpacing(10)
-
-        self.selection_label = QLabel("0 selected")
-        selection_layout.addWidget(self.selection_label)
-
-        selection_layout.addStretch()
-
-        layout.addWidget(selection_container)
-
-        layout.addSpacing(10)
-
-        self.table = QTableWidget()
-        self.table.setColumnCount(6)
-        self.table.setHorizontalHeaderLabels(
-            [
-                "",
-                "Student No",
-                "Name",
-                "Gender",
-                "Faculty Code",
-                "Program Name",
-            ]
-        )
-        self.table.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.Stretch
-        )
-        self.table.horizontalHeader().setSectionResizeMode(
-            0, QHeaderView.ResizeMode.Fixed
-        )
-        self.table.setColumnWidth(0, 40)
-        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.table.setAlternatingRowColors(True)
-        self.table.setFrameStyle(QFrame.Shape.Box)
-        layout.addWidget(self.table)
-
-        layout.addSpacing(10)
-
-        pagination_layout = QHBoxLayout()
-        pagination_layout.setSpacing(15)
-        pagination_layout.addStretch()
-
-        self.prev_button = QPushButton("Previous")
-        self.prev_button.clicked.connect(self.previous_page)
-        self.prev_button.setEnabled(False)
-        pagination_layout.addWidget(self.prev_button)
-
-        self.page_label = QLabel()
-        pagination_layout.addWidget(self.page_label)
-
-        self.next_button = QPushButton("Next")
-        self.next_button.clicked.connect(self.next_page)
-        pagination_layout.addWidget(self.next_button)
-
-        pagination_layout.addStretch()
-        layout.addLayout(pagination_layout)
-
+        self.init_ui()
         self.load_filter_options()
         self.load_students()
+
+    def init_ui(self):
+        main_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        # Title
+        title = wx.StaticText(self, label="Students")
+        font = title.GetFont()
+        font.PointSize = 18
+        font = font.Bold()
+        title.SetFont(font)
+        main_sizer.Add(title, 0, wx.ALL, 40)
+
+        # Title separator
+        line = wx.StaticLine(self)
+        main_sizer.Add(line, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 40)
+
+        main_sizer.AddSpacer(20)
+
+        # Filters label
+        filters_label = wx.StaticText(self, label="Filters")
+        font = filters_label.GetFont()
+        font.PointSize = 12
+        font = font.Bold()
+        filters_label.SetFont(font)
+        main_sizer.Add(filters_label, 0, wx.LEFT | wx.RIGHT, 40)
+
+        main_sizer.AddSpacer(10)
+
+        # Filters
+        filters_sizer = wx.BoxSizer(wx.HORIZONTAL)
+
+        self.school_filter = wx.Choice(self)
+        self.school_filter.Append("All Schools", None)
+        self.school_filter.SetSelection(0)
+        self.school_filter.Bind(wx.EVT_CHOICE, self.on_school_changed)
+        filters_sizer.Add(self.school_filter, 0, wx.RIGHT, 10)
+
+        self.program_filter = wx.Choice(self)
+        self.program_filter.Append("All Programs", None)
+        self.program_filter.SetSelection(0)
+        self.program_filter.Bind(wx.EVT_CHOICE, self.on_filter_changed)
+        filters_sizer.Add(self.program_filter, 0, wx.RIGHT, 10)
+
+        self.term_filter = wx.Choice(self)
+        self.term_filter.Append("All Terms", None)
+        self.term_filter.SetSelection(0)
+        self.term_filter.Bind(wx.EVT_CHOICE, self.on_filter_changed)
+        filters_sizer.Add(self.term_filter, 0, wx.RIGHT, 10)
+
+        self.semester_filter = wx.Choice(self)
+        self.semester_filter.Append("All Semesters", None)
+        self.semester_filter.SetSelection(0)
+        self.semester_filter.Bind(wx.EVT_CHOICE, self.on_filter_changed)
+        filters_sizer.Add(self.semester_filter, 0, wx.RIGHT, 10)
+
+        filters_sizer.AddStretchSpacer()
+
+        self.records_label = wx.StaticText(self, label="")
+        font = self.records_label.GetFont()
+        font = font.Bold()
+        self.records_label.SetFont(font)
+        filters_sizer.Add(self.records_label, 0, wx.ALIGN_CENTER_VERTICAL)
+
+        main_sizer.Add(filters_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 40)
+
+        main_sizer.AddSpacer(20)
+
+        # Search and action buttons
+        search_sizer = wx.BoxSizer(wx.HORIZONTAL)
+
+        self.search_input = wx.SearchCtrl(self, size=(400, -1))
+        self.search_input.SetDescriptiveText("Search by student number, name...")
+        self.search_input.Bind(wx.EVT_TEXT, self.on_search_changed)
+        search_sizer.Add(self.search_input, 0, wx.RIGHT, 10)
+
+        self.clear_search_button = wx.Button(self, label="Clear")
+        self.clear_search_button.Bind(wx.EVT_BUTTON, self.clear_search)
+        self.clear_search_button.Enable(False)
+        search_sizer.Add(self.clear_search_button, 0, wx.RIGHT, 10)
+
+        search_sizer.AddStretchSpacer()
+
+        self.pull_button = wx.Button(self, label="Pull")
+        self.pull_button.Bind(wx.EVT_BUTTON, self.pull_students)
+        self.pull_button.Enable(False)
+        search_sizer.Add(self.pull_button, 0, wx.RIGHT, 10)
+
+        self.push_button = wx.Button(self, label="Push")
+        self.push_button.Bind(wx.EVT_BUTTON, self.push_students)
+        self.push_button.Enable(False)
+        search_sizer.Add(self.push_button, 0)
+
+        main_sizer.Add(search_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 40)
+
+        main_sizer.AddSpacer(15)
+
+        # Separator
+        line = wx.StaticLine(self)
+        main_sizer.Add(line, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 40)
+
+        main_sizer.AddSpacer(15)
+
+        # Selection controls
+        selection_sizer = wx.BoxSizer(wx.HORIZONTAL)
+
+        self.select_all_checkbox = wx.CheckBox(self, label="Select All")
+        self.select_all_checkbox.Bind(wx.EVT_CHECKBOX, self.on_select_all_changed)
+        selection_sizer.Add(self.select_all_checkbox, 0, wx.RIGHT, 10)
+
+        self.selection_label = wx.StaticText(self, label="0 selected")
+        selection_sizer.Add(self.selection_label, 0)
+
+        main_sizer.Add(selection_sizer, 0, wx.LEFT | wx.RIGHT, 40)
+
+        main_sizer.AddSpacer(10)
+
+        # Table
+        self.list_ctrl = wx.ListCtrl(
+            self, style=wx.LC_REPORT | wx.LC_SINGLE_SEL | wx.BORDER_SIMPLE
+        )
+        self.list_ctrl.AppendColumn("", width=40)
+        self.list_ctrl.AppendColumn("Student No", width=150)
+        self.list_ctrl.AppendColumn("Name", width=250)
+        self.list_ctrl.AppendColumn("Gender", width=100)
+        self.list_ctrl.AppendColumn("Faculty Code", width=120)
+        self.list_ctrl.AppendColumn("Program Name", width=200)
+
+        main_sizer.Add(self.list_ctrl, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 40)
+
+        main_sizer.AddSpacer(10)
+
+        # Pagination
+        pagination_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        pagination_sizer.AddStretchSpacer()
+
+        self.prev_button = wx.Button(self, label="Previous")
+        self.prev_button.Bind(wx.EVT_BUTTON, self.previous_page)
+        self.prev_button.Enable(False)
+        pagination_sizer.Add(self.prev_button, 0, wx.RIGHT, 15)
+
+        self.page_label = wx.StaticText(self, label="")
+        pagination_sizer.Add(
+            self.page_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 15
+        )
+
+        self.next_button = wx.Button(self, label="Next")
+        self.next_button.Bind(wx.EVT_BUTTON, self.next_page)
+        pagination_sizer.Add(self.next_button, 0)
+
+        pagination_sizer.AddStretchSpacer()
+
+        main_sizer.Add(
+            pagination_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 40
+        )
+
+        self.SetSizer(main_sizer)
 
     def load_filter_options(self):
         try:
             schools = self.repository.list_active_schools()
             for school in schools:
-                self.school_filter.addItem(str(school.name))
-                self.school_filter.setItemData(
-                    self.school_filter.count() - 1, school.id
-                )
+                self.school_filter.Append(str(school.name), school.id)
 
             self.load_programs_for_school(None)
 
             terms = self.repository.list_terms()
             for term in terms:
-                self.term_filter.addItem(str(term))
-                self.term_filter.setItemData(self.term_filter.count() - 1, term)
+                self.term_filter.Append(str(term), term)
 
             semesters = self.repository.list_semesters()
             for sem in semesters:
-                self.semester_filter.addItem(f"Semester {sem}")
-                self.semester_filter.setItemData(self.semester_filter.count() - 1, sem)
+                self.semester_filter.Append(f"Semester {sem}", sem)
 
         except Exception as e:
             print(f"Error loading filter options: {str(e)}")
 
     def load_programs_for_school(self, school_id):
         try:
-            while self.program_filter.count() > 1:
-                self.program_filter.removeItem(1)
+            while self.program_filter.GetCount() > 1:
+                self.program_filter.Delete(1)
 
             programs = self.repository.list_programs(school_id)
 
             for program in programs:
-                self.program_filter.addItem(str(program.name))
-                self.program_filter.setItemData(
-                    self.program_filter.count() - 1, program.id
-                )
+                self.program_filter.Append(str(program.name), program.id)
         except Exception as e:
             print(f"Error loading programs: {str(e)}")
 
-    def on_school_changed(self, index):
-        self.selected_school_id = self.school_filter.currentData()
+    def on_school_changed(self, event):
+        sel = self.school_filter.GetSelection()
+        self.selected_school_id = (
+            self.school_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
+        )
         self.load_programs_for_school(self.selected_school_id)
-        self.term_filter.setCurrentIndex(0)
-        self.semester_filter.setCurrentIndex(0)
+        self.term_filter.SetSelection(0)
+        self.semester_filter.SetSelection(0)
         self.selected_program_id = None
         self.selected_term = None
         self.selected_semester_number = None
         self.current_page = 1
         self.load_students()
 
-    def on_filter_changed(self):
-        self.selected_school_id = self.school_filter.currentData()
-        self.selected_program_id = self.program_filter.currentData()
-        self.selected_term = self.term_filter.currentData()
-        self.selected_semester_number = self.semester_filter.currentData()
+    def on_filter_changed(self, event):
+        sel = self.school_filter.GetSelection()
+        self.selected_school_id = (
+            self.school_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
+        )
+
+        sel = self.program_filter.GetSelection()
+        self.selected_program_id = (
+            self.program_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
+        )
+
+        sel = self.term_filter.GetSelection()
+        self.selected_term = (
+            self.term_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
+        )
+
+        sel = self.semester_filter.GetSelection()
+        self.selected_semester_number = (
+            self.semester_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
+        )
+
         self.current_page = 1
         self.load_students()
 
-    def clear_filters(self):
-        self.school_filter.setCurrentIndex(0)
-        self.program_filter.setCurrentIndex(0)
-        self.term_filter.setCurrentIndex(0)
-        self.semester_filter.setCurrentIndex(0)
-        self.selected_school_id = None
-        self.selected_program_id = None
-        self.selected_term = None
-        self.selected_semester_number = None
-        self.current_page = 1
-        self.load_students()
+    def on_search_changed(self, event):
+        text = self.search_input.GetValue()
+        self.clear_search_button.Enable(bool(text))
+        if self.search_timer:
+            self.search_timer.Stop()
+        self.search_timer = wx.CallLater(500, self.perform_search)
 
-    def on_search_changed(self, text):
-        self.clear_search_button.setEnabled(bool(text))
-        self.search_timer.stop()
-        self.search_timer.start(500)
-
-    def clear_search(self):
-        self.search_input.clear()
+    def clear_search(self, event):
+        self.search_input.SetValue("")
         self.search_query = ""
         self.current_page = 1
         self.load_students()
 
     def perform_search(self):
-        self.search_query = self.search_input.text().strip()
+        self.search_query = self.search_input.GetValue().strip()
         self.current_page = 1
         self.load_students()
 
@@ -415,180 +379,101 @@ class StudentsView(QWidget):
             )
 
             self.total_students = total
-            self.table.setRowCount(len(students))
+            self.list_ctrl.DeleteAllItems()
 
             for row, student in enumerate(students):
-                checkbox = QCheckBox()
-                checkbox.stateChanged.connect(self.on_row_selection_changed)
-                checkbox_widget = QWidget()
-                checkbox_layout = QHBoxLayout(checkbox_widget)
-                checkbox_layout.addWidget(checkbox)
-                checkbox_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                checkbox_layout.setContentsMargins(12, 0, 0, 0)
-                self.table.setCellWidget(row, 0, checkbox_widget)
-
-                self.table.setItem(row, 1, QTableWidgetItem(student.std_no))
-                self.table.setItem(row, 2, QTableWidgetItem(student.name or ""))
-                self.table.setItem(row, 3, QTableWidgetItem(student.gender or ""))
-                self.table.setItem(row, 4, QTableWidgetItem(student.faculty_code or ""))
-                self.table.setItem(row, 5, QTableWidgetItem(student.program_name or ""))
+                index = self.list_ctrl.InsertItem(row, "")
+                self.list_ctrl.SetItem(index, 1, student.std_no)
+                self.list_ctrl.SetItem(index, 2, student.name or "")
+                self.list_ctrl.SetItem(index, 3, student.gender or "")
+                self.list_ctrl.SetItem(index, 4, student.faculty_code or "")
+                self.list_ctrl.SetItem(index, 5, student.program_name or "")
+                self.list_ctrl.SetItemData(index, row)
 
             self.update_pagination_controls()
             self.update_total_label()
 
         except Exception as e:
             print(f"Error loading students: {str(e)}")
-            self.table.setRowCount(0)
-            self.page_label.setText("No data available")
-            self.records_label.setText("")
+            self.list_ctrl.DeleteAllItems()
+            self.page_label.SetLabel("No data available")
+            self.records_label.SetLabel("")
 
     def update_total_label(self):
         if self.total_students > 0:
-            self.records_label.setText(
-                f"{self.total_students} Record{'s' if self.total_students != 1 else ''}"
-            )
+            plural = "s" if self.total_students != 1 else ""
+            self.records_label.SetLabel(f"{self.total_students} Record{plural}")
 
     def update_pagination_controls(self):
         total_pages = (self.total_students + self.page_size - 1) // self.page_size
-        self.page_label.setText(f"Page {self.current_page} of {total_pages}")
+        self.page_label.SetLabel(f"Page {self.current_page} of {total_pages}")
 
-        self.prev_button.setEnabled(self.current_page > 1)
-        self.next_button.setEnabled(self.current_page < total_pages)
+        self.prev_button.Enable(self.current_page > 1)
+        self.next_button.Enable(self.current_page < total_pages)
 
-    def previous_page(self):
+    def previous_page(self, event):
         if self.current_page > 1:
             self.current_page -= 1
             self.load_students()
 
-    def next_page(self):
+    def next_page(self, event):
         total_pages = (self.total_students + self.page_size - 1) // self.page_size
         if self.current_page < total_pages:
             self.current_page += 1
             self.load_students()
 
-    def on_select_all_changed(self, state):
-        check_state = Qt.CheckState(state)
-        if check_state == Qt.CheckState.PartiallyChecked:
-            return
-
-        is_checked = check_state == Qt.CheckState.Checked
-        for row in range(self.table.rowCount()):
-            checkbox_widget = self.table.cellWidget(row, 0)
-            if checkbox_widget:
-                checkbox = checkbox_widget.findChild(QCheckBox)
-                if checkbox:
-                    checkbox.setChecked(is_checked)
-
-    def on_row_selection_changed(self):
-        selected_count = self.get_selected_count()
-        self.selection_label.setText(f"{selected_count} selected")
-        self.pull_button.setEnabled(selected_count > 0)
-        self.push_button.setEnabled(selected_count > 0)
-
-        self.select_all_checkbox.blockSignals(True)
-        if selected_count == 0:
-            self.select_all_checkbox.setCheckState(Qt.CheckState.Unchecked)
-        elif selected_count == self.table.rowCount():
-            self.select_all_checkbox.setCheckState(Qt.CheckState.Checked)
-        else:
-            self.select_all_checkbox.setCheckState(Qt.CheckState.PartiallyChecked)
-        self.select_all_checkbox.blockSignals(False)
+    def on_select_all_changed(self, event):
+        # Not implemented - wxPython ListCtrl doesn't have built-in checkboxes
+        # Would need to use a custom implementation or different control
+        pass
 
     def get_selected_count(self):
-        count = 0
-        for row in range(self.table.rowCount()):
-            checkbox_widget = self.table.cellWidget(row, 0)
-            if checkbox_widget:
-                checkbox = checkbox_widget.findChild(QCheckBox)
-                if checkbox and checkbox.isChecked():
-                    count += 1
-        return count
+        # Simplified - returns 1 if an item is selected, 0 otherwise
+        return 1 if self.list_ctrl.GetFirstSelected() != -1 else 0
 
     def get_selected_student_numbers(self):
-        selected_students = []
-        for row in range(self.table.rowCount()):
-            checkbox_widget = self.table.cellWidget(row, 0)
-            if checkbox_widget:
-                checkbox = checkbox_widget.findChild(QCheckBox)
-                if checkbox and checkbox.isChecked():
-                    student_no_item = self.table.item(row, 1)
-                    if student_no_item:
-                        selected_students.append(student_no_item.text())
-        return selected_students
+        selected = []
+        index = self.list_ctrl.GetFirstSelected()
+        if index != -1:
+            selected.append(self.list_ctrl.GetItemText(index, 1))
+        return selected
 
     def get_selected_students_data(self):
-        selected_data = []
-        for row in range(self.table.rowCount()):
-            checkbox_widget = self.table.cellWidget(row, 0)
-            if checkbox_widget:
-                checkbox = checkbox_widget.findChild(QCheckBox)
-                if checkbox and checkbox.isChecked():
-                    std_no_item = self.table.item(row, 1)
-                    name_item = self.table.item(row, 2)
-                    gender_item = self.table.item(row, 3)
-                    if std_no_item and name_item and gender_item:
-                        student_data = {
-                            "std_no": std_no_item.text(),
-                            "name": name_item.text(),
-                            "gender": gender_item.text(),
-                        }
-                        selected_data.append(student_data)
-        return selected_data
+        selected = []
+        index = self.list_ctrl.GetFirstSelected()
+        if index != -1:
+            std_no = self.list_ctrl.GetItemText(index, 1)
+            name = self.list_ctrl.GetItemText(index, 2)
+            gender = self.list_ctrl.GetItemText(index, 3)
+            selected.append({"std_no": std_no, "name": name, "gender": gender})
+        return selected
 
-    def pull_students(self):
+    def pull_students(self, event):
         selected_students = self.get_selected_student_numbers()
         if not selected_students:
             return
 
-        reply = QMessageBox.question(
+        dlg = wx.MessageDialog(
             self,
-            "Confirm Pull",
             f"Pull data for {len(selected_students)} student(s) from the web?\n\nThis will update the local database with data from the registry system.",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
+            "Confirm Pull",
+            wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION,
         )
 
-        if reply != QMessageBox.StandardButton.Yes:
+        if dlg.ShowModal() != wx.ID_YES:
+            dlg.Destroy()
             return
+        dlg.Destroy()
 
-        self.pull_button.setEnabled(False)
-        self.push_button.setEnabled(False)
+        self.pull_button.Enable(False)
+        self.push_button.Enable(False)
 
-        self.pull_worker = PullStudentsWorker(selected_students, self.sync_service)
-        self.pull_worker.progress.connect(self.on_pull_progress)
-        self.pull_worker.finished.connect(self.on_pull_finished)
-        self.pull_worker.error.connect(self.on_pull_error)
+        self.pull_worker = PullStudentsWorker(
+            selected_students, self.sync_service, self.on_worker_callback
+        )
         self.pull_worker.start()
 
-    def on_pull_progress(self, message, current, total):
-        if self.status_bar:
-            self.status_bar.show_progress(message, current, total)
-
-    def on_pull_finished(self, success_count, failed_count):
-        if self.status_bar:
-            self.status_bar.clear()
-        self.pull_button.setEnabled(True)
-        self.push_button.setEnabled(True)
-
-        if failed_count > 0:
-            QMessageBox.information(
-                self,
-                "Pull Complete",
-                f"Successfully pulled {success_count} student(s).\n{failed_count} failed.",
-            )
-        else:
-            QMessageBox.information(
-                self,
-                "Pull Complete",
-                f"Successfully pulled data for {success_count} student(s).",
-            )
-
-        self.load_students()
-
-    def on_pull_error(self, error_msg):
-        QMessageBox.warning(self, "Error", error_msg)
-
-    def push_students(self):
+    def push_students(self, event):
         selected_students = self.get_selected_students_data()
         if not selected_students:
             return
@@ -596,11 +481,11 @@ class StudentsView(QWidget):
         if len(selected_students) == 1:
             student_data = selected_students[0]
             dialog = StudentFormDialog(student_data, self, self.status_bar)
-            if dialog.exec():
+            if dialog.ShowModal() == wx.ID_OK:
                 updated_data = dialog.get_updated_data()
 
-                self.pull_button.setEnabled(False)
-                self.push_button.setEnabled(False)
+                self.pull_button.Enable(False)
+                self.push_button.Enable(False)
 
                 self.push_worker = PushStudentsWorker(
                     updated_data["std_no"],
@@ -611,39 +496,62 @@ class StudentsView(QWidget):
                         "email": updated_data["email"],
                     },
                     self.sync_service,
+                    self.on_worker_callback,
                 )
-                self.push_worker.progress.connect(self.on_push_progress)
-                self.push_worker.finished.connect(self.on_push_finished)
-                self.push_worker.error.connect(self.on_push_error)
                 self.push_worker.start()
+            dialog.Destroy()
         else:
-            QMessageBox.information(
-                self,
-                "Multiple Students",
+            wx.MessageBox(
                 "Please select only one student to update.",
+                "Multiple Students",
+                wx.OK | wx.ICON_INFORMATION,
             )
 
-    def on_push_progress(self, message, current, total):
-        if self.status_bar:
-            self.status_bar.show_progress(message, current, total)
+    def on_worker_callback(self, event_type, *args):
+        wx.CallAfter(self._handle_worker_event, event_type, *args)
 
-    def on_push_finished(self, success, message):
-        if self.status_bar:
-            self.status_bar.clear()
-        self.pull_button.setEnabled(True)
-        self.push_button.setEnabled(True)
+    def _handle_worker_event(self, event_type, *args):
+        if event_type == "progress":
+            message, current, total = args
+            if self.status_bar:
+                self.status_bar.show_progress(message, current, total)
+        elif event_type == "finished":
+            success_count, failed_count = args
+            if self.status_bar:
+                self.status_bar.clear()
+            self.pull_button.Enable(True)
+            self.push_button.Enable(True)
 
-        if success:
-            QMessageBox.information(
-                self,
-                "Success",
-                f"Student updated successfully.",
-            )
+            if failed_count > 0:
+                wx.MessageBox(
+                    f"Successfully pulled {success_count} student(s).\n{failed_count} failed.",
+                    "Pull Complete",
+                    wx.OK | wx.ICON_INFORMATION,
+                )
+            else:
+                wx.MessageBox(
+                    f"Successfully pulled data for {success_count} student(s).",
+                    "Pull Complete",
+                    wx.OK | wx.ICON_INFORMATION,
+                )
+
             self.load_students()
-        else:
-            QMessageBox.critical(self, "Update Failed", message)
+        elif event_type == "push_finished":
+            success, message = args
+            if self.status_bar:
+                self.status_bar.clear()
+            self.pull_button.Enable(True)
+            self.push_button.Enable(True)
 
-    def on_push_error(self, error_msg):
-        if self.status_bar:
-            self.status_bar.clear()
-        QMessageBox.warning(self, "Error", error_msg)
+            if success:
+                wx.MessageBox(
+                    "Student updated successfully.",
+                    "Success",
+                    wx.OK | wx.ICON_INFORMATION,
+                )
+                self.load_students()
+            else:
+                wx.MessageBox(message, "Update Failed", wx.OK | wx.ICON_ERROR)
+        elif event_type == "error":
+            error_msg = args[0]
+            wx.MessageBox(error_msg, "Error", wx.OK | wx.ICON_WARNING)

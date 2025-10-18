@@ -50,6 +50,29 @@ class StudentSyncService:
             form_data = get_form_payload(form)
 
             form_data["a_edit"] = "U"
+            form_data["x_InstitutionID"] = "1"
+
+            program_details = self._repository.get_student_program_details(
+                student_number
+            )
+
+            if program_details:
+                if program_details.get("school_id"):
+                    form_data["x_SchoolID"] = str(program_details["school_id"])
+                    form_data["x_opSchoolID"] = str(program_details["school_id"])
+
+                if program_details.get("program_id"):
+                    form_data["x_ProgramID"] = str(program_details["program_id"])
+                    form_data["x_opProgramID"] = str(program_details["program_id"])
+
+                if program_details.get("structure_id"):
+                    form_data["x_StructureID"] = str(program_details["structure_id"])
+
+                if program_details.get("intake_date"):
+                    form_data["x_IntakeDateCode"] = program_details["intake_date"]
+
+                if program_details.get("start_term"):
+                    form_data["x_opTermCode"] = program_details["start_term"]
 
             if "name" in data:
                 form_data["x_StudentName"] = data["name"]
@@ -70,6 +93,15 @@ class StudentSyncService:
 
             if "email" in data:
                 form_data["x_StdEmail"] = data["email"]
+
+            if "phone1" in data:
+                form_data["x_StdContactNo"] = data["phone1"]
+
+            if "phone2" in data:
+                form_data["x_StdContactNo2"] = data["phone2"]
+
+            if "national_id" in data:
+                form_data["x_StudentNo"] = data["national_id"]
 
             if progress_callback:
                 progress_callback(f"Pushing {student_number} to CMS...")

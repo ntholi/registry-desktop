@@ -148,6 +148,46 @@ class StudentRepository:
         ]
         return rows, total
 
+    def get_student_program_details(self, student_number: str):
+        try:
+            numeric_student_number = int(student_number)
+        except (TypeError, ValueError):
+            return None
+
+        with self._session() as session:
+            program_details = (
+                session.query(
+                    StudentProgram.intake_date,
+                    StudentProgram.start_term,
+                    Structure.id.label("structure_id"),
+                    Program.id.label("program_id"),
+                    School.id.label("school_id"),
+                )
+                .join(Structure, StudentProgram.structure_id == Structure.id)
+                .join(Program, Structure.program_id == Program.id)
+                .join(School, Program.school_id == School.id)
+                .filter(StudentProgram.std_no == numeric_student_number)
+                .filter(
+                    or_(
+                        StudentProgram.status == "Active",
+                        StudentProgram.status == "Completed",
+                    )
+                )
+                .order_by(StudentProgram.id)
+                .first()
+            )
+
+            if not program_details:
+                return None
+
+            return {
+                "intake_date": program_details.intake_date,
+                "start_term": program_details.start_term,
+                "structure_id": program_details.structure_id,
+                "program_id": program_details.program_id,
+                "school_id": program_details.school_id,
+            }
+
     def update_student(self, student_number: str, data: dict):
         try:
             numeric_student_number = int(student_number)

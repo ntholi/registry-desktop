@@ -239,15 +239,16 @@ class StudentsView(wx.Panel):
         main_sizer.AddSpacer(10)
 
         # Table
-        self.list_ctrl = wx.ListCtrl(
-            self, style=wx.LC_REPORT | wx.LC_SINGLE_SEL | wx.BORDER_SIMPLE
-        )
+        self.list_ctrl = wx.ListCtrl(self, style=wx.LC_REPORT | wx.BORDER_SIMPLE)
         self.list_ctrl.AppendColumn("", width=40)
         self.list_ctrl.AppendColumn("Student No", width=150)
         self.list_ctrl.AppendColumn("Name", width=250)
         self.list_ctrl.AppendColumn("Gender", width=100)
         self.list_ctrl.AppendColumn("Faculty Code", width=120)
         self.list_ctrl.AppendColumn("Program Name", width=200)
+
+        self.list_ctrl.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_list_selection_changed)
+        self.list_ctrl.Bind(wx.EVT_LIST_ITEM_DESELECTED, self.on_list_selection_changed)
 
         main_sizer.Add(self.list_ctrl, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 40)
 
@@ -392,12 +393,15 @@ class StudentsView(wx.Panel):
 
             self.update_pagination_controls()
             self.update_total_label()
+            self.select_all_checkbox.SetValue(False)
+            self.update_selection_state()
 
         except Exception as e:
             print(f"Error loading students: {str(e)}")
             self.list_ctrl.DeleteAllItems()
             self.page_label.SetLabel("No data available")
             self.records_label.SetLabel("")
+            self.update_selection_state()
 
     def update_total_label(self):
         if self.total_students > 0:
@@ -423,30 +427,56 @@ class StudentsView(wx.Panel):
             self.load_students()
 
     def on_select_all_changed(self, event):
-        # Not implemented - wxPython ListCtrl doesn't have built-in checkboxes
-        # Would need to use a custom implementation or different control
-        pass
+        should_select_all = self.select_all_checkbox.GetValue()
+        item_count = self.list_ctrl.GetItemCount()
+
+        for idx in range(item_count):
+            self.list_ctrl.Select(idx, on=should_select_all)
+
+        if should_select_all and item_count:
+            self.list_ctrl.Focus(0)
+        else:
+            self.list_ctrl.Focus(-1)
+
+        self.update_selection_state()
 
     def get_selected_count(self):
-        # Simplified - returns 1 if an item is selected, 0 otherwise
-        return 1 if self.list_ctrl.GetFirstSelected() != -1 else 0
+        return len(list(self._iterate_selected_indices()))
 
     def get_selected_student_numbers(self):
         selected = []
-        index = self.list_ctrl.GetFirstSelected()
-        if index != -1:
+        for index in self._iterate_selected_indices():
             selected.append(self.list_ctrl.GetItemText(index, 1))
         return selected
 
     def get_selected_students_data(self):
         selected = []
-        index = self.list_ctrl.GetFirstSelected()
-        if index != -1:
+        for index in self._iterate_selected_indices():
             std_no = self.list_ctrl.GetItemText(index, 1)
             name = self.list_ctrl.GetItemText(index, 2)
             gender = self.list_ctrl.GetItemText(index, 3)
             selected.append({"std_no": std_no, "name": name, "gender": gender})
         return selected
+
+    def _iterate_selected_indices(self):
+        index = self.list_ctrl.GetFirstSelected()
+        while index != -1:
+            yield index
+            index = self.list_ctrl.GetNextSelected(index)
+
+    def on_list_selection_changed(self, event):
+        self.update_selection_state()
+        event.Skip()
+
+    def update_selection_state(self):
+        selected_count = self.get_selected_count()
+        self.selection_label.SetLabel(f"{selected_count} selected")
+        self.pull_button.Enable(selected_count > 0)
+        self.push_button.Enable(selected_count == 1)
+        total_items = self.list_ctrl.GetItemCount()
+        should_check_all = total_items > 0 and selected_count == total_items
+        if self.select_all_checkbox.GetValue() != should_check_all:
+            self.select_all_checkbox.SetValue(should_check_all)
 
     def pull_students(self, event):
         selected_students = self.get_selected_student_numbers()

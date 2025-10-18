@@ -52,7 +52,7 @@ class AccordionNavigation(wx.Panel):
                 | CT.TR_HAS_VARIABLE_ROW_HEIGHT
             ),
         )
-        self.tree.Bind(wx.EVT_TREE_ITEM_ACTIVATED, self.on_item_activated)
+        self.tree.Bind(wx.EVT_TREE_SEL_CHANGED, self.on_item_selected)
         sizer.Add(self.tree, 1, wx.EXPAND)
 
         self.SetSizer(sizer)
@@ -73,7 +73,7 @@ class AccordionNavigation(wx.Panel):
                 # Add category as parent
                 parent_item = self.tree.AppendItem(
                     root,
-                    f"{item_config['title']}\n{item_config['description']}",
+                    item_config["title"],
                 )
                 parent_font = self.tree.GetItemFont(parent_item)
                 parent_font.PointSize = 10
@@ -97,8 +97,8 @@ class AccordionNavigation(wx.Panel):
         except json.JSONDecodeError as e:
             print(f"Error parsing menu configuration: {e}")
 
-    def on_item_activated(self, event):
-        """Handle tree item activation (double-click or enter)"""
+    def on_item_selected(self, event):
+        """Handle tree item selection (single-click)"""
         item = event.GetItem()
         if item and self.tree.GetItemData(item):
             action = self.tree.GetItemData(item)

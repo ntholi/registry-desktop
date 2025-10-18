@@ -1,31 +1,24 @@
 @echo off
-REM Build script for Limkokwing Registry Desktop
-REM This script creates an executable using PyInstaller
-
 echo.
 echo ============================================
 echo Building Limkokwing Registry Executable
 echo ============================================
 echo.
 
-REM Check if uv is available
 where uv >nul 2>nul
 if errorlevel 1 (
     echo Error: uv package manager not found. Please install uv first.
     exit /b 1
 )
 
-REM Clean previous builds
 echo Cleaning previous builds...
 if exist dist rmdir /s /q dist
 if exist build rmdir /s /q build
 if exist "Limkokwing Registry.spec" del "Limkokwing Registry.spec"
 
-REM Run PyInstaller
 echo Building executable...
 uv run pyinstaller registry.spec --distpath dist --workpath build
 
-REM Check if build was successful
 if errorlevel 1 (
     echo.
     echo Error: PyInstaller build failed!

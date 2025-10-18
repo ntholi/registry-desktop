@@ -17,7 +17,6 @@ class AccordionNavigation(wx.Panel):
     def setup_ui(self):
         sizer = wx.BoxSizer(wx.VERTICAL)
 
-        # Title section
         title_panel = wx.Panel(self)
         title_sizer = wx.BoxSizer(wx.VERTICAL)
 
@@ -37,11 +36,9 @@ class AccordionNavigation(wx.Panel):
         title_panel.SetSizer(title_sizer)
         sizer.Add(title_panel, 0, wx.EXPAND)
 
-        # Separator
         line = wx.StaticLine(self)
         sizer.Add(line, 0, wx.EXPAND)
 
-        # Tree control for accordion
         self.tree = CT.CustomTreeCtrl(
             self,
             agwStyle=(

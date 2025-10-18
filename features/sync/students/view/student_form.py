@@ -20,11 +20,9 @@ class StudentFormDialog(wx.Dialog):
         panel = wx.Panel(self)
         main_sizer = wx.BoxSizer(wx.VERTICAL)
 
-        # Form fields
         form_sizer = wx.FlexGridSizer(rows=5, cols=2, vgap=10, hgap=10)
         form_sizer.AddGrowableCol(1)
 
-        # Student Number (read-only)
         form_sizer.Add(
             wx.StaticText(panel, label="Student Number:"),
             0,
@@ -35,7 +33,6 @@ class StudentFormDialog(wx.Dialog):
         )
         form_sizer.Add(student_no_text, 0, wx.EXPAND)
 
-        # Name
         form_sizer.Add(
             wx.StaticText(panel, label="Name:"),
             0,
@@ -46,7 +43,6 @@ class StudentFormDialog(wx.Dialog):
         )
         form_sizer.Add(self.name_input, 0, wx.EXPAND)
 
-        # Gender
         form_sizer.Add(
             wx.StaticText(panel, label="Gender:"),
             0,
@@ -57,7 +53,6 @@ class StudentFormDialog(wx.Dialog):
         )
         form_sizer.Add(self.gender_input, 0, wx.EXPAND)
 
-        # Date of Birth
         form_sizer.Add(
             wx.StaticText(panel, label="Date of Birth:"),
             0,
@@ -75,7 +70,6 @@ class StudentFormDialog(wx.Dialog):
             self.dob_input.SetValue(wx.DateTime.FromDMY(dt.day, dt.month - 1, dt.year))
         form_sizer.Add(self.dob_input, 0, wx.EXPAND)
 
-        # Email
         form_sizer.Add(
             wx.StaticText(panel, label="Email:"),
             0,
@@ -89,7 +83,6 @@ class StudentFormDialog(wx.Dialog):
 
         main_sizer.Add(form_sizer, 0, wx.ALL | wx.EXPAND, 20)
 
-        # Buttons
         button_sizer = wx.StdDialogButtonSizer()
         save_btn = wx.Button(panel, wx.ID_OK, "Save")
         save_btn.Bind(wx.EVT_BUTTON, self.on_save)

@@ -127,21 +127,18 @@ class StudentsView(wx.Panel):
     def init_ui(self):
         main_sizer = wx.BoxSizer(wx.VERTICAL)
 
-        # Title
         title = wx.StaticText(self, label="Students")
         font = title.GetFont()
         font.PointSize = 18
         font = font.Bold()
         title.SetFont(font)
-        main_sizer.Add(title, 0, wx.ALL, 40)
+        main_sizer.Add(title, 0, wx.LEFT | wx.RIGHT | wx.TOP | wx.BOTTOM, 22)
 
-        # Title separator
         line = wx.StaticLine(self)
         main_sizer.Add(line, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 40)
 
         main_sizer.AddSpacer(20)
 
-        # Filters label
         filters_label = wx.StaticText(self, label="Filters")
         font = filters_label.GetFont()
         font.PointSize = 12
@@ -151,7 +148,6 @@ class StudentsView(wx.Panel):
 
         main_sizer.AddSpacer(10)
 
-        # Filters
         filters_sizer = wx.BoxSizer(wx.HORIZONTAL)
 
         self.school_filter = wx.Choice(self)
@@ -190,7 +186,6 @@ class StudentsView(wx.Panel):
 
         main_sizer.AddSpacer(20)
 
-        # Search and action buttons
         search_sizer = wx.BoxSizer(wx.HORIZONTAL)
 
         self.search_input = wx.SearchCtrl(self, size=wx.Size(400, -1))
@@ -219,13 +214,11 @@ class StudentsView(wx.Panel):
 
         main_sizer.AddSpacer(15)
 
-        # Separator
         line = wx.StaticLine(self)
         main_sizer.Add(line, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 40)
 
         main_sizer.AddSpacer(15)
 
-        # Selection controls
         selection_sizer = wx.BoxSizer(wx.HORIZONTAL)
 
         self.select_all_checkbox = wx.CheckBox(self, label="Select All")
@@ -239,10 +232,8 @@ class StudentsView(wx.Panel):
 
         main_sizer.AddSpacer(10)
 
-        # Table
         self.list_ctrl = wx.ListCtrl(self, style=wx.LC_REPORT | wx.BORDER_SIMPLE)
 
-        # Create image list with checkboxes
         self.image_list = wx.ImageList(16, 16)
         self.unchecked_idx = self.image_list.Add(self._create_checkbox_bitmap(False))
         self.checked_idx = self.image_list.Add(self._create_checkbox_bitmap(True))
@@ -262,7 +253,6 @@ class StudentsView(wx.Panel):
 
         main_sizer.AddSpacer(10)
 
-        # Pagination
         pagination_sizer = wx.BoxSizer(wx.HORIZONTAL)
         pagination_sizer.AddStretchSpacer()
 

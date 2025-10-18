@@ -132,8 +132,10 @@ class StudentsView(wx.Panel):
         font.PointSize = 18
         font = font.Bold()
         title.SetFont(font)
-        main_sizer.Add(title, 0, wx.LEFT | wx.RIGHT | wx.TOP | wx.BOTTOM, 22)
+        main_sizer.AddSpacer(20)
+        main_sizer.Add(title, 0, wx.LEFT | wx.RIGHT, 40)
 
+        main_sizer.AddSpacer(25)
         line = wx.StaticLine(self)
         main_sizer.Add(line, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 40)
 

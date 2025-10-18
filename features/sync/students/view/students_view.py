@@ -118,6 +118,7 @@ class StudentsView(wx.Panel):
         self.push_worker = None
         self.repository = StudentRepository()
         self.sync_service = StudentSyncService(self.repository)
+        self.checked_items = set()
 
         self.init_ui()
         self.load_filter_options()
@@ -240,6 +241,13 @@ class StudentsView(wx.Panel):
 
         # Table
         self.list_ctrl = wx.ListCtrl(self, style=wx.LC_REPORT | wx.BORDER_SIMPLE)
+
+        # Create image list with checkboxes
+        self.image_list = wx.ImageList(16, 16)
+        self.unchecked_idx = self.image_list.Add(self._create_checkbox_bitmap(False))
+        self.checked_idx = self.image_list.Add(self._create_checkbox_bitmap(True))
+        self.list_ctrl.SetImageList(self.image_list, wx.IMAGE_LIST_SMALL)
+
         self.list_ctrl.AppendColumn("", width=40)
         self.list_ctrl.AppendColumn("Student No", width=150)
         self.list_ctrl.AppendColumn("Name", width=250)
@@ -247,8 +255,8 @@ class StudentsView(wx.Panel):
         self.list_ctrl.AppendColumn("Faculty Code", width=120)
         self.list_ctrl.AppendColumn("Program Name", width=200)
 
-        self.list_ctrl.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_list_selection_changed)
-        self.list_ctrl.Bind(wx.EVT_LIST_ITEM_DESELECTED, self.on_list_selection_changed)
+        self.list_ctrl.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.on_list_item_clicked)
+        self.list_ctrl.Bind(wx.EVT_LEFT_DOWN, self.on_list_left_down)
 
         main_sizer.Add(self.list_ctrl, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 40)
 
@@ -279,6 +287,49 @@ class StudentsView(wx.Panel):
         )
 
         self.SetSizer(main_sizer)
+
+    def _create_checkbox_bitmap(self, checked):
+        bmp = wx.Bitmap(16, 16)
+        dc = wx.MemoryDC(bmp)
+
+        # Fill background
+        dc.SetBackground(wx.Brush(self.GetBackgroundColour()))
+        dc.Clear()
+
+        # Draw checkbox border
+        dc.SetPen(wx.Pen(wx.Colour(128, 128, 128), 1))
+        dc.SetBrush(wx.Brush(wx.WHITE))
+        dc.DrawRectangle(2, 2, 12, 12)
+
+        # Draw checkmark if checked
+        if checked:
+            dc.SetPen(wx.Pen(wx.Colour(0, 120, 215), 2))
+            dc.DrawLine(4, 8, 7, 11)
+            dc.DrawLine(7, 11, 12, 4)
+
+        dc.SelectObject(wx.NullBitmap)
+        return bmp
+
+    def on_list_left_down(self, event):
+        item, flags, col = self.list_ctrl.HitTestSubItem(event.GetPosition())
+
+        if item != wx.NOT_FOUND and col == 0:
+            self.toggle_item_check(item)
+        else:
+            event.Skip()
+
+    def on_list_item_clicked(self, event):
+        pass
+
+    def toggle_item_check(self, item):
+        if item in self.checked_items:
+            self.checked_items.remove(item)
+            self.list_ctrl.SetItemImage(item, self.unchecked_idx)
+        else:
+            self.checked_items.add(item)
+            self.list_ctrl.SetItemImage(item, self.checked_idx)
+
+        self.update_selection_state()
 
     def load_filter_options(self):
         try:
@@ -381,9 +432,11 @@ class StudentsView(wx.Panel):
 
             self.total_students = total
             self.list_ctrl.DeleteAllItems()
+            self.checked_items.clear()
 
             for row, student in enumerate(students):
                 index = self.list_ctrl.InsertItem(row, "")
+                self.list_ctrl.SetItemImage(index, self.unchecked_idx)
                 self.list_ctrl.SetItem(index, 1, student.std_no)
                 self.list_ctrl.SetItem(index, 2, student.name or "")
                 self.list_ctrl.SetItem(index, 3, student.gender or "")
@@ -399,6 +452,7 @@ class StudentsView(wx.Panel):
         except Exception as e:
             print(f"Error loading students: {str(e)}")
             self.list_ctrl.DeleteAllItems()
+            self.checked_items.clear()
             self.page_label.SetLabel("No data available")
             self.records_label.SetLabel("")
             self.update_selection_state()
@@ -431,27 +485,27 @@ class StudentsView(wx.Panel):
         item_count = self.list_ctrl.GetItemCount()
 
         for idx in range(item_count):
-            self.list_ctrl.Select(idx, on=should_select_all)
-
-        if should_select_all and item_count:
-            self.list_ctrl.Focus(0)
-        else:
-            self.list_ctrl.Focus(-1)
+            if should_select_all:
+                self.checked_items.add(idx)
+                self.list_ctrl.SetItemImage(idx, self.checked_idx)
+            else:
+                self.checked_items.discard(idx)
+                self.list_ctrl.SetItemImage(idx, self.unchecked_idx)
 
         self.update_selection_state()
 
     def get_selected_count(self):
-        return len(list(self._iterate_selected_indices()))
+        return len(self.checked_items)
 
     def get_selected_student_numbers(self):
         selected = []
-        for index in self._iterate_selected_indices():
+        for index in sorted(self.checked_items):
             selected.append(self.list_ctrl.GetItemText(index, 1))
         return selected
 
     def get_selected_students_data(self):
         selected = []
-        for index in self._iterate_selected_indices():
+        for index in sorted(self.checked_items):
             std_no = self.list_ctrl.GetItemText(index, 1)
             name = self.list_ctrl.GetItemText(index, 2)
             gender = self.list_ctrl.GetItemText(index, 3)
@@ -459,10 +513,8 @@ class StudentsView(wx.Panel):
         return selected
 
     def _iterate_selected_indices(self):
-        index = self.list_ctrl.GetFirstSelected()
-        while index != -1:
+        for index in sorted(self.checked_items):
             yield index
-            index = self.list_ctrl.GetNextSelected(index)
 
     def on_list_selection_changed(self, event):
         self.update_selection_state()

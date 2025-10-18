@@ -450,12 +450,14 @@ class StudentsView(wx.Panel):
             self.update_selection_state()
 
     def update_total_label(self):
-        if self.total_students > 0:
-            plural = "s" if self.total_students != 1 else ""
-            self.records_label.SetLabel(f"{self.total_students} Record{plural}")
+        plural = "s" if self.total_students != 1 else ""
+        self.records_label.SetLabel(f"{self.total_students} Record{plural}")
+        self.Layout()
 
     def update_pagination_controls(self):
-        total_pages = (self.total_students + self.page_size - 1) // self.page_size
+        total_pages = max(
+            (self.total_students + self.page_size - 1) // self.page_size, 1
+        )
         self.page_label.SetLabel(f"Page {self.current_page} of {total_pages}")
 
         self.prev_button.Enable(self.current_page > 1)

@@ -199,10 +199,10 @@ class StudentsView(wx.Panel):
         self.pull_button.Enable(False)
         search_sizer.Add(self.pull_button, 0, wx.RIGHT, 10)
 
-        self.update_button = wx.Button(self, label="Update")
-        self.update_button.Bind(wx.EVT_BUTTON, self.update_students)
-        self.update_button.Enable(False)
-        search_sizer.Add(self.update_button, 0)
+        self.edit_button = wx.Button(self, label="Edit")
+        self.edit_button.Bind(wx.EVT_BUTTON, self.update_students)
+        self.edit_button.Enable(False)
+        search_sizer.Add(self.edit_button, 0)
 
         main_sizer.Add(search_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 40)
 
@@ -542,7 +542,7 @@ class StudentsView(wx.Panel):
         selected_count = self.get_selected_count()
         self.selection_label.SetLabel(f"{selected_count} selected")
         self.pull_button.Enable(selected_count > 0)
-        self.update_button.Enable(selected_count == 1)
+        self.edit_button.Enable(selected_count == 1)
         total_items = self.list_ctrl.GetItemCount()
         should_check_all = total_items > 0 and selected_count == total_items
         if self.select_all_checkbox.GetValue() != should_check_all:
@@ -566,7 +566,7 @@ class StudentsView(wx.Panel):
         dlg.Destroy()
 
         self.pull_button.Enable(False)
-        self.update_button.Enable(False)
+        self.edit_button.Enable(False)
 
         self.pull_worker = PullStudentsWorker(
             selected_students, self.sync_service, self.on_worker_callback
@@ -584,7 +584,7 @@ class StudentsView(wx.Panel):
                 updated_data = dialog.get_updated_data()
 
                 self.pull_button.Enable(False)
-                self.update_button.Enable(False)
+                self.edit_button.Enable(False)
 
                 self.update_worker = UpdateStudentsWorker(
                     updated_data["std_no"],
@@ -619,7 +619,7 @@ class StudentsView(wx.Panel):
             if self.status_bar:
                 self.status_bar.clear()
             self.pull_button.Enable(True)
-            self.update_button.Enable(True)
+            self.edit_button.Enable(True)
 
             if failed_count > 0:
                 wx.MessageBox(
@@ -640,7 +640,7 @@ class StudentsView(wx.Panel):
             if self.status_bar:
                 self.status_bar.clear()
             self.pull_button.Enable(True)
-            self.update_button.Enable(True)
+            self.edit_button.Enable(True)
 
             if success:
                 wx.MessageBox(

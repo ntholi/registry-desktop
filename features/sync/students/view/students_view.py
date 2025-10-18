@@ -176,11 +176,6 @@ class StudentsView(wx.Panel):
         self.semester_filter.Bind(wx.EVT_CHOICE, self.on_filter_changed)
         filters_sizer.Add(self.semester_filter, 0, wx.RIGHT, 10)
 
-        filters_sizer.AddStretchSpacer()
-
-        self.records_label = wx.StaticText(self, label="")
-        filters_sizer.Add(self.records_label, 0, wx.ALIGN_CENTER_VERTICAL)
-
         main_sizer.Add(filters_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 40)
 
         main_sizer.AddSpacer(20)
@@ -253,6 +248,10 @@ class StudentsView(wx.Panel):
         main_sizer.AddSpacer(10)
 
         pagination_sizer = wx.BoxSizer(wx.HORIZONTAL)
+
+        self.records_label = wx.StaticText(self, label="")
+        pagination_sizer.Add(self.records_label, 0, wx.ALIGN_CENTER_VERTICAL)
+
         pagination_sizer.AddStretchSpacer()
 
         self.prev_button = wx.Button(self, label="Previous")

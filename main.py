@@ -35,19 +35,6 @@ class MainWindow(wx.Frame):
         self.content_panel = wx.Panel(panel)
         self.content_sizer = wx.BoxSizer(wx.VERTICAL)
 
-        welcome_panel = wx.Panel(self.content_panel)
-        welcome_sizer = wx.BoxSizer(wx.VERTICAL)
-        welcome_label = wx.StaticText(
-            welcome_panel,
-            label="Welcome to Limkokwing Registry\n\nSelect an item from the navigation menu to get started",
-            style=wx.ALIGN_CENTER,
-        )
-        font = welcome_label.GetFont()
-        font.PointSize = 12
-        welcome_label.SetFont(font)
-        welcome_sizer.Add(welcome_label, 1, wx.ALIGN_CENTER | wx.ALL, 40)
-        welcome_panel.SetSizer(welcome_sizer)
-
         self.status_bar = StatusBar(panel)
 
         self.views = {
@@ -61,10 +48,14 @@ class MainWindow(wx.Frame):
             "export_reports": ReportsView(self.content_panel),
         }
 
-        self.content_sizer.Add(welcome_panel, 1, wx.EXPAND)
+        self.current_view = self.views["sync_students"]
+
         for view in self.views.values():
             self.content_sizer.Add(view, 1, wx.EXPAND)
-            view.Hide()
+            if view is self.current_view:
+                view.Show()
+            else:
+                view.Hide()
 
         self.content_panel.SetSizer(self.content_sizer)
         main_sizer.Add(self.content_panel, 1, wx.EXPAND)
@@ -77,8 +68,6 @@ class MainWindow(wx.Frame):
         root_sizer.Add(self.status_bar, 0, wx.EXPAND)
 
         panel.SetSizer(root_sizer)
-
-        self.current_view = welcome_panel
 
     def on_navigation_clicked(self, action):
         if action in self.views:

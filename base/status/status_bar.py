@@ -4,7 +4,7 @@ import wx
 class StatusBar(wx.Panel):
     def __init__(self, parent):
         super().__init__(parent)
-        self.SetMinSize((-1, 30))
+        self.SetMinSize(wx.Size(-1, 30))
 
         sizer = wx.BoxSizer(wx.HORIZONTAL)
 
@@ -13,7 +13,7 @@ class StatusBar(wx.Panel):
 
         sizer.AddStretchSpacer()
 
-        self.progress_bar = wx.Gauge(self, range=100, size=(200, 18))
+        self.progress_bar = wx.Gauge(self, range=100, size=wx.Size(200, 18))
         self.progress_bar.Hide()
         sizer.Add(self.progress_bar, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 10)
 

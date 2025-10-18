@@ -17,7 +17,7 @@ from features.sync.students import StudentsView
 
 class MainWindow(wx.Frame):
     def __init__(self):
-        super().__init__(None, title="Limkokwing Registry", size=(1100, 750))
+        super().__init__(None, title="Limkokwing Registry", size=wx.Size(1100, 750))
 
         self.menu_bar = AppMenuBar(self)
 

@@ -135,6 +135,7 @@ response = browser.post(url, form_data)
 - Views MUST accept `parent` parameter (the content panel)
 - Views MUST accept `status_bar` parameter for progress updates (non-optional for sync operations)
 - All views inherit from `wx.Panel`
+- When setting size don't use tuple, use `wx.Size(width, height)`
 
 ## Environment & Constraints
 

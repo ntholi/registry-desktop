@@ -192,7 +192,7 @@ class StudentsView(wx.Panel):
         # Search and action buttons
         search_sizer = wx.BoxSizer(wx.HORIZONTAL)
 
-        self.search_input = wx.SearchCtrl(self, size=(400, -1))
+        self.search_input = wx.SearchCtrl(self, size=wx.Size(400, -1))
         self.search_input.SetDescriptiveText("Search by student number, name...")
         self.search_input.Bind(wx.EVT_TEXT, self.on_search_changed)
         search_sizer.Add(self.search_input, 0, wx.RIGHT, 10)

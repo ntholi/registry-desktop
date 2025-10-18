@@ -56,8 +56,8 @@ class AccordionNavigation(wx.Panel):
         sizer.Add(self.tree, 1, wx.EXPAND)
 
         self.SetSizer(sizer)
-        self.SetMinSize((260, -1))
-        self.SetMaxSize((320, -1))
+        self.SetMinSize(wx.Size(260, -1))
+        self.SetMaxSize(wx.Size(320, -1))
 
     def load_menu(self):
         """Load menu configuration from JSON file"""

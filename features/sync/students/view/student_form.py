@@ -13,7 +13,7 @@ class StudentFormDialog(wx.Dialog):
         )
         self.student_data = student_data
         self.status_bar = status_bar
-        self.SetSize((450, 300))
+        self.SetSize(wx.Size(450, 300))
         self.init_ui()
 
     def init_ui(self):

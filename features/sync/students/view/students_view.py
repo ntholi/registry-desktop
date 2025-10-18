@@ -65,7 +65,7 @@ class PullStudentsWorker(threading.Thread):
         self.should_stop = True
 
 
-class PushStudentsWorker(threading.Thread):
+class UpdateStudentsWorker(threading.Thread):
     def __init__(self, student_number, student_data, sync_service, callback):
         super().__init__(daemon=True)
         self.student_number = student_number
@@ -89,13 +89,13 @@ class PushStudentsWorker(threading.Thread):
                 self.student_number, self.student_data, self.emit_progress
             )
 
-            self.callback("push_finished", success, message)
+            self.callback("update_finished", success, message)
 
         except Exception as e:
             self.callback(
-                "error", f"Error pushing student {self.student_number}: {str(e)}"
+                "error", f"Error updating student {self.student_number}: {str(e)}"
             )
-            self.callback("push_finished", False, str(e))
+            self.callback("update_finished", False, str(e))
 
     def stop(self):
         self.should_stop = True
@@ -115,7 +115,7 @@ class StudentsView(wx.Panel):
         self.selected_semester_number = None
         self.search_timer = None
         self.pull_worker = None
-        self.push_worker = None
+        self.update_worker = None
         self.repository = StudentRepository()
         self.sync_service = StudentSyncService(self.repository)
         self.checked_items = set()
@@ -199,10 +199,10 @@ class StudentsView(wx.Panel):
         self.pull_button.Enable(False)
         search_sizer.Add(self.pull_button, 0, wx.RIGHT, 10)
 
-        self.push_button = wx.Button(self, label="Push")
-        self.push_button.Bind(wx.EVT_BUTTON, self.push_students)
-        self.push_button.Enable(False)
-        search_sizer.Add(self.push_button, 0)
+        self.update_button = wx.Button(self, label="Update")
+        self.update_button.Bind(wx.EVT_BUTTON, self.update_students)
+        self.update_button.Enable(False)
+        search_sizer.Add(self.update_button, 0)
 
         main_sizer.Add(search_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 40)
 
@@ -514,7 +514,7 @@ class StudentsView(wx.Panel):
         selected_count = self.get_selected_count()
         self.selection_label.SetLabel(f"{selected_count} selected")
         self.pull_button.Enable(selected_count > 0)
-        self.push_button.Enable(selected_count == 1)
+        self.update_button.Enable(selected_count == 1)
         total_items = self.list_ctrl.GetItemCount()
         should_check_all = total_items > 0 and selected_count == total_items
         if self.select_all_checkbox.GetValue() != should_check_all:
@@ -538,18 +538,17 @@ class StudentsView(wx.Panel):
         dlg.Destroy()
 
         self.pull_button.Enable(False)
-        self.push_button.Enable(False)
+        self.update_button.Enable(False)
 
         self.pull_worker = PullStudentsWorker(
             selected_students, self.sync_service, self.on_worker_callback
         )
         self.pull_worker.start()
 
-    def push_students(self, event):
+    def update_students(self, event):
         selected_students = self.get_selected_students_data()
         if not selected_students:
             return
-
         if len(selected_students) == 1:
             student_data = selected_students[0]
             dialog = StudentFormDialog(student_data, self, self.status_bar)
@@ -557,9 +556,9 @@ class StudentsView(wx.Panel):
                 updated_data = dialog.get_updated_data()
 
                 self.pull_button.Enable(False)
-                self.push_button.Enable(False)
+                self.update_button.Enable(False)
 
-                self.push_worker = PushStudentsWorker(
+                self.update_worker = UpdateStudentsWorker(
                     updated_data["std_no"],
                     {
                         "name": updated_data["name"],
@@ -570,7 +569,7 @@ class StudentsView(wx.Panel):
                     self.sync_service,
                     self.on_worker_callback,
                 )
-                self.push_worker.start()
+                self.update_worker.start()
             dialog.Destroy()
         else:
             wx.MessageBox(
@@ -592,7 +591,7 @@ class StudentsView(wx.Panel):
             if self.status_bar:
                 self.status_bar.clear()
             self.pull_button.Enable(True)
-            self.push_button.Enable(True)
+            self.update_button.Enable(True)
 
             if failed_count > 0:
                 wx.MessageBox(
@@ -608,12 +607,12 @@ class StudentsView(wx.Panel):
                 )
 
             self.load_students()
-        elif event_type == "push_finished":
+        elif event_type == "update_finished":
             success, message = args
             if self.status_bar:
                 self.status_bar.clear()
             self.pull_button.Enable(True)
-            self.push_button.Enable(True)
+            self.update_button.Enable(True)
 
             if success:
                 wx.MessageBox(

@@ -72,7 +72,7 @@ class StudentSyncService:
                 form_data["x_StdEmail"] = data["email"]
 
             if progress_callback:
-                progress_callback(f"Pushing {student_number} to website...")
+                progress_callback(f"Pushing {student_number} to CMS...")
 
             logger.info(f"Posting update for student {student_number}")
             post_response = self._browser.post(url, form_data)

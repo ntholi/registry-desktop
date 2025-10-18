@@ -152,3 +152,4 @@ response = browser.post(url, form_data)
 - `database/models.py`: Full schema definitions (reference for queries)
 - `database/connection.py`: DB connection factory (local vs. Turso)
 - `features/sync/students/`: Complete reference implementation for sync workflows
+- `samples/pages/`: Sample .php pages from the web CMS for reference when scraping/posting (forms, views, etc.)

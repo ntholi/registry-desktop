@@ -242,6 +242,7 @@ class StudentsView(wx.Panel):
 
         self.list_ctrl.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.on_list_item_clicked)
         self.list_ctrl.Bind(wx.EVT_LEFT_DOWN, self.on_list_left_down)
+        self.list_ctrl.Bind(wx.EVT_RIGHT_UP, self.on_list_right_click)
 
         main_sizer.Add(self.list_ctrl, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 40)
 
@@ -308,6 +309,33 @@ class StudentsView(wx.Panel):
 
     def on_list_item_clicked(self, event):
         pass
+
+    def on_list_right_click(self, event):
+        item, flags, col = self.list_ctrl.HitTestSubItem(event.GetPosition())
+
+        if item == wx.NOT_FOUND:
+            return
+
+        cell_value = self.list_ctrl.GetItemText(item, col)
+        if not cell_value:
+            return
+
+        menu = wx.Menu()
+        copy_item = menu.Append(
+            wx.ID_ANY,
+            f"Copy '{cell_value[:30]}{'...' if len(cell_value) > 30 else ''}'",
+        )
+        self.Bind(
+            wx.EVT_MENU, lambda evt: self._copy_to_clipboard(cell_value), copy_item
+        )
+
+        self.PopupMenu(menu)
+        menu.Destroy()
+
+    def _copy_to_clipboard(self, text):
+        if wx.TheClipboard.Open():
+            wx.TheClipboard.SetData(wx.TextDataObject(text))
+            wx.TheClipboard.Close()
 
     def toggle_item_check(self, item):
         if item in self.checked_items:

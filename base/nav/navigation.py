@@ -11,6 +11,8 @@ class AccordionNavigation(wx.Panel):
     def __init__(self, parent, on_navigation_clicked=None):
         super().__init__(parent)
         self.on_navigation_clicked = on_navigation_clicked
+        self.action_items = {}
+        self._ignore_selection = False
         self.setup_ui()
         self.load_menu()
 
@@ -82,6 +84,7 @@ class AccordionNavigation(wx.Panel):
                     child_item = self.tree.AppendItem(
                         parent_item, submenu["title"], data=submenu["action"]
                     )
+                    self.action_items[submenu["action"]] = child_item
                     child_font = self.tree.GetItemFont(child_item)
                     child_font.PointSize = 9
                     self.tree.SetItemFont(child_item, child_font)
@@ -96,9 +99,21 @@ class AccordionNavigation(wx.Panel):
 
     def on_item_selected(self, event):
         """Handle tree item selection (single-click)"""
+        if self._ignore_selection:
+            self._ignore_selection = False
+            return
         item = event.GetItem()
         if item and self.tree.GetItemData(item):
             action = self.tree.GetItemData(item)
             print(f"Navigation clicked: {action}")
             if self.on_navigation_clicked:
                 self.on_navigation_clicked(action)
+
+    def select_action(self, action):
+        """Programmatically select a navigation action without firing callbacks"""
+        item = self.action_items.get(action)
+        if not item:
+            return
+        self._ignore_selection = True
+        self.tree.SelectItem(item)
+        self.tree.EnsureVisible(item)

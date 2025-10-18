@@ -1,5 +1,3 @@
-import sys
-
 import wx
 
 from base.menu_bar import AppMenuBar
@@ -56,6 +54,8 @@ class MainWindow(wx.Frame):
                 view.Show()
             else:
                 view.Hide()
+
+        self.navigation.select_action("sync_students")
 
         self.content_panel.SetSizer(self.content_sizer)
         main_sizer.Add(self.content_panel, 1, wx.EXPAND)

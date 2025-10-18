@@ -179,9 +179,6 @@ class StudentsView(wx.Panel):
         filters_sizer.AddStretchSpacer()
 
         self.records_label = wx.StaticText(self, label="")
-        font = self.records_label.GetFont()
-        font = font.Bold()
-        self.records_label.SetFont(font)
         filters_sizer.Add(self.records_label, 0, wx.ALIGN_CENTER_VERTICAL)
 
         main_sizer.Add(filters_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 40)

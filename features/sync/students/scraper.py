@@ -116,6 +116,22 @@ def parse_date(date_str: Optional[str]) -> Optional[datetime]:
         return None
 
 
+def parse_semester_number(semester_str: str) -> Optional[int]:
+    if not semester_str or not semester_str.strip():
+        return None
+
+    semester_str = semester_str.strip()
+    parts = semester_str.split()
+
+    if parts:
+        try:
+            return int(parts[0])
+        except ValueError:
+            return None
+
+    return None
+
+
 def get_table_value(table: Tag, header_text: str) -> Optional[str]:
     rows = table.select("tr")
     for row in rows:
@@ -203,6 +219,73 @@ def scrape_student_view(std_no: str) -> dict:
         data["phone2"] = current_mobile
 
     logger.info(f"Scraped student data for {std_no}")
+    return data
+
+
+def extract_student_semester_ids(std_program_id: str) -> list[str]:
+    browser = Browser()
+    url = f"{BASE_URL}/r_stdsemesterlist.php?showmaster=1&StdProgramID={std_program_id}"
+    response = browser.fetch(url)
+
+    page = BeautifulSoup(response.text, "lxml")
+    table = page.select_one("table#ewlistmain")
+
+    if not table:
+        logger.warning(f"No semester table found for student program {std_program_id}")
+        return []
+
+    semester_ids = []
+    rows = table.select("tr.ewTableRow, tr.ewTableAltRow")
+
+    for row in rows:
+        view_link = row.select_one("a[href*='r_stdsemesterview.php?StdSemesterID=']")
+        if view_link:
+            href = view_link.get("href")
+            if href and isinstance(href, str) and "StdSemesterID=" in href:
+                semester_id = href.split("StdSemesterID=")[1].split("&")[0]
+                semester_ids.append(semester_id)
+
+    logger.info(
+        f"Found {len(semester_ids)} semesters for student program {std_program_id}"
+    )
+    return semester_ids
+
+
+def scrape_student_semester_data(std_semester_id: str) -> dict:
+    browser = Browser()
+    url = f"{BASE_URL}/r_stdsemesterview.php?StdSemesterID={std_semester_id}"
+    response = browser.fetch(url)
+
+    page = BeautifulSoup(response.text, "lxml")
+    table = page.select_one("table.ewTable")
+
+    if not table:
+        logger.error(f"No data table found for student semester {std_semester_id}")
+        return {}
+
+    data = {}
+
+    term = get_table_value(table, "Term")
+    if term:
+        data["term"] = term
+
+    semester_str = get_table_value(table, "Semester")
+    if semester_str:
+        semester_number = parse_semester_number(semester_str)
+        if semester_number is not None:
+            data["semester_number"] = semester_number
+
+    status = get_table_value(table, "SemStatus")
+    if status:
+        data["semester_status"] = status
+
+    caf_date_str = get_table_value(table, "CAF Date")
+    if caf_date_str:
+        parsed_date = parse_date(caf_date_str)
+        if parsed_date:
+            data["caf_date"] = parsed_date.strftime("%Y-%m-%d")
+
+    logger.info(f"Scraped semester data for student semester {std_semester_id}")
     return data
 
 

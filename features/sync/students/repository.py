@@ -237,14 +237,14 @@ class StudentRepository:
             return structure[0] if structure else None
 
     def upsert_student_program(
-        self, cms_id: str, std_no: int, data: dict
+        self, student_program_id: str, std_no: int, data: dict
     ) -> tuple[bool, str]:
         with self._session() as session:
             try:
                 existing = (
                     session.query(StudentProgram)
                     .filter(StudentProgram.std_no == std_no)
-                    .filter(StudentProgram.id == int(cms_id))
+                    .filter(StudentProgram.id == int(student_program_id))
                     .first()
                 )
 
@@ -276,7 +276,7 @@ class StudentRepository:
 
                     session.commit()
                     logger.info(
-                        f"Updated student program {cms_id} for student {std_no}"
+                        f"Updated student program {student_program_id} for student {std_no}"
                     )
                     return True, "Student program updated"
                 else:
@@ -287,7 +287,7 @@ class StudentRepository:
                         return False, "Structure not found"
 
                     new_program = StudentProgram(
-                        id=int(cms_id),
+                        id=int(student_program_id),
                         std_no=std_no,
                         structure_id=structure_id,
                         reg_date=data.get("reg_date"),
@@ -301,12 +301,58 @@ class StudentRepository:
                     session.add(new_program)
                     session.commit()
                     logger.info(
-                        f"Created student program {cms_id} for student {std_no}"
+                        f"Created student program {student_program_id} for student {std_no}"
                     )
                     return True, "Student program created"
 
             except Exception as e:
                 session.rollback()
                 error_msg = f"Error upserting student program: {str(e)}"
+                logger.error(error_msg)
+                return False, error_msg
+
+    def upsert_student_semester(
+        self, std_program_id: int, data: dict
+    ) -> tuple[bool, str]:
+        with self._session() as session:
+            try:
+                existing = (
+                    session.query(StudentSemester)
+                    .filter(StudentSemester.student_program_id == std_program_id)
+                    .filter(StudentSemester.term == data.get("term"))
+                    .first()
+                )
+
+                if existing:
+                    if "semester_number" in data:
+                        existing.semester_number = data["semester_number"]
+                    if "status" in data:
+                        existing.status = data["status"]
+                    if "caf_date" in data:
+                        existing.caf_date = data["caf_date"]
+
+                    session.commit()
+                    logger.info(
+                        f"Updated student semester for program {std_program_id}, term {data.get('term')}"
+                    )
+                    return True, "Student semester updated"
+                else:
+                    new_semester = StudentSemester(
+                        student_program_id=std_program_id,
+                        term=data.get("term"),
+                        semester_number=data.get("semester_number"),
+                        status=data.get("status", "Active"),
+                        caf_date=data.get("caf_date"),
+                    )
+                    session.add(new_semester)
+                    session.commit()
+                    logger.info(
+                        f"Created student semester for program {std_program_id}, term {data.get('term')}"
+                    )
+                    return True, "Student semester created"
+
+            except Exception as e:
+                session.rollback()
+                error_msg = f"Error upserting student semester: {str(e)}"
                 logger.error(error_msg)
                 return False, error_msg

@@ -10,8 +10,10 @@ from base.browser import BASE_URL, Browser, get_form_payload
 from .repository import StudentRepository
 from .scraper import (
     extract_student_program_ids,
+    extract_student_semester_ids,
     scrape_student_data,
     scrape_student_program_data,
+    scrape_student_semester_data,
 )
 
 logger = get_logger(__name__)
@@ -49,6 +51,8 @@ class StudentSyncService:
 
         programs_synced = 0
         programs_failed = 0
+        semesters_synced = 0
+        semesters_failed = 0
 
         for idx, program_id in enumerate(program_ids, 1):
             if progress_callback:
@@ -66,6 +70,37 @@ class StudentSyncService:
                     )
                     if success:
                         programs_synced += 1
+
+                        try:
+                            std_program_id = int(program_id)
+                        except (TypeError, ValueError):
+                            logger.warning(f"Invalid program ID format: {program_id}")
+                            continue
+
+                        semester_ids = extract_student_semester_ids(program_id)
+
+                        for sem_id in semester_ids:
+                            try:
+                                semester_data = scrape_student_semester_data(sem_id)
+                                if semester_data and semester_data.get("term"):
+                                    sem_success, sem_msg = (
+                                        self._repository.upsert_student_semester(
+                                            std_program_id, semester_data
+                                        )
+                                    )
+                                    if sem_success:
+                                        semesters_synced += 1
+                                    else:
+                                        logger.warning(
+                                            f"Failed to sync semester {sem_id}: {sem_msg}"
+                                        )
+                                        semesters_failed += 1
+                            except Exception as e:
+                                logger.error(
+                                    f"Error syncing semester {sem_id}: {str(e)}"
+                                )
+                                semesters_failed += 1
+
                     else:
                         logger.warning(f"Failed to sync program {program_id}: {msg}")
                         programs_failed += 1
@@ -75,14 +110,16 @@ class StudentSyncService:
 
         if progress_callback:
             progress_callback(
-                f"Completed sync for {student_number}: {programs_synced} programs synced, {programs_failed} failed",
+                f"Completed sync for {student_number}: {programs_synced} programs synced, "
+                f"{semesters_synced} semesters synced, {programs_failed + semesters_failed} failed",
                 total_steps,
                 total_steps,
             )
 
         logger.info(
             f"Pull completed for {student_number}: Student updated={student_updated}, "
-            f"Programs synced={programs_synced}, Failed={programs_failed}"
+            f"Programs synced={programs_synced}, Semesters synced={semesters_synced}, "
+            f"Programs failed={programs_failed}, Semesters failed={semesters_failed}"
         )
 
         return student_updated

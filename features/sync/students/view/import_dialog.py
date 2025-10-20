@@ -60,7 +60,16 @@ class ImportStudentsDialog(wx.Dialog):
             style=wx.TE_MULTILINE | wx.TE_WORDWRAP,
             size=wx.Size(-1, 250),
         )
+        self.student_list.Bind(wx.EVT_TEXT, self.on_student_list_changed)
         main_sizer.Add(self.student_list, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 15)
+
+        main_sizer.AddSpacer(10)
+
+        self.status_text = wx.StaticText(self, label="0 Students to import")
+        font = self.status_text.GetFont()
+        font.SetPointSize(9)
+        self.status_text.SetFont(font)
+        main_sizer.Add(self.status_text, 0, wx.LEFT | wx.RIGHT, 15)
 
         main_sizer.AddSpacer(15)
 
@@ -146,6 +155,11 @@ class ImportStudentsDialog(wx.Dialog):
                 wx.OK | wx.ICON_ERROR,
             )
 
+    def on_student_list_changed(self, event):
+        valid_numbers = self.get_student_numbers()
+        count = len(valid_numbers)
+        self.status_text.SetLabel(f"{count} Students to import")
+
     def on_clear(self, event):
         self.student_list.SetValue("")
         self.range_from.SetValue("")
@@ -156,5 +170,10 @@ class ImportStudentsDialog(wx.Dialog):
         if not text:
             return []
 
-        numbers = [line.strip() for line in text.split("\n") if line.strip()]
+        import re
+
+        tokens = re.split(r"[\s\n]+", text)
+        numbers = [
+            token for token in tokens if token and len(token) == 9 and token.isdigit()
+        ]
         return numbers

@@ -219,7 +219,7 @@ class StructuresView(wx.Panel):
             for row, structure in enumerate(structures):
                 index = self.list_ctrl.InsertItem(row, structure.code or "")
                 self.list_ctrl.SetItem(index, 1, structure.desc or "")
-                self.list_ctrl.SetItem(index, 2, structure.school_name or "")
+                self.list_ctrl.SetItem(index, 2, structure.school_code or "")
                 self.list_ctrl.SetItem(index, 3, structure.program_name or "")
                 self.list_ctrl.SetItemData(index, structure.id)
 

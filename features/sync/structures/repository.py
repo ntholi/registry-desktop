@@ -26,7 +26,7 @@ class StructureRow:
     id: int
     code: str
     desc: Optional[str]
-    school_name: Optional[str]
+    school_code: Optional[str]
     program_name: Optional[str]
 
 
@@ -88,7 +88,7 @@ class StructureRepository:
                     Structure.id,
                     Structure.code,
                     Structure.desc,
-                    School.name.label("school_name"),
+                    School.code.label("school_code"),
                     Program.name.label("program_name"),
                 )
                 .join(Program, Structure.program_id == Program.id)
@@ -110,7 +110,7 @@ class StructureRepository:
                 id=result.id,
                 code=result.code,
                 desc=result.desc,
-                school_name=result.school_name,
+                school_code=result.school_code,
                 program_name=result.program_name,
             )
             for result in results

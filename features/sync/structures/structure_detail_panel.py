@@ -35,7 +35,7 @@ class StructureDetailPanel(wx.Panel):
         self.semesters_list.AppendColumn("Semester", width=200)
         self.semesters_list.AppendColumn("Credits", width=80)
         self.semesters_list.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_semester_selected)
-        sizer.Add(self.semesters_list, 1, wx.EXPAND | wx.BOTTOM, 15)
+        sizer.Add(self.semesters_list, 4, wx.EXPAND | wx.BOTTOM, 15)
 
         modules_label = wx.StaticText(self, label="Modules")
         font = modules_label.GetFont()
@@ -49,7 +49,7 @@ class StructureDetailPanel(wx.Panel):
         self.modules_list.AppendColumn("Name", width=250)
         self.modules_list.AppendColumn("Type", width=100)
         self.modules_list.AppendColumn("Credits", width=70)
-        sizer.Add(self.modules_list, 2, wx.EXPAND)
+        sizer.Add(self.modules_list, 5, wx.EXPAND)
 
         self.SetSizer(sizer)
 

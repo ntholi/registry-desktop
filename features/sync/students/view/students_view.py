@@ -6,6 +6,7 @@ import wx.dataview as dv
 
 from ..repository import StudentRepository
 from ..service import StudentSyncService
+from .import_dialog import ImportStudentsDialog
 from .student_form import StudentFormDialog
 
 
@@ -176,6 +177,12 @@ class StudentsView(wx.Panel):
         self.semester_filter.SetSelection(0)
         self.semester_filter.Bind(wx.EVT_CHOICE, self.on_filter_changed)
         filters_sizer.Add(self.semester_filter, 0, wx.RIGHT, 10)
+
+        filters_sizer.AddStretchSpacer()
+
+        self.import_button = wx.Button(self, label="Import")
+        self.import_button.Bind(wx.EVT_BUTTON, self.on_import_students)
+        filters_sizer.Add(self.import_button, 0)
 
         main_sizer.Add(filters_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 40)
 
@@ -647,8 +654,46 @@ class StudentsView(wx.Panel):
                 wx.OK | wx.ICON_INFORMATION,
             )
 
+    def on_import_students(self, event):
+        dialog = ImportStudentsDialog(self)
+        if dialog.ShowModal() == wx.ID_OK:
+            student_numbers = dialog.get_student_numbers()
+
+            if not student_numbers:
+                wx.MessageBox(
+                    "No student numbers to import.",
+                    "Empty List",
+                    wx.OK | wx.ICON_WARNING,
+                )
+                dialog.Destroy()
+                return
+
+            dlg = wx.MessageDialog(
+                self,
+                f"Import {len(student_numbers)} student(s) from the web?\n\nThis will pull data from the registry system and save it to the local database.",
+                "Confirm Import",
+                wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION,
+            )
+
+            if dlg.ShowModal() == wx.ID_YES:
+                self.pull_button.Enable(False)
+                self.edit_button.Enable(False)
+                self.import_button.Enable(False)
+
+                self.pull_worker = PullStudentsWorker(
+                    student_numbers, self.sync_service, self.on_import_callback
+                )
+                self.pull_worker.start()
+
+            dlg.Destroy()
+
+        dialog.Destroy()
+
     def on_worker_callback(self, event_type, *args):
         wx.CallAfter(self._handle_worker_event, event_type, *args)
+
+    def on_import_callback(self, event_type, *args):
+        wx.CallAfter(self._handle_import_event, event_type, *args)
 
     def _handle_worker_event(self, event_type, *args):
         if event_type == "progress":
@@ -694,4 +739,40 @@ class StudentsView(wx.Panel):
                 wx.MessageBox(message, "Update Failed", wx.OK | wx.ICON_ERROR)
         elif event_type == "error":
             error_msg = args[0]
+            wx.MessageBox(error_msg, "Error", wx.OK | wx.ICON_WARNING)
+
+    def _handle_import_event(self, event_type, *args):
+        if event_type == "progress":
+            message, current, total = args
+            if self.status_bar:
+                self.status_bar.show_progress(message, current, total)
+        elif event_type == "finished":
+            success_count, failed_count = args
+            if self.status_bar:
+                self.status_bar.clear()
+            self.pull_button.Enable(True)
+            self.edit_button.Enable(True)
+            self.import_button.Enable(True)
+
+            if failed_count > 0:
+                wx.MessageBox(
+                    f"Successfully imported {success_count} student(s).\n{failed_count} failed.",
+                    "Import Complete",
+                    wx.OK | wx.ICON_INFORMATION,
+                )
+            else:
+                wx.MessageBox(
+                    f"Successfully imported {success_count} student(s).",
+                    "Import Complete",
+                    wx.OK | wx.ICON_INFORMATION,
+                )
+
+            self.load_students()
+        elif event_type == "error":
+            error_msg = args[0]
+            if self.status_bar:
+                self.status_bar.clear()
+            self.pull_button.Enable(True)
+            self.edit_button.Enable(True)
+            self.import_button.Enable(True)
             wx.MessageBox(error_msg, "Error", wx.OK | wx.ICON_WARNING)

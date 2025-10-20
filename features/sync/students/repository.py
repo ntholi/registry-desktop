@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, cast
 
 from sqlalchemy import distinct, or_
 from sqlalchemy.orm import Session
@@ -338,7 +338,7 @@ class StudentRepository:
                     logger.info(
                         f"Updated student semester for program {std_program_id}, term {data.get('term')}"
                     )
-                    return True, "Student semester updated", existing.id
+                    return True, "Student semester updated", cast(int, existing.id)
                 else:
                     new_semester = StudentSemester(
                         student_program_id=std_program_id,
@@ -353,7 +353,7 @@ class StudentRepository:
                     logger.info(
                         f"Created student semester for program {std_program_id}, term {data.get('term')}"
                     )
-                    return True, "Student semester created", new_semester.id
+                    return True, "Student semester created", cast(int, new_semester.id)
 
             except Exception as e:
                 session.rollback()
@@ -397,18 +397,20 @@ class StudentRepository:
                         .first()
                     )
 
-                    if student_semester and student_semester.student_program_id:
+                    if student_semester is not None:
+                        student_program_id = cast(
+                            int, student_semester.student_program_id
+                        )
                         student_program = (
                             session.query(StudentProgram)
-                            .filter(
-                                StudentProgram.id == student_semester.student_program_id
-                            )
+                            .filter(StudentProgram.id == student_program_id)
                             .first()
                         )
 
-                        if student_program and student_program.structure_id:
+                        if student_program is not None:
+                            structure_id = cast(int, student_program.structure_id)
                             semester_module_id = self.get_semester_module_by_code(
-                                data["module_code"], student_program.structure_id
+                                data["module_code"], structure_id
                             )
 
                             if not semester_module_id:

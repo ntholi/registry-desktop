@@ -1,7 +1,6 @@
 from datetime import datetime
 
 import wx
-import wx.adv
 
 
 class StudentFormDialog(wx.Dialog):
@@ -48,38 +47,50 @@ class StudentFormDialog(wx.Dialog):
             0,
             wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL,
         )
-        self.gender_input = wx.TextCtrl(
-            panel, value=self.student_data.get("gender", "") or ""
-        )
-        form_sizer.Add(self.gender_input, 0, wx.EXPAND)
+        gender_panel = wx.Panel(panel)
+        gender_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.gender_male = wx.RadioButton(gender_panel, label="Male")
+        self.gender_female = wx.RadioButton(gender_panel, label="Female")
+        gender_sizer.Add(self.gender_male, 0, wx.RIGHT, 20)
+        gender_sizer.Add(self.gender_female, 0)
+        gender_panel.SetSizer(gender_sizer)
+
+        gender_value = self.student_data.get("gender", "").strip().lower()
+        if gender_value == "male":
+            self.gender_male.SetValue(True)
+        elif gender_value == "female":
+            self.gender_female.SetValue(True)
+
+        form_sizer.Add(gender_panel, 0, wx.EXPAND)
 
         form_sizer.Add(
-            wx.StaticText(panel, label="Date of Birth:"),
+            wx.StaticText(panel, label="Date of Birth (YYYY-MM-DD):"),
             0,
             wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL,
         )
-        self.dob_input = wx.adv.DatePickerCtrl(
-            panel, style=wx.adv.DP_DROPDOWN | wx.adv.DP_SHOWCENTURY
-        )
         date_of_birth = self.student_data.get("date_of_birth")
-        if date_of_birth:
-            if isinstance(date_of_birth, str):
-                dt = datetime.fromisoformat(date_of_birth)
-            else:
-                dt = date_of_birth
-            self.dob_input.SetValue(wx.DateTime.FromDMY(dt.day, dt.month - 1, dt.year))
+        dob_value = ""
+        if isinstance(date_of_birth, str):
+            normalized_dob = date_of_birth.replace("Z", "+00:00")
+            try:
+                dob_value = datetime.fromisoformat(normalized_dob).strftime("%Y-%m-%d")
+            except ValueError:
+                dob_value = date_of_birth
+        elif date_of_birth:
+            dob_value = date_of_birth.strftime("%Y-%m-%d")
+        self.dob_input = wx.TextCtrl(panel, value=dob_value)
         form_sizer.Add(self.dob_input, 0, wx.EXPAND)
 
         form_sizer.Add(
-            wx.StaticText(panel, label="Email:"),
+            wx.StaticText(panel, label="Phone Number:"),
             0,
             wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL,
         )
-        self.email_input = wx.TextCtrl(
+        self.phone_input = wx.TextCtrl(
             panel,
-            value=self.student_data.get("email", "") or "",
+            value=self.student_data.get("phone1", "") or "",
         )
-        form_sizer.Add(self.email_input, 0, wx.EXPAND)
+        form_sizer.Add(self.phone_input, 0, wx.EXPAND)
 
         main_sizer.Add(form_sizer, 0, wx.ALL | wx.EXPAND, 20)
 
@@ -98,8 +109,8 @@ class StudentFormDialog(wx.Dialog):
 
     def on_save(self, event):
         name = self.name_input.GetValue().strip()
-        gender = self.gender_input.GetValue().strip()
-        email = self.email_input.GetValue().strip()
+        dob_value = self.dob_input.GetValue().strip()
+        phone = self.phone_input.GetValue().strip()
 
         if not name:
             wx.MessageBox(
@@ -107,26 +118,49 @@ class StudentFormDialog(wx.Dialog):
             )
             return
 
-        if email and "@" not in email:
+        if (
+            phone
+            and not phone.replace("+", "")
+            .replace("-", "")
+            .replace(" ", "")
+            .replace("(", "")
+            .replace(")", "")
+            .isdigit()
+        ):
             wx.MessageBox(
-                "Please enter a valid email",
+                "Please enter a valid phone number",
                 "Validation Error",
                 wx.OK | wx.ICON_WARNING,
             )
             return
 
+        if dob_value:
+            try:
+                datetime.strptime(dob_value, "%Y-%m-%d")
+            except ValueError:
+                wx.MessageBox(
+                    "Date of Birth must be in YYYY-MM-DD format",
+                    "Validation Error",
+                    wx.OK | wx.ICON_WARNING,
+                )
+                return
+
         event.Skip()
 
     def get_updated_data(self):
-        wx_date = self.dob_input.GetValue()
-        dob = datetime(
-            wx_date.GetYear(), wx_date.GetMonth() + 1, wx_date.GetDay()
-        ).date()
+        dob_value = self.dob_input.GetValue().strip()
+
+        if self.gender_male.GetValue():
+            gender = "Male"
+        elif self.gender_female.GetValue():
+            gender = "Female"
+        else:
+            gender = ""
 
         return {
             "std_no": self.student_data.get("std_no"),
             "name": self.name_input.GetValue().strip(),
-            "gender": self.gender_input.GetValue().strip(),
-            "date_of_birth": dob,
-            "email": self.email_input.GetValue().strip(),
+            "gender": gender,
+            "date_of_birth": dob_value,
+            "phone1": self.phone_input.GetValue().strip(),
         }

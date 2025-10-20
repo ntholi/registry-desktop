@@ -550,9 +550,25 @@ class StudentsView(wx.Panel):
         selected = []
         for index in sorted(self.checked_items):
             std_no = self.list_ctrl.GetItemText(index, 1)
-            name = self.list_ctrl.GetItemText(index, 2)
-            gender = self.list_ctrl.GetItemText(index, 3)
-            selected.append({"std_no": std_no, "name": name, "gender": gender})
+            try:
+                students, _ = self.repository.fetch_students(
+                    search_query=std_no,
+                    page=1,
+                    page_size=1,
+                )
+                if students:
+                    student = students[0]
+                    selected.append(
+                        {
+                            "std_no": student.std_no,
+                            "name": student.name,
+                            "gender": student.gender,
+                            "date_of_birth": student.date_of_birth,
+                            "phone1": student.phone1,
+                        }
+                    )
+            except Exception as e:
+                print(f"Error fetching student data for {std_no}: {str(e)}")
         return selected
 
     def _iterate_selected_indices(self):
@@ -617,7 +633,7 @@ class StudentsView(wx.Panel):
                         "name": updated_data["name"],
                         "gender": updated_data["gender"],
                         "date_of_birth": updated_data["date_of_birth"],
-                        "email": updated_data["email"],
+                        "phone1": updated_data["phone1"],
                     },
                     self.sync_service,
                     self.on_worker_callback,

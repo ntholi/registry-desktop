@@ -82,7 +82,7 @@ class StudentSyncService:
                 if gender_input:
                     form_data["x_Sex"] = data["gender"]
 
-            if "date_of_birth" in data:
+            if data.get("date_of_birth"):
                 dob = data["date_of_birth"]
                 birthdate_input = form.select_one("input[name='x_Birthdate']")
                 if birthdate_input:

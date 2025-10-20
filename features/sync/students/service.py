@@ -12,6 +12,7 @@ from .scraper import (
     extract_student_program_ids,
     extract_student_semester_ids,
     scrape_student_data,
+    scrape_student_modules_concurrent,
     scrape_student_program_data,
     scrape_student_semester_data,
 )
@@ -53,6 +54,8 @@ class StudentSyncService:
         programs_failed = 0
         semesters_synced = 0
         semesters_failed = 0
+        modules_synced = 0
+        modules_failed = 0
 
         for idx, program_id in enumerate(program_ids, 1):
             if progress_callback:
@@ -79,17 +82,66 @@ class StudentSyncService:
 
                         semester_ids = extract_student_semester_ids(program_id)
 
-                        for sem_id in semester_ids:
+                        for sem_idx, sem_id in enumerate(semester_ids, 1):
+                            if progress_callback:
+                                progress_callback(
+                                    f"Syncing semester {sem_idx} of {len(semester_ids)} "
+                                    f"for program {idx}/{len(program_ids)} - {student_number}...",
+                                    2,
+                                    total_steps,
+                                )
+
                             try:
                                 semester_data = scrape_student_semester_data(sem_id)
                                 if semester_data and semester_data.get("term"):
-                                    sem_success, sem_msg = (
+                                    sem_success, sem_msg, db_semester_id = (
                                         self._repository.upsert_student_semester(
                                             std_program_id, semester_data
                                         )
                                     )
-                                    if sem_success:
+                                    if sem_success and db_semester_id:
                                         semesters_synced += 1
+
+                                        if progress_callback:
+                                            progress_callback(
+                                                f"Syncing modules for semester {sem_idx}/{len(semester_ids)} "
+                                                f"- program {idx}/{len(program_ids)} - {student_number}...",
+                                                2,
+                                                total_steps,
+                                            )
+
+                                        try:
+                                            modules_data = (
+                                                scrape_student_modules_concurrent(
+                                                    sem_id, db_semester_id
+                                                )
+                                            )
+
+                                            for module_data in modules_data:
+                                                try:
+                                                    mod_success, mod_msg = (
+                                                        self._repository.upsert_student_module(
+                                                            module_data
+                                                        )
+                                                    )
+                                                    if mod_success:
+                                                        modules_synced += 1
+                                                    else:
+                                                        logger.warning(
+                                                            f"Failed to sync module {module_data.get('id')}: {mod_msg}"
+                                                        )
+                                                        modules_failed += 1
+                                                except Exception as e:
+                                                    logger.error(
+                                                        f"Error syncing module {module_data.get('id')}: {str(e)}"
+                                                    )
+                                                    modules_failed += 1
+
+                                        except Exception as e:
+                                            logger.error(
+                                                f"Error scraping modules for semester {sem_id}: {str(e)}"
+                                            )
+
                                     else:
                                         logger.warning(
                                             f"Failed to sync semester {sem_id}: {sem_msg}"
@@ -110,8 +162,8 @@ class StudentSyncService:
 
         if progress_callback:
             progress_callback(
-                f"Completed sync for {student_number}: {programs_synced} programs synced, "
-                f"{semesters_synced} semesters synced, {programs_failed + semesters_failed} failed",
+                f"Completed sync for {student_number}: {programs_synced} programs, "
+                f"{semesters_synced} semesters, {modules_synced} modules synced",
                 total_steps,
                 total_steps,
             )
@@ -119,7 +171,9 @@ class StudentSyncService:
         logger.info(
             f"Pull completed for {student_number}: Student updated={student_updated}, "
             f"Programs synced={programs_synced}, Semesters synced={semesters_synced}, "
-            f"Programs failed={programs_failed}, Semesters failed={semesters_failed}"
+            f"Modules synced={modules_synced}, "
+            f"Programs failed={programs_failed}, Semesters failed={semesters_failed}, "
+            f"Modules failed={modules_failed}"
         )
 
         return student_updated

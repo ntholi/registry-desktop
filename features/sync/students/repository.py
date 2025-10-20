@@ -9,10 +9,13 @@ from sqlalchemy.orm import Session
 
 from base import get_logger
 from database import (
+    Module,
     Program,
     School,
+    SemesterModule,
     Structure,
     Student,
+    StudentModule,
     StudentProgram,
     StudentSemester,
     get_engine,
@@ -313,7 +316,7 @@ class StudentRepository:
 
     def upsert_student_semester(
         self, std_program_id: int, data: dict
-    ) -> tuple[bool, str]:
+    ) -> tuple[bool, str, Optional[int]]:
         with self._session() as session:
             try:
                 existing = (
@@ -335,7 +338,7 @@ class StudentRepository:
                     logger.info(
                         f"Updated student semester for program {std_program_id}, term {data.get('term')}"
                     )
-                    return True, "Student semester updated"
+                    return True, "Student semester updated", existing.id
                 else:
                     new_semester = StudentSemester(
                         student_program_id=std_program_id,
@@ -346,13 +349,109 @@ class StudentRepository:
                     )
                     session.add(new_semester)
                     session.commit()
+                    session.refresh(new_semester)
                     logger.info(
                         f"Created student semester for program {std_program_id}, term {data.get('term')}"
                     )
-                    return True, "Student semester created"
+                    return True, "Student semester created", new_semester.id
 
             except Exception as e:
                 session.rollback()
                 error_msg = f"Error upserting student semester: {str(e)}"
+                logger.error(error_msg)
+                return False, error_msg, None
+
+    def get_semester_module_by_code(
+        self, module_code: str, structure_id: int
+    ) -> Optional[int]:
+        with self._session() as session:
+            semester_module = (
+                session.query(SemesterModule.id)
+                .join(Module, SemesterModule.module_id == Module.id)
+                .join(Structure, Structure.id == structure_id)
+                .filter(Module.code == module_code)
+                .first()
+            )
+            return semester_module[0] if semester_module else None
+
+    def upsert_student_module(self, data: dict) -> tuple[bool, str]:
+        with self._session() as session:
+            try:
+                std_module_id = int(data["id"])
+                student_semester_id = data.get("student_semester_id")
+
+                if not student_semester_id:
+                    return False, "Missing student_semester_id"
+
+                existing = (
+                    session.query(StudentModule)
+                    .filter(StudentModule.id == std_module_id)
+                    .first()
+                )
+
+                semester_module_id = None
+                if "module_code" in data:
+                    student_semester = (
+                        session.query(StudentSemester)
+                        .filter(StudentSemester.id == student_semester_id)
+                        .first()
+                    )
+
+                    if student_semester and student_semester.student_program_id:
+                        student_program = (
+                            session.query(StudentProgram)
+                            .filter(
+                                StudentProgram.id == student_semester.student_program_id
+                            )
+                            .first()
+                        )
+
+                        if student_program and student_program.structure_id:
+                            semester_module_id = self.get_semester_module_by_code(
+                                data["module_code"], student_program.structure_id
+                            )
+
+                            if not semester_module_id:
+                                logger.warning(
+                                    f"Semester module not found for code {data['module_code']}"
+                                )
+
+                if existing:
+                    if semester_module_id:
+                        existing.semester_module_id = semester_module_id  # type: ignore
+                    if "status" in data:
+                        existing.status = data["status"]
+                    if "marks" in data:
+                        existing.marks = data["marks"]
+                    if "grade" in data:
+                        existing.grade = data["grade"]
+                    if "student_semester_id" in data:
+                        existing.student_semester_id = data["student_semester_id"]
+
+                    session.commit()
+                    logger.info(f"Updated student module {std_module_id}")
+                    return True, "Student module updated"
+                else:
+                    if not semester_module_id:
+                        logger.warning(
+                            f"Creating student module {std_module_id} without semester_module_id"
+                        )
+
+                    new_module = StudentModule(
+                        id=std_module_id,
+                        semester_module_id=semester_module_id or 0,
+                        status=data.get("status", ""),
+                        marks=data.get("marks", "NM"),
+                        grade=data.get("grade", "NM"),
+                        student_semester_id=student_semester_id,
+                    )
+                    session.add(new_module)
+                    session.commit()
+                    logger.info(f"Created student module {std_module_id}")
+                    return True, "Student module created"
+
+            except Exception as e:
+                session.rollback()
+                error_msg = f"Error upserting student module: {str(e)}"
                 logger.error(error_msg)
                 return False, error_msg

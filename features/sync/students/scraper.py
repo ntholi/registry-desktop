@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from typing import Optional
 
@@ -301,3 +302,119 @@ def scrape_student_data(std_no: str) -> dict:
         f"Completed scraping for student {std_no}. Found {len(merged_data)} fields"
     )
     return merged_data
+
+
+def extract_student_module_ids(std_semester_id: str) -> list[str]:
+    browser = Browser()
+    url = f"{BASE_URL}/r_stdmodulelist.php?showmaster=1&StdSemesterID={std_semester_id}"
+    response = browser.fetch(url)
+
+    page = BeautifulSoup(response.text, "lxml")
+    table = page.select_one("table#ewlistmain")
+
+    if not table:
+        logger.warning(f"No module table found for student semester {std_semester_id}")
+        return []
+
+    module_ids = []
+    rows = table.select("tr.ewTableRow, tr.ewTableAltRow")
+
+    for row in rows:
+        view_link = row.select_one("a[href*='r_stdmoduleview.php?StdModuleID=']")
+        if view_link:
+            href = view_link.get("href")
+            if href and isinstance(href, str) and "StdModuleID=" in href:
+                module_id = href.split("StdModuleID=")[1].split("&")[0]
+                module_ids.append(module_id)
+
+    logger.info(
+        f"Found {len(module_ids)} modules for student semester {std_semester_id}"
+    )
+    return module_ids
+
+
+def scrape_student_module_data(std_module_id: str, student_semester_id: int) -> dict:
+    browser = Browser()
+    url = f"{BASE_URL}/r_stdmoduleview.php?StdModuleID={std_module_id}"
+    response = browser.fetch(url)
+
+    page = BeautifulSoup(response.text, "lxml")
+    table = page.select_one("table.ewTable")
+
+    if not table:
+        logger.error(f"No data table found for student module {std_module_id}")
+        return {}
+
+    data = {"id": std_module_id, "student_semester_id": student_semester_id}
+
+    module_str = get_table_value(table, "Module")
+    if module_str:
+        parts = module_str.split(maxsplit=1)
+        if parts:
+            data["module_code"] = parts[0]
+
+    module_status = get_table_value(table, "ModuleStatus")
+    if module_status:
+        data["status"] = module_status
+
+    module_type = get_table_value(table, "Type")
+    if module_type:
+        data["type"] = module_type
+
+    credits_str = get_table_value(table, "Credits")
+    if credits_str:
+        try:
+            data["credits"] = float(credits_str)
+        except ValueError:
+            pass
+
+    marks = get_table_value(table, "Marks")
+    if marks:
+        data["marks"] = marks
+
+    grade = get_table_value(table, "Grade")
+    if grade:
+        data["grade"] = grade
+
+    logger.info(f"Scraped module data for student module {std_module_id}")
+    return data
+
+
+def scrape_student_modules_concurrent(
+    std_semester_id: str, db_semester_id: int, max_workers: int = 10
+) -> list[dict]:
+    logger.info(
+        f"Starting concurrent module scraping for semester {std_semester_id} with {max_workers} workers"
+    )
+
+    module_ids = extract_student_module_ids(std_semester_id)
+
+    if not module_ids:
+        logger.info(f"No modules to scrape for semester {std_semester_id}")
+        return []
+
+    modules_data = []
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_module_id = {
+            executor.submit(
+                scrape_student_module_data, module_id, db_semester_id
+            ): module_id
+            for module_id in module_ids
+        }
+
+        for future in as_completed(future_to_module_id):
+            module_id = future_to_module_id[future]
+            try:
+                data = future.result()
+                if data:
+                    modules_data.append(data)
+                    logger.debug(f"Successfully scraped module {module_id}")
+            except Exception as e:
+                logger.error(f"Error scraping module {module_id}: {str(e)}")
+
+    logger.info(
+        f"Completed concurrent scraping for semester {std_semester_id}: "
+        f"{len(modules_data)}/{len(module_ids)} modules scraped successfully"
+    )
+    return modules_data

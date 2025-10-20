@@ -15,7 +15,11 @@ class StatusBar(wx.Panel):
 
         self.progress_bar = wx.Gauge(self, range=100, size=wx.Size(200, 18))
         self.progress_bar.Hide()
-        sizer.Add(self.progress_bar, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 10)
+        sizer.Add(self.progress_bar, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
+
+        self.percentage_text = wx.StaticText(self, label="")
+        self.percentage_text.Hide()
+        sizer.Add(self.percentage_text, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 10)
 
         self.SetSizer(sizer)
         self.Hide()
@@ -29,7 +33,9 @@ class StatusBar(wx.Panel):
             percentage = int((current / total) * 100)
             self.progress_bar.SetRange(100)
             self.progress_bar.SetValue(percentage)
+            self.percentage_text.SetLabel(f"{percentage}%")
         self.progress_bar.Show()
+        self.percentage_text.Show()
         self.Show()
         self.GetParent().Layout()
 
@@ -39,6 +45,7 @@ class StatusBar(wx.Panel):
     def _show_message_impl(self, message: str):
         self.message_text.SetLabel(message)
         self.progress_bar.Hide()
+        self.percentage_text.Hide()
         self.Show()
         self.GetParent().Layout()
 
@@ -48,5 +55,6 @@ class StatusBar(wx.Panel):
     def _clear_impl(self):
         self.message_text.SetLabel("")
         self.progress_bar.Hide()
+        self.percentage_text.Hide()
         self.Hide()
         self.GetParent().Layout()

@@ -112,6 +112,14 @@ class ImportStudentsDialog(wx.Dialog):
                 )
                 return
 
+            if len(start_num) != 9 or len(end_num) != 9:
+                wx.MessageBox(
+                    "Student numbers must be exactly 9 digits.",
+                    "Invalid Input",
+                    wx.OK | wx.ICON_WARNING,
+                )
+                return
+
             start = int(start_num)
             end = int(end_num)
 
@@ -132,10 +140,9 @@ class ImportStudentsDialog(wx.Dialog):
                 return
 
             generated_numbers = []
-            num_digits = len(start_num)
 
             for num in range(start, end + 1):
-                generated_numbers.append(str(num).zfill(num_digits))
+                generated_numbers.append(str(num).zfill(9))
 
             current_text = self.student_list.GetValue().strip()
             if current_text:

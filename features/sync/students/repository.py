@@ -7,6 +7,7 @@ from typing import Optional
 from sqlalchemy import distinct, or_
 from sqlalchemy.orm import Session
 
+from base import get_logger
 from database import (
     Program,
     School,
@@ -16,6 +17,8 @@ from database import (
     StudentSemester,
     get_engine,
 )
+
+logger = get_logger(__name__)
 
 
 @dataclass(frozen=True)
@@ -208,7 +211,13 @@ class StudentRepository:
             )
 
             if not student:
-                return False
+                student = Student(
+                    std_no=numeric_student_number,
+                    name=data.get("name") or "",
+                    national_id=data.get("national_id") or "",
+                    sem=data.get("sem") or 0,
+                )
+                session.add(student)
 
             for key, value in data.items():
                 if value is None or not hasattr(student, key):
@@ -217,3 +226,87 @@ class StudentRepository:
 
             session.commit()
             return True
+
+    def get_structure_by_code(self, structure_code: str) -> Optional[int]:
+        with self._session() as session:
+            structure = (
+                session.query(Structure.id)
+                .filter(Structure.code == structure_code)
+                .first()
+            )
+            return structure[0] if structure else None
+
+    def upsert_student_program(
+        self, cms_id: str, std_no: int, data: dict
+    ) -> tuple[bool, str]:
+        with self._session() as session:
+            try:
+                existing = (
+                    session.query(StudentProgram)
+                    .filter(StudentProgram.std_no == std_no)
+                    .filter(StudentProgram.id == int(cms_id))
+                    .first()
+                )
+
+                structure_id = None
+                if "structure_code" in data:
+                    structure_id = self.get_structure_by_code(data["structure_code"])
+                    if not structure_id:
+                        logger.warning(
+                            f"Structure {data['structure_code']} not found in database"
+                        )
+
+                if existing:
+                    if structure_id:
+                        existing.structure_id = structure_id  # type: ignore
+                    if "reg_date" in data:
+                        existing.reg_date = data["reg_date"]
+                    if "intake_date" in data:
+                        existing.intake_date = data["intake_date"]
+                    if "start_term" in data:
+                        existing.start_term = data["start_term"]
+                    if "stream" in data:
+                        existing.stream = data["stream"]
+                    if "status" in data:
+                        existing.status = data["status"]
+                    if "assist_provider" in data:
+                        existing.assist_provider = data["assist_provider"]
+                    if "graduation_date" in data:
+                        existing.graduation_date = data["graduation_date"]
+
+                    session.commit()
+                    logger.info(
+                        f"Updated student program {cms_id} for student {std_no}"
+                    )
+                    return True, "Student program updated"
+                else:
+                    if not structure_id:
+                        logger.error(
+                            f"Cannot create student program without valid structure"
+                        )
+                        return False, "Structure not found"
+
+                    new_program = StudentProgram(
+                        id=int(cms_id),
+                        std_no=std_no,
+                        structure_id=structure_id,
+                        reg_date=data.get("reg_date"),
+                        intake_date=data.get("intake_date"),
+                        start_term=data.get("start_term"),
+                        stream=data.get("stream"),
+                        status=data.get("status", "Active"),
+                        assist_provider=data.get("assist_provider"),
+                        graduation_date=data.get("graduation_date"),
+                    )
+                    session.add(new_program)
+                    session.commit()
+                    logger.info(
+                        f"Created student program {cms_id} for student {std_no}"
+                    )
+                    return True, "Student program created"
+
+            except Exception as e:
+                session.rollback()
+                error_msg = f"Error upserting student program: {str(e)}"
+                logger.error(error_msg)
+                return False, error_msg

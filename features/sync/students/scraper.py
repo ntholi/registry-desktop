@@ -9,6 +9,104 @@ from base.browser import BASE_URL, Browser
 logger = get_logger(__name__)
 
 
+def extract_student_program_ids(std_no: str) -> list[str]:
+    browser = Browser()
+    url = f"{BASE_URL}/r_stdprogramlist.php?showmaster=1&StudentID={std_no}"
+    response = browser.fetch(url)
+
+    page = BeautifulSoup(response.text, "lxml")
+    table = page.select_one("table#ewlistmain")
+
+    if not table:
+        logger.warning(f"No program table found for student {std_no}")
+        return []
+
+    program_ids = []
+    rows = table.select("tr.ewTableRow, tr.ewTableAltRow")
+
+    for row in rows:
+        view_link = row.select_one("a[href*='r_stdprogramview.php?StdProgramID=']")
+        if view_link:
+            href = view_link.get("href")
+            if href and isinstance(href, str) and "StdProgramID=" in href:
+                program_id = href.split("StdProgramID=")[1].split("&")[0]
+                program_ids.append(program_id)
+
+    logger.info(f"Found {len(program_ids)} programs for student {std_no}")
+    return program_ids
+
+
+def scrape_student_program_data(std_program_id: str) -> dict:
+    browser = Browser()
+    url = f"{BASE_URL}/r_stdprogramview.php?StdProgramID={std_program_id}"
+    response = browser.fetch(url)
+
+    page = BeautifulSoup(response.text, "lxml")
+    table = page.select_one("table.ewTable")
+
+    if not table:
+        logger.error(f"No data table found for student program {std_program_id}")
+        return {}
+
+    data = {}
+
+    student_id_str = get_table_value(table, "StudentID")
+    if student_id_str:
+        student_id_parts = student_id_str.split()
+        if student_id_parts:
+            try:
+                data["std_no"] = int(student_id_parts[0])
+            except ValueError:
+                logger.warning(f"Could not parse student ID from: {student_id_str}")
+
+    program_str = get_table_value(table, "Program")
+    if program_str:
+        program_parts = program_str.split(maxsplit=1)
+        if program_parts:
+            data["program_code"] = program_parts[0]
+
+    reg_date_str = get_table_value(table, "RegDate")
+    if reg_date_str:
+        parsed_date = parse_date(reg_date_str)
+        if parsed_date:
+            data["reg_date"] = parsed_date.strftime("%Y-%m-%d")
+
+    intake_date_str = get_table_value(table, "Intake Date")
+    if intake_date_str:
+        parsed_date = parse_date(intake_date_str)
+        if parsed_date:
+            data["intake_date"] = parsed_date.strftime("%Y-%m-%d")
+
+    start_term = get_table_value(table, "StartTerm")
+    if start_term:
+        data["start_term"] = start_term
+
+    structure = get_table_value(table, "Version")
+    if structure:
+        data["structure_code"] = structure
+
+    stream = get_table_value(table, "Stream")
+    if stream:
+        data["stream"] = stream
+
+    status = get_table_value(table, "Status")
+    if status:
+        data["status"] = status
+
+    assist_provider = get_table_value(table, "Asst-Provider")
+    if assist_provider:
+        data["assist_provider"] = assist_provider
+
+    grad_date_str = get_table_value(table, "Graduation Date")
+    if grad_date_str:
+        parsed_date = parse_date(grad_date_str)
+        if parsed_date:
+            data["graduation_date"] = parsed_date.strftime("%Y-%m-%d")
+
+    logger.info(f"Scraped program data for student program {std_program_id}")
+    return data
+
+
 def parse_date(date_str: Optional[str]) -> Optional[datetime]:
     if not date_str or not date_str.strip():
         return None

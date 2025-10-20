@@ -8,7 +8,11 @@ from base import get_logger
 from base.browser import BASE_URL, Browser, get_form_payload
 
 from .repository import StudentRepository
-from .scraper import scrape_student_data
+from .scraper import (
+    extract_student_program_ids,
+    scrape_student_data,
+    scrape_student_program_data,
+)
 
 logger = get_logger(__name__)
 
@@ -18,11 +22,70 @@ class StudentSyncService:
         self._repository = repository or StudentRepository()
         self._browser = Browser()
 
-    def pull_student(self, student_number: str) -> bool:
+    def pull_student(
+        self,
+        student_number: str,
+        progress_callback: Optional[Callable[[str, int, int], None]] = None,
+    ) -> bool:
+        total_steps = 3
+
+        if progress_callback:
+            progress_callback(
+                f"Fetching personal data for {student_number}...", 1, total_steps
+            )
+
         scraped_data = scrape_student_data(student_number)
         if not scraped_data:
             return False
-        return self._repository.update_student(student_number, scraped_data)
+
+        student_updated = self._repository.update_student(student_number, scraped_data)
+
+        if progress_callback:
+            progress_callback(
+                f"Fetching program list for {student_number}...", 2, total_steps
+            )
+
+        program_ids = extract_student_program_ids(student_number)
+
+        programs_synced = 0
+        programs_failed = 0
+
+        for idx, program_id in enumerate(program_ids, 1):
+            if progress_callback:
+                progress_callback(
+                    f"Syncing program {idx} of {len(program_ids)} for {student_number}...",
+                    2,
+                    total_steps,
+                )
+
+            try:
+                program_data = scrape_student_program_data(program_id)
+                if program_data and "std_no" in program_data:
+                    success, msg = self._repository.upsert_student_program(
+                        program_id, program_data["std_no"], program_data
+                    )
+                    if success:
+                        programs_synced += 1
+                    else:
+                        logger.warning(f"Failed to sync program {program_id}: {msg}")
+                        programs_failed += 1
+            except Exception as e:
+                logger.error(f"Error syncing program {program_id}: {str(e)}")
+                programs_failed += 1
+
+        if progress_callback:
+            progress_callback(
+                f"Completed sync for {student_number}: {programs_synced} programs synced, {programs_failed} failed",
+                total_steps,
+                total_steps,
+            )
+
+        logger.info(
+            f"Pull completed for {student_number}: Student updated={student_updated}, "
+            f"Programs synced={programs_synced}, Failed={programs_failed}"
+        )
+
+        return student_updated
 
     def push_student(
         self,

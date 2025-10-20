@@ -11,10 +11,8 @@ class StructuresView(wx.Panel):
         self.current_page = 1
         self.page_size = 30
         self.total_structures = 0
-        self.search_query = ""
         self.selected_school_id = None
         self.selected_program_id = None
-        self.search_timer = None
         self.repository = StructureRepository()
         self.selected_structure_id = None
 
@@ -65,24 +63,6 @@ class StructuresView(wx.Panel):
         filters_sizer.AddStretchSpacer()
 
         main_sizer.Add(filters_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 40)
-
-        main_sizer.AddSpacer(20)
-
-        search_sizer = wx.BoxSizer(wx.HORIZONTAL)
-
-        self.search_input = wx.SearchCtrl(self, size=wx.Size(400, -1))
-        self.search_input.SetDescriptiveText("Search structures...")
-        self.search_input.Bind(wx.EVT_TEXT, self.on_search_changed)
-        search_sizer.Add(self.search_input, 0, wx.RIGHT, 10)
-
-        self.clear_search_button = wx.Button(self, label="Clear")
-        self.clear_search_button.Bind(wx.EVT_BUTTON, self.clear_search)
-        self.clear_search_button.Enable(False)
-        search_sizer.Add(self.clear_search_button, 0, wx.RIGHT, 10)
-
-        search_sizer.AddStretchSpacer()
-
-        main_sizer.Add(search_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 40)
 
         main_sizer.AddSpacer(15)
 
@@ -224,30 +204,11 @@ class StructuresView(wx.Panel):
         self.current_page = 1
         self.load_structures()
 
-    def on_search_changed(self, event):
-        text = self.search_input.GetValue()
-        self.clear_search_button.Enable(bool(text))
-        if self.search_timer:
-            self.search_timer.Stop()
-        self.search_timer = wx.CallLater(500, self.perform_search)
-
-    def clear_search(self, event):
-        self.search_input.SetValue("")
-        self.search_query = ""
-        self.current_page = 1
-        self.load_structures()
-
-    def perform_search(self):
-        self.search_query = self.search_input.GetValue().strip()
-        self.current_page = 1
-        self.load_structures()
-
     def load_structures(self):
         try:
             structures, total = self.repository.fetch_structures(
                 school_id=self.selected_school_id,
                 program_id=self.selected_program_id,
-                search_query=self.search_query,
                 page=self.current_page,
                 page_size=self.page_size,
             )

@@ -4,7 +4,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Optional
 
-from sqlalchemy import distinct, or_
+from sqlalchemy import distinct
 from sqlalchemy.orm import Session
 
 from base import get_logger
@@ -78,7 +78,6 @@ class StructureRepository:
         *,
         school_id: Optional[int] = None,
         program_id: Optional[int] = None,
-        search_query: str = "",
         page: int = 1,
         page_size: int = 30,
     ):
@@ -101,17 +100,6 @@ class StructureRepository:
 
             if program_id:
                 query = query.filter(Program.id == program_id)
-
-            if search_query:
-                search_term = f"%{search_query}%"
-                query = query.filter(
-                    or_(
-                        Structure.code.like(search_term),
-                        Structure.desc.like(search_term),
-                        Program.name.like(search_term),
-                        School.name.like(search_term),
-                    )
-                )
 
             query = query.order_by(Structure.code)
             total = query.count()

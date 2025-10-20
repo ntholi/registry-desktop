@@ -2,6 +2,8 @@ from datetime import datetime
 
 import wx
 
+from base.widgets.date_picker import DatePickerCtrl
+
 
 class StudentFormDialog(wx.Dialog):
     def __init__(self, student_data, parent=None, status_bar=None):
@@ -64,7 +66,7 @@ class StudentFormDialog(wx.Dialog):
         form_sizer.Add(gender_panel, 0, wx.EXPAND)
 
         form_sizer.Add(
-            wx.StaticText(panel, label="Date of Birth (YYYY-MM-DD):"),
+            wx.StaticText(panel, label="Date of Birth:"),
             0,
             wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL,
         )
@@ -78,7 +80,7 @@ class StudentFormDialog(wx.Dialog):
                 dob_value = date_of_birth
         elif date_of_birth:
             dob_value = date_of_birth.strftime("%Y-%m-%d")
-        self.dob_input = wx.TextCtrl(panel, value=dob_value)
+        self.dob_input = DatePickerCtrl(panel, value=dob_value)
         form_sizer.Add(self.dob_input, 0, wx.EXPAND)
 
         form_sizer.Add(

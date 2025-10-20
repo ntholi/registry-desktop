@@ -1,5 +1,6 @@
 import wx
 
+from .add_school_dialog import AddSchoolDialog
 from .repository import StructureRepository
 from .structure_detail_panel import StructureDetailPanel
 
@@ -61,6 +62,10 @@ class StructuresView(wx.Panel):
         filters_sizer.Add(self.program_filter, 0, wx.RIGHT, 10)
 
         filters_sizer.AddStretchSpacer()
+
+        self.add_school_button = wx.Button(self, label="Add School")
+        self.add_school_button.Bind(wx.EVT_BUTTON, self.on_add_school)
+        filters_sizer.Add(self.add_school_button, 0)
 
         main_sizer.Add(filters_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 40)
 
@@ -273,3 +278,29 @@ class StructuresView(wx.Panel):
 
     def clear_detail_panel(self):
         self.detail_panel.clear()
+
+    def on_add_school(self, event):
+        dialog = AddSchoolDialog(self, self.status_bar)
+        if dialog.ShowModal() == wx.ID_OK:
+            results = dialog.get_results()
+            school_id = results.get("school_id")
+            programs = results.get("programs", [])
+
+            if school_id and programs:
+                message = f"School ID: {school_id}\n\n"
+                message += f"Found {len(programs)} program(s):\n\n"
+                for program in programs[:10]:
+                    message += f"• {program['code']}: {program['name']}\n"
+                if len(programs) > 10:
+                    message += f"\n... and {len(programs) - 10} more"
+
+                wx.MessageBox(
+                    message,
+                    "Import Results",
+                    wx.OK | wx.ICON_INFORMATION,
+                )
+
+                self.load_filter_options()
+                self.load_structures()
+
+        dialog.Destroy()

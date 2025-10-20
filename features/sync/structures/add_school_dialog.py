@@ -1,0 +1,182 @@
+import threading
+
+import wx
+
+from .repository import StructureRepository
+from .service import SchoolSyncService
+
+
+class ImportSchoolWorker(threading.Thread):
+    def __init__(self, school_code, service, callback):
+        super().__init__(daemon=True)
+        self.school_code = school_code
+        self.service = service
+        self.callback = callback
+        self.should_stop = False
+
+    def run(self):
+        try:
+            if self.should_stop:
+                return
+
+            school_id, programs = self.service.import_school(
+                self.school_code, self._progress_callback
+            )
+
+            self.callback("finished", school_id, programs)
+
+        except Exception as e:
+            self.callback("error", str(e))
+
+    def _progress_callback(self, message, current, total):
+        self.callback("progress", message, current, total)
+
+    def stop(self):
+        self.should_stop = True
+
+
+class AddSchoolDialog(wx.Dialog):
+    def __init__(self, parent, status_bar=None):
+        super().__init__(
+            parent,
+            title="Add School",
+            size=wx.Size(600, 500),
+            style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
+        )
+        self.status_bar = status_bar
+        self.repository = StructureRepository()
+        self.service = SchoolSyncService(self.repository)
+        self.worker = None
+        self.school_id = None
+        self.programs = []
+
+        self.init_ui()
+        self.Centre()
+
+    def init_ui(self):
+        main_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        instruction_text = wx.StaticText(
+            self,
+            label="Enter the school code to import the school and its programs from the CMS:",
+        )
+        main_sizer.Add(instruction_text, 0, wx.ALL, 15)
+
+        input_sizer = wx.BoxSizer(wx.HORIZONTAL)
+
+        input_label = wx.StaticText(self, label="School Code:")
+        input_sizer.Add(input_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 10)
+
+        self.school_code_input = wx.TextCtrl(self, size=wx.Size(150, -1))
+        self.school_code_input.Bind(wx.EVT_TEXT, self.on_text_changed)
+        input_sizer.Add(self.school_code_input, 0)
+
+        input_sizer.AddStretchSpacer()
+
+        self.fetch_button = wx.Button(self, label="Fetch")
+        self.fetch_button.Bind(wx.EVT_BUTTON, self.on_fetch)
+        self.fetch_button.Enable(False)
+        input_sizer.Add(self.fetch_button, 0)
+
+        main_sizer.Add(input_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 15)
+
+        main_sizer.AddSpacer(15)
+
+        line = wx.StaticLine(self)
+        main_sizer.Add(line, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 15)
+
+        main_sizer.AddSpacer(15)
+
+        results_label = wx.StaticText(self, label="Programs Found:")
+        main_sizer.Add(results_label, 0, wx.LEFT | wx.RIGHT, 15)
+
+        main_sizer.AddSpacer(10)
+
+        self.programs_list = wx.ListCtrl(
+            self, style=wx.LC_REPORT | wx.BORDER_SIMPLE | wx.LC_SINGLE_SEL
+        )
+        self.programs_list.AppendColumn("Code", width=100)
+        self.programs_list.AppendColumn("Name", width=400)
+        main_sizer.Add(self.programs_list, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 15)
+
+        main_sizer.AddSpacer(15)
+
+        button_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        button_sizer.AddStretchSpacer()
+
+        self.ok_button = wx.Button(self, wx.ID_OK, "Import")
+        self.ok_button.Enable(False)
+        button_sizer.Add(self.ok_button, 0, wx.RIGHT, 10)
+
+        cancel_button = wx.Button(self, wx.ID_CANCEL, "Cancel")
+        button_sizer.Add(cancel_button, 0)
+
+        main_sizer.Add(button_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 15)
+
+        self.SetSizer(main_sizer)
+
+    def on_text_changed(self, event):
+        text = self.school_code_input.GetValue().strip()
+        self.fetch_button.Enable(bool(text))
+
+    def on_fetch(self, event):
+        school_code = self.school_code_input.GetValue().strip()
+        if not school_code:
+            wx.MessageBox(
+                "Please enter a school code.", "Missing Code", wx.OK | wx.ICON_WARNING
+            )
+            return
+
+        self.fetch_button.Enable(False)
+        self.school_code_input.Enable(False)
+        self.programs_list.DeleteAllItems()
+
+        self.worker = ImportSchoolWorker(school_code, self.service, self.on_callback)
+        self.worker.start()
+
+    def on_callback(self, event_type, *args):
+        wx.CallAfter(self._handle_event, event_type, *args)
+
+    def _handle_event(self, event_type, *args):
+        if event_type == "progress":
+            message, current, total = args
+            if self.status_bar:
+                self.status_bar.show_progress(message, current, total)
+        elif event_type == "finished":
+            school_id, programs = args
+            if self.status_bar:
+                self.status_bar.clear()
+
+            self.school_id = school_id
+            self.programs = programs
+
+            for idx, program in enumerate(programs):
+                index = self.programs_list.InsertItem(idx, program["code"])
+                self.programs_list.SetItem(index, 1, program["name"])
+
+            self.fetch_button.Enable(True)
+            self.school_code_input.Enable(True)
+            self.ok_button.Enable(len(programs) > 0)
+
+            if len(programs) == 0:
+                wx.MessageBox(
+                    "No programs found for this school.",
+                    "No Results",
+                    wx.OK | wx.ICON_INFORMATION,
+                )
+
+        elif event_type == "error":
+            error_msg = args[0]
+            if self.status_bar:
+                self.status_bar.clear()
+
+            self.fetch_button.Enable(True)
+            self.school_code_input.Enable(True)
+
+            wx.MessageBox(error_msg, "Error", wx.OK | wx.ICON_ERROR)
+
+    def get_results(self):
+        return {
+            "school_id": self.school_id,
+            "programs": self.programs,
+        }

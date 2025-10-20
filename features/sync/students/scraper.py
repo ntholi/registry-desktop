@@ -369,11 +369,17 @@ def scrape_student_module_data(std_module_id: str, student_semester_id: int) -> 
             pass
 
     marks = get_table_value(table, "Marks")
-    if marks:
+    alter_mark = get_table_value(table, "[Reg] Alter Mark")
+    if alter_mark:
+        data["marks"] = alter_mark
+    elif marks:
         data["marks"] = marks
 
     grade = get_table_value(table, "Grade")
-    if grade:
+    alter_grade = get_table_value(table, "[Reg] Alter Grade")
+    if alter_grade:
+        data["grade"] = alter_grade
+    elif grade:
         data["grade"] = grade
 
     logger.info(f"Scraped module data for student module {std_module_id}")

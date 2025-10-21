@@ -285,7 +285,7 @@ class StudentRepository:
             )
             return semesters
 
-    def get_student_modules(self, student_program_id: int):
+    def get_semester_modules(self, student_semester_id: int):
         with self._session() as session:
             modules = (
                 session.query(
@@ -295,24 +295,14 @@ class StudentRepository:
                     StudentModule.status,
                     StudentModule.marks,
                     StudentModule.grade,
-                    StudentSemester.term,
-                    StudentSemester.semester_number,
                 )
                 .join(
                     SemesterModule,
                     StudentModule.semester_module_id == SemesterModule.id,
                 )
                 .join(Module, SemesterModule.module_id == Module.id)
-                .join(
-                    StudentSemester,
-                    StudentModule.student_semester_id == StudentSemester.id,
-                )
-                .filter(StudentSemester.student_program_id == student_program_id)
-                .order_by(
-                    StudentSemester.term,
-                    StudentSemester.semester_number,
-                    Module.code,
-                )
+                .filter(StudentModule.student_semester_id == student_semester_id)
+                .order_by(Module.code)
                 .all()
             )
             return modules

@@ -9,6 +9,7 @@ class StudentDetailPanel(wx.Panel):
         self.on_close_callback = on_close_callback
         self.repository = StudentRepository()
         self.current_student_no = None
+        self.current_semesters = []
 
         self.init_ui()
 
@@ -49,6 +50,7 @@ class StudentDetailPanel(wx.Panel):
         self.semesters_list.AppendColumn("Semester", width=80)
         self.semesters_list.AppendColumn("Status", width=100)
         self.semesters_list.AppendColumn("", width=60)
+        self.semesters_list.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_semester_selected)
 
         main_sizer.Add(self.semesters_list, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 20)
 
@@ -118,13 +120,15 @@ class StudentDetailPanel(wx.Panel):
 
         student_program_id = program.id
         self.load_semesters(student_program_id)
-        self.load_modules(student_program_id)
 
     def load_semesters(self, student_program_id):
         self.semesters_list.DeleteAllItems()
+        self.modules_list.DeleteAllItems()
+        self.current_semesters = []
 
         try:
             semesters = self.repository.get_student_semesters(student_program_id)
+            self.current_semesters = list(semesters)
 
             for row, semester in enumerate(semesters):
                 index = self.semesters_list.InsertItem(row, str(semester.term or ""))
@@ -134,14 +138,24 @@ class StudentDetailPanel(wx.Panel):
                 self.semesters_list.SetItem(index, 2, str(semester.status or ""))
                 self.semesters_list.SetItem(index, 3, "Edit")
 
+            if semesters:
+                self.semesters_list.Select(0)
+                self.load_modules_for_semester(semesters[0].id)
+
         except Exception as e:
             print(f"Error loading semesters: {str(e)}")
 
-    def load_modules(self, student_program_id):
+    def on_semester_selected(self, event):
+        item = event.GetIndex()
+        if item != wx.NOT_FOUND and item < len(self.current_semesters):
+            semester = self.current_semesters[item]
+            self.load_modules_for_semester(semester.id)
+
+    def load_modules_for_semester(self, student_semester_id):
         self.modules_list.DeleteAllItems()
 
         try:
-            modules = self.repository.get_student_modules(student_program_id)
+            modules = self.repository.get_semester_modules(student_semester_id)
 
             for row, module in enumerate(modules):
                 index = self.modules_list.InsertItem(row, str(module.module_code or ""))

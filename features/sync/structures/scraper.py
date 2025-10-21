@@ -6,6 +6,32 @@ from base.browser import BASE_URL, Browser
 logger = get_logger(__name__)
 
 
+def scrape_school_details(school_code: str) -> dict[str, str | int] | None:
+    browser = Browser()
+    url = f"{BASE_URL}/f_schoollist.php"
+    response = browser.fetch(url)
+    page = BeautifulSoup(response.text, "lxml")
+
+    rows = page.select("table#ewlistmain tr")
+    for row in rows:
+        cells = row.select("td")
+        if len(cells) > 1:
+            code_cell = cells[0].get_text(strip=True)
+            if code_cell.upper() == school_code.upper():
+                name_cell = cells[1].get_text(strip=True)
+                view_link = row.select_one("a[href*='f_schoolview.php']")
+                if view_link and "href" in view_link.attrs:
+                    href = str(view_link["href"])
+                    if "SchoolID=" in href:
+                        school_id = href.split("SchoolID=")[1]
+                        return {
+                            "id": int(school_id),
+                            "code": code_cell,
+                            "name": name_cell,
+                        }
+    return None
+
+
 def scrape_school_id(school_code: str) -> int | None:
     browser = Browser()
     url = f"{BASE_URL}/f_schoollist.php"

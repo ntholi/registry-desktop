@@ -289,11 +289,6 @@ class StructuresView(wx.Panel):
             if school_id and programs:
                 message = f"School ID: {school_id}\n\n"
                 message += f"Found {len(programs)} program(s):\n\n"
-                for program in programs[:10]:
-                    message += f"• {program['code']}: {program['name']}\n"
-                if len(programs) > 10:
-                    message += f"\n... and {len(programs) - 10} more"
-
                 wx.MessageBox(
                     message,
                     "Import Results",

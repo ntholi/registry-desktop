@@ -169,3 +169,60 @@ class StructureRepository:
             )
             for result in results
         ]
+
+    def save_school(self, school_id: int, code: str, name: str) -> School:
+        with self._session() as session:
+            existing_school = (
+                session.query(School).filter(School.id == school_id).first()
+            )
+            if existing_school:
+                existing_school.code = code  # type: ignore
+                existing_school.name = name  # type: ignore
+                existing_school.is_active = True  # type: ignore
+                session.commit()
+                session.refresh(existing_school)
+                return existing_school
+            else:
+                new_school = School(
+                    id=school_id,
+                    code=code,
+                    name=name,
+                    is_active=True,
+                )
+                session.add(new_school)
+                session.commit()
+                session.refresh(new_school)
+                return new_school
+
+    def save_program(
+        self,
+        program_id: int,
+        code: str,
+        name: str,
+        school_id: int,
+        level: str = "Unknown",
+    ) -> Program:
+        with self._session() as session:
+            existing_program = (
+                session.query(Program).filter(Program.id == program_id).first()
+            )
+            if existing_program:
+                existing_program.code = code  # type: ignore
+                existing_program.name = name  # type: ignore
+                existing_program.school_id = school_id  # type: ignore
+                existing_program.level = level  # type: ignore
+                session.commit()
+                session.refresh(existing_program)
+                return existing_program
+            else:
+                new_program = Program(
+                    id=program_id,
+                    code=code,
+                    name=name,
+                    school_id=school_id,
+                    level=level,
+                )
+                session.add(new_program)
+                session.commit()
+                session.refresh(new_program)
+                return new_program

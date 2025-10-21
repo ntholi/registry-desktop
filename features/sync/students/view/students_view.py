@@ -586,7 +586,7 @@ class StudentsView(wx.Panel):
 
         dlg = wx.MessageDialog(
             self,
-            f"Fetch data for {len(selected_students)} student(s) from the web?\n\nThis will update the portal database with data from the CMS.",
+            f"Fetch data for {len(selected_students)} student(s) from the CMS?\n\nThis will update the portal database with data from the CMS.",
             "Confirm Fetch",
             wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION,
         )
@@ -653,7 +653,7 @@ class StudentsView(wx.Panel):
 
             dlg = wx.MessageDialog(
                 self,
-                f"Import {len(student_numbers)} student(s) from the web?\n\nThis will fetch data from the CMS and save it to the portal database.",
+                f"Import {len(student_numbers)} student(s) from the CMS?\n\nThis will fetch data from the CMS and save it to the portal database.",
                 "Confirm Import",
                 wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION,
             )

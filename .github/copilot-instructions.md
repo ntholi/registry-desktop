@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-wxPython-based desktop application for Limkokwing University Registry management. Syncs student/module data between the database and legacy web-based CMS using web scraping and form automation.
+wxPython-based desktop application for Limkokwing University Registry management. Syncs student/module data between the database and legacy web-based system (known as the CMS) scraping and form automation.
 
 ## Technology Stack
 
@@ -152,4 +152,4 @@ response = browser.post(url, form_data)
 - `database/models.py`: Full schema definitions (reference for queries)
 - `database/connection.py`: DB connection factory (local vs. Turso)
 - `features/sync/students/`: Complete reference implementation for sync workflows
-- `samples/pages/`: Sample .php pages from the web CMS for reference when scraping/posting (forms, views, etc.)
+- `samples/pages/`: Sample .php pages from the CMS for reference when scraping/posting (forms, views, etc.)

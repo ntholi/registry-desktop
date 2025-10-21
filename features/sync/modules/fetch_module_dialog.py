@@ -25,7 +25,7 @@ class FetchModuleDialog(wx.Dialog):
 
         label = wx.StaticText(
             self,
-            label="Enter the module code to fetch from the web system:",
+            label="Enter the module code to fetch from the CMS:",
         )
         main_sizer.Add(label, 0, wx.LEFT | wx.RIGHT, 20)
 

@@ -264,7 +264,7 @@ class StudentSyncService:
             post_response = self._browser.post(url, form_data)
 
             if "Successful" in post_response.text:
-                logger.info(f"Successfully posted student {student_number} to web")
+                logger.info(f"Successfully posted student {student_number} to CMS")
 
                 if progress_callback:
                     progress_callback(f"Saving {student_number} to database...")
@@ -273,12 +273,12 @@ class StudentSyncService:
                 if update_success:
                     return True, "Student updated successfully"
                 else:
-                    return False, "Web update succeeded but database update failed"
+                    return False, "CMS update succeeded but database update failed"
             else:
-                logger.error(f"Web update failed for student {student_number}")
+                logger.error(f"CMS update failed for student {student_number}")
                 return (
                     False,
-                    "Web update failed - response did not contain 'Successful'",
+                    "CMS update failed - response did not contain 'Successful'",
                 )
 
         except Exception as e:

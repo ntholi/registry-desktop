@@ -7,6 +7,7 @@ import wx.dataview as dv
 from ..repository import StudentRepository
 from ..service import StudentSyncService
 from .import_dialog import ImportStudentsDialog
+from .student_detail_panel import StudentDetailPanel
 from .student_form import StudentFormDialog
 
 
@@ -104,6 +105,7 @@ class StudentsView(wx.Panel):
         self.repository = StudentRepository()
         self.sync_service = StudentSyncService(self.repository)
         self.checked_items = set()
+        self.selected_student_item = None
 
         self.init_ui()
         self.load_filter_options()
@@ -217,6 +219,8 @@ class StudentsView(wx.Panel):
 
         main_sizer.AddSpacer(10)
 
+        content_sizer = wx.BoxSizer(wx.HORIZONTAL)
+
         self.list_ctrl = wx.ListCtrl(self, style=wx.LC_REPORT | wx.BORDER_SIMPLE)
 
         self.image_list = wx.ImageList(16, 16)
@@ -236,8 +240,17 @@ class StudentsView(wx.Panel):
         self.list_ctrl.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.on_list_item_clicked)
         self.list_ctrl.Bind(wx.EVT_LEFT_DOWN, self.on_list_left_down)
         self.list_ctrl.Bind(wx.EVT_RIGHT_UP, self.on_list_right_click)
+        self.list_ctrl.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_list_item_selected)
+        self.list_ctrl.Bind(wx.EVT_LIST_ITEM_DESELECTED, self.on_list_item_deselected)
 
-        main_sizer.Add(self.list_ctrl, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 40)
+        content_sizer.Add(self.list_ctrl, 1, wx.EXPAND)
+
+        self.detail_panel = StudentDetailPanel(self, self.on_detail_panel_close)
+        self.detail_panel.Hide()
+
+        content_sizer.Add(self.detail_panel, 0, wx.EXPAND | wx.LEFT, 10)
+
+        main_sizer.Add(content_sizer, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 40)
 
         main_sizer.AddSpacer(10)
 
@@ -320,6 +333,30 @@ class StudentsView(wx.Panel):
 
     def on_list_item_clicked(self, event):
         pass
+
+    def on_list_item_selected(self, event):
+        item = event.GetIndex()
+        if item != wx.NOT_FOUND:
+            self.selected_student_item = item
+            student_no = self.list_ctrl.GetItemText(item, 1)
+            self.show_student_detail(student_no)
+
+    def on_list_item_deselected(self, event):
+        if self.detail_panel.IsShown():
+            return
+        self.selected_student_item = None
+
+    def show_student_detail(self, student_no):
+        self.detail_panel.load_student_programs(student_no)
+        self.detail_panel.Show()
+        self.Layout()
+
+    def on_detail_panel_close(self):
+        self.detail_panel.Hide()
+        if self.selected_student_item is not None:
+            self.list_ctrl.Select(self.selected_student_item, False)
+            self.selected_student_item = None
+        self.Layout()
 
     def on_list_right_click(self, event):
         item, flags, col = self.list_ctrl.HitTestSubItem(event.GetPosition())

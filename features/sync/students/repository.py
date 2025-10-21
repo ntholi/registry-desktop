@@ -160,6 +160,36 @@ class StudentRepository:
         ]
         return rows, total
 
+    def get_student_programs(self, student_number: str):
+        try:
+            numeric_student_number = int(student_number)
+        except (TypeError, ValueError):
+            return []
+
+        with self._session() as session:
+            programs = (
+                session.query(
+                    StudentProgram.id,
+                    StudentProgram.intake_date,
+                    StudentProgram.reg_date,
+                    StudentProgram.start_term,
+                    StudentProgram.status,
+                    StudentProgram.stream,
+                    StudentProgram.graduation_date,
+                    Program.name.label("program_name"),
+                    Program.code.label("program_code"),
+                    School.name.label("school_name"),
+                )
+                .join(Structure, StudentProgram.structure_id == Structure.id)
+                .join(Program, Structure.program_id == Program.id)
+                .join(School, Program.school_id == School.id)
+                .filter(StudentProgram.std_no == numeric_student_number)
+                .order_by(StudentProgram.id.desc())
+                .all()
+            )
+
+            return programs
+
     def get_student_program_details(self, student_number: str):
         try:
             numeric_student_number = int(student_number)

@@ -6,6 +6,139 @@ from base.browser import BASE_URL, Browser
 logger = get_logger(__name__)
 
 
+def scrape_structures(program_id: int) -> list[dict[str, str | int]]:
+    browser = Browser()
+    url = f"{BASE_URL}/f_structurelist.php?showmaster=1&ProgramID={program_id}"
+    response = browser.fetch(url)
+    page = BeautifulSoup(response.text, "lxml")
+
+    structures = []
+    rows = page.select("table#ewlistmain tr")
+
+    for row in rows:
+        cells = row.select("td")
+        if len(cells) < 2:
+            continue
+
+        structure_code = cells[0].get_text(strip=True)
+        structure_desc = cells[1].get_text(strip=True)
+
+        if not structure_code:
+            continue
+
+        view_link = row.select_one("a[href*='f_structureview.php']")
+        if view_link and "href" in view_link.attrs:
+            href = str(view_link["href"])
+            if "StructureID=" in href:
+                structure_id = href.split("StructureID=")[1].split("&")[0]
+                structures.append(
+                    {
+                        "id": int(structure_id),
+                        "code": structure_code,
+                        "desc": structure_desc,
+                    }
+                )
+
+    return structures
+
+
+def scrape_semesters(structure_id: int) -> list[dict[str, str | int | float]]:
+    browser = Browser()
+    url = f"{BASE_URL}/f_semesterlist.php?showmaster=1&StructureID={structure_id}"
+    response = browser.fetch(url)
+    page = BeautifulSoup(response.text, "lxml")
+
+    semesters = []
+    rows = page.select("table#ewlistmain tr")
+
+    for row in rows:
+        cells = row.select("td")
+        if len(cells) < 2:
+            continue
+
+        semester_name = cells[0].get_text(strip=True)
+        credits_text = cells[1].get_text(strip=True)
+
+        if not semester_name or not credits_text:
+            continue
+
+        try:
+            credits = float(credits_text)
+        except (ValueError, TypeError):
+            continue
+
+        view_link = row.select_one("a[href*='f_semesterview.php']")
+        if view_link and "href" in view_link.attrs:
+            href = str(view_link["href"])
+            if "SemesterID=" in href:
+                semester_id = href.split("SemesterID=")[1].split("&")[0]
+                semester_number = int(semester_name.split()[0])
+                semesters.append(
+                    {
+                        "id": int(semester_id),
+                        "semester_number": semester_number,
+                        "name": semester_name,
+                        "total_credits": credits,
+                    }
+                )
+
+    return semesters
+
+
+def scrape_semester_modules(
+    semester_id: int,
+) -> list[dict[str, str | int | float | bool]]:
+    browser = Browser()
+    url = f"{BASE_URL}/f_semmodulelist.php?showmaster=1&SemesterID={semester_id}"
+    response = browser.fetch(url)
+    page = BeautifulSoup(response.text, "lxml")
+
+    semester_modules = []
+    rows = page.select("table#ewlistmain tr")
+
+    for row in rows:
+        cells = row.select("td")
+        if len(cells) < 4:
+            continue
+
+        module_text = cells[0].get_text(strip=True)
+        module_type = cells[1].get_text(strip=True)
+        credits_text = cells[3].get_text(strip=True)
+
+        if not module_text or not module_type:
+            continue
+
+        parts = module_text.split(maxsplit=1)
+        if len(parts) < 2:
+            continue
+
+        module_code = parts[0]
+        module_name = parts[1]
+
+        try:
+            credits = float(credits_text)
+        except (ValueError, TypeError):
+            continue
+
+        view_link = row.select_one("a[href*='f_semmoduleview.php']")
+        if view_link and "href" in view_link.attrs:
+            href = str(view_link["href"])
+            if "SemModuleID=" in href:
+                sem_module_id = href.split("SemModuleID=")[1].split("&")[0]
+                semester_modules.append(
+                    {
+                        "id": int(sem_module_id),
+                        "module_code": module_code,
+                        "module_name": module_name,
+                        "type": module_type,
+                        "credits": credits,
+                        "hidden": False,
+                    }
+                )
+
+    return semester_modules
+
+
 def scrape_school_details(school_code: str) -> dict[str, str | int] | None:
     browser = Browser()
     url = f"{BASE_URL}/f_schoollist.php"

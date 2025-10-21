@@ -7,11 +7,20 @@ from .service import SchoolSyncService
 
 
 class ImportSchoolWorker(threading.Thread):
-    def __init__(self, school_code, service, callback):
+    def __init__(
+        self,
+        school_code,
+        service,
+        callback,
+        fetch_structures=False,
+        fetch_semesters=False,
+    ):
         super().__init__(daemon=True)
         self.school_code = school_code
         self.service = service
         self.callback = callback
+        self.fetch_structures = fetch_structures
+        self.fetch_semesters = fetch_semesters
         self.should_stop = False
 
     def run(self):
@@ -20,7 +29,10 @@ class ImportSchoolWorker(threading.Thread):
                 return
 
             school_id, programs = self.service.import_school(
-                self.school_code, self._progress_callback
+                self.school_code,
+                self.fetch_structures,
+                self.fetch_semesters,
+                self._progress_callback,
             )
 
             self.callback("finished", school_id, programs)
@@ -82,6 +94,23 @@ class AddSchoolDialog(wx.Dialog):
 
         main_sizer.AddSpacer(15)
 
+        options_label = wx.StaticText(self, label="Also fetch with:")
+        main_sizer.Add(options_label, 0, wx.LEFT | wx.RIGHT, 15)
+
+        main_sizer.AddSpacer(5)
+
+        self.structures_checkbox = wx.CheckBox(self, label="Structures")
+        self.structures_checkbox.Bind(wx.EVT_CHECKBOX, self.on_structures_checked)
+        main_sizer.Add(self.structures_checkbox, 0, wx.LEFT | wx.RIGHT, 15)
+
+        main_sizer.AddSpacer(5)
+
+        self.semesters_checkbox = wx.CheckBox(self, label="Semesters")
+        self.semesters_checkbox.Enable(False)
+        main_sizer.Add(self.semesters_checkbox, 0, wx.LEFT, 35)
+
+        main_sizer.AddSpacer(15)
+
         line = wx.StaticLine(self)
         main_sizer.Add(line, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 15)
 
@@ -115,6 +144,12 @@ class AddSchoolDialog(wx.Dialog):
 
         self.SetSizer(main_sizer)
 
+    def on_structures_checked(self, event):
+        is_checked = self.structures_checkbox.GetValue()
+        self.semesters_checkbox.Enable(is_checked)
+        if not is_checked:
+            self.semesters_checkbox.SetValue(False)
+
     def on_text_changed(self, event):
         text = self.school_code_input.GetValue().strip()
         self.fetch_button.Enable(bool(text))
@@ -131,7 +166,16 @@ class AddSchoolDialog(wx.Dialog):
         self.school_code_input.Enable(False)
         self.programs_list.DeleteAllItems()
 
-        self.worker = ImportSchoolWorker(school_code, self.service, self.on_callback)
+        fetch_structures = self.structures_checkbox.GetValue()
+        fetch_semesters = self.semesters_checkbox.GetValue()
+
+        self.worker = ImportSchoolWorker(
+            school_code,
+            self.service,
+            self.on_callback,
+            fetch_structures,
+            fetch_semesters,
+        )
         self.worker.start()
 
     def on_callback(self, event_type, *args):

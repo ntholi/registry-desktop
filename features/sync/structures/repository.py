@@ -226,3 +226,118 @@ class StructureRepository:
                 session.commit()
                 session.refresh(new_program)
                 return new_program
+
+    def save_structure(
+        self,
+        structure_id: int,
+        code: str,
+        desc: str,
+        program_id: int,
+    ) -> Structure:
+        with self._session() as session:
+            existing_structure = (
+                session.query(Structure).filter(Structure.id == structure_id).first()
+            )
+            if existing_structure:
+                existing_structure.code = code  # type: ignore
+                existing_structure.desc = desc  # type: ignore
+                existing_structure.program_id = program_id  # type: ignore
+                session.commit()
+                session.refresh(existing_structure)
+                return existing_structure
+            else:
+                new_structure = Structure(
+                    id=structure_id,
+                    code=code,
+                    desc=desc,
+                    program_id=program_id,
+                )
+                session.add(new_structure)
+                session.commit()
+                session.refresh(new_structure)
+                return new_structure
+
+    def save_semester(
+        self,
+        semester_id: int,
+        semester_number: int,
+        name: str,
+        total_credits: float,
+        structure_id: int,
+    ) -> StructureSemester:
+        with self._session() as session:
+            existing_semester = (
+                session.query(StructureSemester)
+                .filter(StructureSemester.id == semester_id)
+                .first()
+            )
+            if existing_semester:
+                existing_semester.semester_number = semester_number  # type: ignore
+                existing_semester.name = name  # type: ignore
+                existing_semester.total_credits = total_credits  # type: ignore
+                existing_semester.structure_id = structure_id  # type: ignore
+                session.commit()
+                session.refresh(existing_semester)
+                return existing_semester
+            else:
+                new_semester = StructureSemester(
+                    id=semester_id,
+                    semester_number=semester_number,
+                    name=name,
+                    total_credits=total_credits,
+                    structure_id=structure_id,
+                )
+                session.add(new_semester)
+                session.commit()
+                session.refresh(new_semester)
+                return new_semester
+
+    def save_semester_module(
+        self,
+        sem_module_id: int,
+        module_code: str,
+        module_name: str,
+        module_type: str,
+        credits: float,
+        semester_id: int,
+        hidden: bool = False,
+    ) -> SemesterModule:
+        with self._session() as session:
+            module = session.query(Module).filter(Module.code == module_code).first()
+            if not module:
+                module = Module(
+                    code=module_code,
+                    name=module_name,
+                    status="Active",
+                )
+                session.add(module)
+                session.commit()
+                session.refresh(module)
+
+            existing_sem_module = (
+                session.query(SemesterModule)
+                .filter(SemesterModule.id == sem_module_id)
+                .first()
+            )
+            if existing_sem_module:
+                existing_sem_module.module_id = module.id  # type: ignore
+                existing_sem_module.type = module_type  # type: ignore
+                existing_sem_module.credits = credits  # type: ignore
+                existing_sem_module.semester_id = semester_id  # type: ignore
+                existing_sem_module.hidden = hidden  # type: ignore
+                session.commit()
+                session.refresh(existing_sem_module)
+                return existing_sem_module
+            else:
+                new_sem_module = SemesterModule(
+                    id=sem_module_id,
+                    module_id=module.id,
+                    type=module_type,
+                    credits=credits,
+                    semester_id=semester_id,
+                    hidden=hidden,
+                )
+                session.add(new_sem_module)
+                session.commit()
+                session.refresh(new_sem_module)
+                return new_sem_module

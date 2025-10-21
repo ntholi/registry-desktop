@@ -284,3 +284,73 @@ class StudentSyncService:
         except Exception as e:
             logger.error(f"Error pushing student {student_number}: {str(e)}")
             return False, f"Error: {str(e)}"
+
+    def push_module(
+        self,
+        std_module_id: int,
+        data: dict,
+        progress_callback: Optional[Callable[[str], None]] = None,
+    ) -> tuple[bool, str]:
+        url = f"{BASE_URL}/r_stdmoduleedit.php?StdModuleID={std_module_id}"
+
+        try:
+            if progress_callback:
+                progress_callback(f"Fetching edit form for module {std_module_id}...")
+
+            response = self._browser.fetch(url)
+            page = BeautifulSoup(response.text, "lxml")
+            form = page.select_one("form#fr_stdmoduleedit")
+
+            if not form:
+                logger.error(f"Could not find edit form for module {std_module_id}")
+                return False, "Could not find edit form"
+
+            if progress_callback:
+                progress_callback(f"Preparing data for module {std_module_id}...")
+
+            form_data = get_form_payload(form)
+
+            form_data["a_edit"] = "U"
+
+            if "status" in data and data["status"]:
+                form_data["x_StdModStatCode"] = data["status"]
+
+            if "credits" in data and data["credits"]:
+                form_data["x_StdModCredits"] = str(data["credits"])
+
+            if "marks" in data and data["marks"]:
+                form_data["x_AlterMark"] = str(data["marks"])
+
+            if "grade" in data and data["grade"]:
+                form_data["x_AlterGrade"] = str(data["grade"])
+
+            if progress_callback:
+                progress_callback(f"Pushing module {std_module_id} to CMS...")
+
+            logger.info(f"Posting update for module {std_module_id}")
+            post_response = self._browser.post(url, form_data)
+
+            if "Successful" in post_response.text:
+                logger.info(f"Successfully posted module {std_module_id} to CMS")
+
+                if progress_callback:
+                    progress_callback(f"Saving module {std_module_id} to database...")
+
+                update_success, msg = self._repository.upsert_student_module(data)
+                if update_success:
+                    return True, "Module updated successfully"
+                else:
+                    return (
+                        False,
+                        f"CMS update succeeded but database update failed: {msg}",
+                    )
+            else:
+                logger.error(f"CMS update failed for module {std_module_id}")
+                return (
+                    False,
+                    "CMS update failed - response did not contain 'Successful'",
+                )
+
+        except Exception as e:
+            logger.error(f"Error pushing module {std_module_id}: {str(e)}")
+            return False, f"Error: {str(e)}"

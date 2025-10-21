@@ -245,7 +245,9 @@ class StudentsView(wx.Panel):
 
         content_sizer.Add(self.list_ctrl, 1, wx.EXPAND)
 
-        self.detail_panel = StudentDetailPanel(self, self.on_detail_panel_close)
+        self.detail_panel = StudentDetailPanel(
+            self, self.on_detail_panel_close, self.status_bar
+        )
         self.detail_panel.Hide()
 
         content_sizer.Add(self.detail_panel, 0, wx.EXPAND | wx.LEFT, 10)

@@ -1,16 +1,23 @@
+import threading
+
 import wx
 
 from ..repository import StudentRepository
+from ..service import StudentSyncService
+from .module_form import ModuleFormDialog
 
 
 class StudentDetailPanel(wx.Panel):
-    def __init__(self, parent, on_close_callback):
+    def __init__(self, parent, on_close_callback, status_bar=None):
         super().__init__(parent)
         self.on_close_callback = on_close_callback
+        self.status_bar = status_bar
         self.repository = StudentRepository()
+        self.service = StudentSyncService(self.repository)
         self.current_student_no = None
         self.current_semesters = []
         self.current_modules = []
+        self.push_worker = None
 
         self.init_ui()
 
@@ -199,11 +206,51 @@ class StudentDetailPanel(wx.Panel):
             event.Skip()
 
     def on_module_edit_clicked(self, module):
-        wx.MessageBox(
-            f"Edit module: {module.module_code} - {module.module_name}",
-            "Edit Module",
-            wx.OK | wx.ICON_INFORMATION,
-        )
+        selected_semester_index = self.semesters_list.GetFirstSelected()
+        if selected_semester_index == wx.NOT_FOUND or selected_semester_index >= len(
+            self.current_semesters
+        ):
+            wx.MessageBox(
+                "Please select a semester first",
+                "No Semester Selected",
+                wx.OK | wx.ICON_WARNING,
+            )
+            return
+
+        current_semester = self.current_semesters[selected_semester_index]
+
+        module_data = {
+            "id": module.id,
+            "module_code": module.module_code,
+            "module_name": module.module_name,
+            "status": module.status,
+            "credits": "",
+            "marks": module.marks,
+            "grade": module.grade,
+            "student_semester_id": current_semester.id,
+        }
+
+        dialog = ModuleFormDialog(module_data, parent=self, status_bar=self.status_bar)
+
+        if dialog.ShowModal() == wx.ID_OK:
+            updated_data = dialog.get_updated_data()
+            updated_data["student_semester_id"] = current_semester.id
+
+            if self.push_worker and self.push_worker.is_alive():
+                wx.MessageBox(
+                    "Another push operation is in progress. Please wait.",
+                    "Operation in Progress",
+                    wx.OK | wx.ICON_INFORMATION,
+                )
+                dialog.Destroy()
+                return
+
+            self.push_worker = PushModuleWorker(
+                updated_data, self.service, self.push_callback
+            )
+            self.push_worker.start()
+
+        dialog.Destroy()
 
     def clear_tables(self):
         self.semesters_list.DeleteAllItems()
@@ -226,6 +273,62 @@ class StudentDetailPanel(wx.Panel):
             return self.program_combobox.GetClientData(selection)
         return None
 
+    def push_callback(self, event_type, *args):
+        if event_type == "progress":
+            message = args[0] if args else ""
+            if self.status_bar:
+                wx.CallAfter(self.status_bar.show_message, message)
+        elif event_type == "complete":
+            success, message = args if len(args) >= 2 else (False, "Unknown error")
+            if self.status_bar:
+                wx.CallAfter(self.status_bar.clear)
+
+            if success:
+                wx.CallAfter(
+                    wx.MessageBox,
+                    message,
+                    "Success",
+                    wx.OK | wx.ICON_INFORMATION,
+                )
+                wx.CallAfter(self.refresh_current_view)
+            else:
+                wx.CallAfter(
+                    wx.MessageBox,
+                    f"Error: {message}",
+                    "Push Failed",
+                    wx.OK | wx.ICON_ERROR,
+                )
+
+    def refresh_current_view(self):
+        if self.current_semesters:
+            selected_item = self.semesters_list.GetFirstSelected()
+            if selected_item != wx.NOT_FOUND and selected_item < len(
+                self.current_semesters
+            ):
+                semester = self.current_semesters[selected_item]
+                self.load_modules_for_semester(semester.id)
+
     def on_close(self, event):
         if self.on_close_callback:
             self.on_close_callback()
+
+
+class PushModuleWorker(threading.Thread):
+    def __init__(self, module_data, service, callback):
+        super().__init__(daemon=True)
+        self.module_data = module_data
+        self.service = service
+        self.callback = callback
+
+    def run(self):
+        def progress_callback(message):
+            self.callback("progress", message)
+
+        try:
+            std_module_id = int(self.module_data["id"])
+            success, message = self.service.push_module(
+                std_module_id, self.module_data, progress_callback
+            )
+            self.callback("complete", success, message)
+        except Exception as e:
+            self.callback("complete", False, str(e))

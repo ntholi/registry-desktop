@@ -10,7 +10,7 @@ from .import_dialog import ImportStudentsDialog
 from .student_form import StudentFormDialog
 
 
-class PullStudentsWorker(threading.Thread):
+class FetchStudentsWorker(threading.Thread):
     def __init__(self, student_numbers, sync_service, callback):
         super().__init__(daemon=True)
         self.student_numbers = student_numbers
@@ -33,7 +33,7 @@ class PullStudentsWorker(threading.Thread):
                     overall_total = len(self.student_numbers) * 3
                     self.callback("progress", message, overall_progress, overall_total)
 
-                was_updated = self.sync_service.pull_student(std_no, progress_callback)
+                was_updated = self.sync_service.fetch_student(std_no, progress_callback)
 
                 if was_updated:
                     success_count += 1
@@ -99,7 +99,7 @@ class StudentsView(wx.Panel):
         self.selected_term = None
         self.selected_semester_number = None
         self.search_timer = None
-        self.pull_worker = None
+        self.fetch_worker = None
         self.update_worker = None
         self.repository = StudentRepository()
         self.sync_service = StudentSyncService(self.repository)
@@ -185,10 +185,10 @@ class StudentsView(wx.Panel):
 
         search_sizer.AddStretchSpacer()
 
-        self.pull_button = wx.Button(self, label="Pull")
-        self.pull_button.Bind(wx.EVT_BUTTON, self.pull_students)
-        self.pull_button.Enable(False)
-        search_sizer.Add(self.pull_button, 0, wx.RIGHT, 10)
+        self.fetch_button = wx.Button(self, label="Fetch")
+        self.fetch_button.Bind(wx.EVT_BUTTON, self.fetch_students)
+        self.fetch_button.Enable(False)
+        search_sizer.Add(self.fetch_button, 0, wx.RIGHT, 10)
 
         self.edit_button = wx.Button(self, label="Edit")
         self.edit_button.Bind(wx.EVT_BUTTON, self.update_students)
@@ -572,22 +572,22 @@ class StudentsView(wx.Panel):
     def update_selection_state(self):
         selected_count = self.get_selected_count()
         self.selection_label.SetLabel(f"{selected_count} selected")
-        self.pull_button.Enable(selected_count > 0)
+        self.fetch_button.Enable(selected_count > 0)
         self.edit_button.Enable(selected_count == 1)
         total_items = self.list_ctrl.GetItemCount()
         should_check_all = total_items > 0 and selected_count == total_items
         if self.select_all_checkbox.GetValue() != should_check_all:
             self.select_all_checkbox.SetValue(should_check_all)
 
-    def pull_students(self, event):
+    def fetch_students(self, event):
         selected_students = self.get_selected_student_numbers()
         if not selected_students:
             return
 
         dlg = wx.MessageDialog(
             self,
-            f"Pull data for {len(selected_students)} student(s) from the web?\n\nThis will update the portal database with data from the CMS.",
-            "Confirm Pull",
+            f"Fetch data for {len(selected_students)} student(s) from the web?\n\nThis will update the portal database with data from the CMS.",
+            "Confirm Fetch",
             wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION,
         )
 
@@ -596,13 +596,13 @@ class StudentsView(wx.Panel):
             return
         dlg.Destroy()
 
-        self.pull_button.Enable(False)
+        self.fetch_button.Enable(False)
         self.edit_button.Enable(False)
 
-        self.pull_worker = PullStudentsWorker(
+        self.fetch_worker = FetchStudentsWorker(
             selected_students, self.sync_service, self.on_worker_callback
         )
-        self.pull_worker.start()
+        self.fetch_worker.start()
 
     def update_students(self, event):
         selected_students = self.get_selected_students_data()
@@ -614,7 +614,7 @@ class StudentsView(wx.Panel):
             if dialog.ShowModal() == wx.ID_OK:
                 updated_data = dialog.get_updated_data()
 
-                self.pull_button.Enable(False)
+                self.fetch_button.Enable(False)
                 self.edit_button.Enable(False)
 
                 self.update_worker = UpdateStudentsWorker(
@@ -653,20 +653,20 @@ class StudentsView(wx.Panel):
 
             dlg = wx.MessageDialog(
                 self,
-                f"Import {len(student_numbers)} student(s) from the web?\n\nThis will pull data from the CMS and save it to the portal database.",
+                f"Import {len(student_numbers)} student(s) from the web?\n\nThis will fetch data from the CMS and save it to the portal database.",
                 "Confirm Import",
                 wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION,
             )
 
             if dlg.ShowModal() == wx.ID_YES:
-                self.pull_button.Enable(False)
+                self.fetch_button.Enable(False)
                 self.edit_button.Enable(False)
                 self.import_button.Enable(False)
 
-                self.pull_worker = PullStudentsWorker(
+                self.fetch_worker = FetchStudentsWorker(
                     student_numbers, self.sync_service, self.on_import_callback
                 )
-                self.pull_worker.start()
+                self.fetch_worker.start()
 
             dlg.Destroy()
 
@@ -687,19 +687,19 @@ class StudentsView(wx.Panel):
             success_count, failed_count = args
             if self.status_bar:
                 self.status_bar.clear()
-            self.pull_button.Enable(True)
+            self.fetch_button.Enable(True)
             self.edit_button.Enable(True)
 
             if failed_count > 0:
                 wx.MessageBox(
-                    f"Successfully pulled {success_count} student(s).\n{failed_count} failed.",
-                    "Pull Complete",
+                    f"Successfully fetched {success_count} student(s).\n{failed_count} failed.",
+                    "Fetch Complete",
                     wx.OK | wx.ICON_INFORMATION,
                 )
             else:
                 wx.MessageBox(
-                    f"Successfully pulled data for {success_count} student(s).",
-                    "Pull Complete",
+                    f"Successfully fetched data for {success_count} student(s).",
+                    "Fetch Complete",
                     wx.OK | wx.ICON_INFORMATION,
                 )
 
@@ -708,7 +708,7 @@ class StudentsView(wx.Panel):
             success, message = args
             if self.status_bar:
                 self.status_bar.clear()
-            self.pull_button.Enable(True)
+            self.fetch_button.Enable(True)
             self.edit_button.Enable(True)
 
             if success:
@@ -733,7 +733,7 @@ class StudentsView(wx.Panel):
             success_count, failed_count = args
             if self.status_bar:
                 self.status_bar.clear()
-            self.pull_button.Enable(True)
+            self.fetch_button.Enable(True)
             self.edit_button.Enable(True)
             self.import_button.Enable(True)
 
@@ -755,7 +755,7 @@ class StudentsView(wx.Panel):
             error_msg = args[0]
             if self.status_bar:
                 self.status_bar.clear()
-            self.pull_button.Enable(True)
+            self.fetch_button.Enable(True)
             self.edit_button.Enable(True)
             self.import_button.Enable(True)
             wx.MessageBox(error_msg, "Error", wx.OK | wx.ICON_WARNING)

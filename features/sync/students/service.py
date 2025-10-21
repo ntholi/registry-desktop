@@ -25,7 +25,7 @@ class StudentSyncService:
         self._repository = repository or StudentRepository()
         self._browser = Browser()
 
-    def pull_student(
+    def fetch_student(
         self,
         student_number: str,
         progress_callback: Optional[Callable[[str, int, int], None]] = None,
@@ -169,7 +169,7 @@ class StudentSyncService:
             )
 
         logger.info(
-            f"Pull completed for {student_number}: Student updated={student_updated}, "
+            f"Fetch completed for {student_number}: Student updated={student_updated}, "
             f"Programs synced={programs_synced}, Semesters synced={semesters_synced}, "
             f"Modules synced={modules_synced}, "
             f"Programs failed={programs_failed}, Semesters failed={semesters_failed}, "

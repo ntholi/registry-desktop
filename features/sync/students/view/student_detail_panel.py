@@ -10,6 +10,7 @@ class StudentDetailPanel(wx.Panel):
         self.repository = StudentRepository()
         self.current_student_no = None
         self.current_semesters = []
+        self.current_modules = []
 
         self.init_ui()
 
@@ -19,7 +20,7 @@ class StudentDetailPanel(wx.Panel):
         top_sizer = wx.BoxSizer(wx.HORIZONTAL)
 
         self.program_combobox = wx.ComboBox(
-            self, style=wx.CB_READONLY, size=wx.Size(300, -1)
+            self, style=wx.CB_READONLY, size=wx.Size(400, -1)
         )
         self.program_combobox.Bind(wx.EVT_COMBOBOX, self.on_program_selected)
         top_sizer.Add(self.program_combobox, 0, wx.RIGHT, 10)
@@ -44,13 +45,14 @@ class StudentDetailPanel(wx.Panel):
         main_sizer.AddSpacer(10)
 
         self.semesters_list = wx.ListCtrl(
-            self, style=wx.LC_REPORT | wx.BORDER_SIMPLE, size=wx.Size(-1, 110)
+            self, style=wx.LC_REPORT | wx.BORDER_SIMPLE, size=wx.Size(-1, 145)
         )
         self.semesters_list.AppendColumn("Term", width=100)
         self.semesters_list.AppendColumn("Semester", width=80)
         self.semesters_list.AppendColumn("Status", width=100)
         self.semesters_list.AppendColumn("", width=60)
         self.semesters_list.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_semester_selected)
+        self.semesters_list.Bind(wx.EVT_LEFT_DOWN, self.on_semesters_left_click)
 
         main_sizer.Add(self.semesters_list, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 20)
 
@@ -74,6 +76,7 @@ class StudentDetailPanel(wx.Panel):
         self.modules_list.AppendColumn("Marks", width=70)
         self.modules_list.AppendColumn("Grade", width=70)
         self.modules_list.AppendColumn("", width=60)
+        self.modules_list.Bind(wx.EVT_LEFT_DOWN, self.on_modules_left_click)
 
         main_sizer.Add(self.modules_list, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 20)
 
@@ -136,7 +139,7 @@ class StudentDetailPanel(wx.Panel):
                     index, 1, str(semester.semester_number or "")
                 )
                 self.semesters_list.SetItem(index, 2, str(semester.status or ""))
-                self.semesters_list.SetItem(index, 3, "Edit")
+                self.semesters_list.SetItem(index, 3, "✎ Edit")
 
             if semesters:
                 self.semesters_list.Select(0)
@@ -153,9 +156,11 @@ class StudentDetailPanel(wx.Panel):
 
     def load_modules_for_semester(self, student_semester_id):
         self.modules_list.DeleteAllItems()
+        self.current_modules = []
 
         try:
             modules = self.repository.get_semester_modules(student_semester_id)
+            self.current_modules = list(modules)
 
             for row, module in enumerate(modules):
                 index = self.modules_list.InsertItem(row, str(module.module_code or ""))
@@ -163,10 +168,42 @@ class StudentDetailPanel(wx.Panel):
                 self.modules_list.SetItem(index, 2, str(module.status or ""))
                 self.modules_list.SetItem(index, 3, str(module.marks or ""))
                 self.modules_list.SetItem(index, 4, str(module.grade or ""))
-                self.modules_list.SetItem(index, 5, "Edit")
+                self.modules_list.SetItem(index, 5, "✎ Edit")
 
         except Exception as e:
             print(f"Error loading modules: {str(e)}")
+
+    def on_semesters_left_click(self, event):
+        item, flags, col = self.semesters_list.HitTestSubItem(event.GetPosition())
+        if item != wx.NOT_FOUND and col == 3:
+            if item < len(self.current_semesters):
+                semester = self.current_semesters[item]
+                self.on_semester_edit_clicked(semester)
+        else:
+            event.Skip()
+
+    def on_semester_edit_clicked(self, semester):
+        wx.MessageBox(
+            f"Edit semester: {semester.term} - Semester {semester.semester_number}",
+            "Edit Semester",
+            wx.OK | wx.ICON_INFORMATION,
+        )
+
+    def on_modules_left_click(self, event):
+        item, flags, col = self.modules_list.HitTestSubItem(event.GetPosition())
+        if item != wx.NOT_FOUND and col == 5:
+            if item < len(self.current_modules):
+                module = self.current_modules[item]
+                self.on_module_edit_clicked(module)
+        else:
+            event.Skip()
+
+    def on_module_edit_clicked(self, module):
+        wx.MessageBox(
+            f"Edit module: {module.module_code} - {module.module_name}",
+            "Edit Module",
+            wx.OK | wx.ICON_INFORMATION,
+        )
 
     def clear_tables(self):
         self.semesters_list.DeleteAllItems()

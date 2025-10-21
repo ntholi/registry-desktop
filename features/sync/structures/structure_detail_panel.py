@@ -6,6 +6,53 @@ from .repository import StructureRepository
 from .service import SchoolSyncService
 
 
+class FetchSemesterModulesWorker(threading.Thread):
+    def __init__(self, semester_id, semester_name, service, repository, callback):
+        super().__init__(daemon=True)
+        self.semester_id = semester_id
+        self.semester_name = semester_name
+        self.service = service
+        self.repository = repository
+        self.callback = callback
+        self.should_stop = False
+
+    def run(self):
+        try:
+            if self.should_stop:
+                return
+
+            from .scraper import scrape_semester_modules
+
+            self.callback(
+                "progress", f"Fetching modules for {self.semester_name}...", 0, 1
+            )
+
+            semester_modules = scrape_semester_modules(self.semester_id)
+
+            self.callback(
+                "progress", f"Saving modules for {self.semester_name}...", 1, 1
+            )
+
+            for sem_module in semester_modules:
+                self.repository.save_semester_module(
+                    int(sem_module["id"]),
+                    str(sem_module["module_code"]),
+                    str(sem_module["module_name"]),
+                    str(sem_module["type"]),
+                    float(sem_module["credits"]),
+                    self.semester_id,
+                    bool(sem_module["hidden"]),
+                )
+
+            self.callback("finished", len(semester_modules))
+
+        except Exception as e:
+            self.callback("error", str(e))
+
+    def stop(self):
+        self.should_stop = True
+
+
 class FetchStructureDataWorker(threading.Thread):
     def __init__(self, structure_id, structure_code, service, callback):
         super().__init__(daemon=True)
@@ -46,7 +93,10 @@ class StructureDetailPanel(wx.Panel):
         self.service = SchoolSyncService(repository)
         self.selected_structure_id = None
         self.selected_structure_code = None
+        self.selected_semester_id = None
+        self.selected_semester_name = None
         self.fetch_worker = None
+        self.fetch_modules_worker = None
 
         self.init_ui()
 
@@ -87,12 +137,23 @@ class StructureDetailPanel(wx.Panel):
         self.semesters_list.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_semester_selected)
         sizer.Add(self.semesters_list, 4, wx.EXPAND | wx.BOTTOM, 15)
 
+        modules_header_sizer = wx.BoxSizer(wx.HORIZONTAL)
+
         modules_label = wx.StaticText(self, label="Modules")
         font = modules_label.GetFont()
         font.PointSize = 11
         font = font.Bold()
         modules_label.SetFont(font)
-        sizer.Add(modules_label, 0, wx.BOTTOM, 5)
+        modules_header_sizer.Add(modules_label, 0, wx.ALIGN_CENTER_VERTICAL)
+
+        modules_header_sizer.AddStretchSpacer()
+
+        self.fetch_modules_button = wx.Button(self, label="Fetch")
+        self.fetch_modules_button.Bind(wx.EVT_BUTTON, self.on_fetch_modules)
+        self.fetch_modules_button.Enable(False)
+        modules_header_sizer.Add(self.fetch_modules_button, 0, wx.ALIGN_CENTER_VERTICAL)
+
+        sizer.Add(modules_header_sizer, 0, wx.EXPAND | wx.BOTTOM, 5)
 
         self.modules_list = wx.ListCtrl(self, style=wx.LC_REPORT | wx.BORDER_SIMPLE)
         self.modules_list.AppendColumn("Code", width=100)
@@ -107,8 +168,11 @@ class StructureDetailPanel(wx.Panel):
         try:
             self.selected_structure_id = structure_id
             self.selected_structure_code = code
+            self.selected_semester_id = None
+            self.selected_semester_name = None
             self.detail_title.SetLabel(f"Structure: {code}")
             self.fetch_button.Enable(True)
+            self.fetch_modules_button.Enable(False)
             info_text = f"{desc}\n{program}"
             self.detail_info.SetLabel(info_text)
 
@@ -194,7 +258,64 @@ class StructureDetailPanel(wx.Panel):
     def on_semester_selected(self, event):
         item = event.GetIndex()
         semester_id = self.semesters_list.GetItemData(item)
+        semester_name = self.semesters_list.GetItemText(item, 0)
+        self.selected_semester_id = semester_id
+        self.selected_semester_name = semester_name
+        self.fetch_modules_button.Enable(True)
         self.load_semester_modules(semester_id)
+
+    def on_fetch_modules(self, event):
+        if not self.selected_semester_id or not self.selected_semester_name:
+            wx.MessageBox(
+                "No semester selected.",
+                "Missing Semester",
+                wx.OK | wx.ICON_WARNING,
+            )
+            return
+
+        self.fetch_modules_button.Enable(False)
+
+        self.fetch_modules_worker = FetchSemesterModulesWorker(
+            self.selected_semester_id,
+            self.selected_semester_name,
+            self.service,
+            self.repository,
+            self.on_fetch_modules_callback,
+        )
+        self.fetch_modules_worker.start()
+
+    def on_fetch_modules_callback(self, event_type, *args):
+        wx.CallAfter(self._handle_fetch_modules_event, event_type, *args)
+
+    def _handle_fetch_modules_event(self, event_type, *args):
+        if event_type == "progress":
+            message, current, total = args
+            if self.status_bar:
+                self.status_bar.show_progress(message, current, total)
+        elif event_type == "finished":
+            modules_count = args[0]
+            if self.status_bar:
+                self.status_bar.clear()
+
+            self.fetch_modules_button.Enable(True)
+
+            if self.selected_semester_id:
+                self.load_semester_modules(self.selected_semester_id)
+
+            wx.MessageBox(
+                f"Successfully fetched {modules_count} module(s) for {self.selected_semester_name}.",
+                "Fetch Complete",
+                wx.OK | wx.ICON_INFORMATION,
+            )
+
+        elif event_type == "error":
+            error_msg = args[0]
+            if self.status_bar:
+                self.status_bar.clear()
+
+            self.fetch_modules_button.Enable(True)
+
+            wx.MessageBox(f"Fetch failed: {error_msg}", "Error", wx.OK | wx.ICON_ERROR)
 
     def load_semester_modules(self, semester_id):
         try:
@@ -218,9 +339,12 @@ class StructureDetailPanel(wx.Panel):
     def clear(self):
         self.selected_structure_id = None
         self.selected_structure_code = None
+        self.selected_semester_id = None
+        self.selected_semester_name = None
         self.detail_title.SetLabel("Structure Details")
         self.detail_info.SetLabel("Select a structure to view details")
         self.fetch_button.Enable(False)
+        self.fetch_modules_button.Enable(False)
         self.semesters_list.DeleteAllItems()
         self.modules_list.DeleteAllItems()
         self.Layout()

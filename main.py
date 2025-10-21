@@ -38,7 +38,7 @@ class MainWindow(wx.Frame):
         self.views = {
             "sync_students": StudentsView(self.content_panel, self.status_bar),
             "sync_structures": StructuresView(self.content_panel, self.status_bar),
-            "sync_modules": ModulesView(self.content_panel),
+            "sync_modules": ModulesView(self.content_panel, self.status_bar),
             "enrollments_approved": ApprovedView(self.content_panel),
             "enrollments_module": ModuleView(self.content_panel),
             "enrollments_student": StudentView(self.content_panel),

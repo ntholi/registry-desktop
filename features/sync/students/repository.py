@@ -269,6 +269,54 @@ class StudentRepository:
             )
             return structure[0] if structure else None
 
+    def get_student_semesters(self, student_program_id: int):
+        with self._session() as session:
+            semesters = (
+                session.query(
+                    StudentSemester.id,
+                    StudentSemester.term,
+                    StudentSemester.semester_number,
+                    StudentSemester.status,
+                    StudentSemester.caf_date,
+                )
+                .filter(StudentSemester.student_program_id == student_program_id)
+                .order_by(StudentSemester.term, StudentSemester.semester_number)
+                .all()
+            )
+            return semesters
+
+    def get_student_modules(self, student_program_id: int):
+        with self._session() as session:
+            modules = (
+                session.query(
+                    StudentModule.id,
+                    Module.code.label("module_code"),
+                    Module.name.label("module_name"),
+                    StudentModule.status,
+                    StudentModule.marks,
+                    StudentModule.grade,
+                    StudentSemester.term,
+                    StudentSemester.semester_number,
+                )
+                .join(
+                    SemesterModule,
+                    StudentModule.semester_module_id == SemesterModule.id,
+                )
+                .join(Module, SemesterModule.module_id == Module.id)
+                .join(
+                    StudentSemester,
+                    StudentModule.student_semester_id == StudentSemester.id,
+                )
+                .filter(StudentSemester.student_program_id == student_program_id)
+                .order_by(
+                    StudentSemester.term,
+                    StudentSemester.semester_number,
+                    Module.code,
+                )
+                .all()
+            )
+            return modules
+
     def upsert_student_program(
         self, student_program_id: str, std_no: int, data: dict
     ) -> tuple[bool, str]:

@@ -164,6 +164,9 @@ class StructuresView(wx.Panel):
 
     def load_filter_options(self):
         try:
+            while self.school_filter.GetCount() > 1:
+                self.school_filter.Delete(1)
+
             schools = self.repository.list_active_schools()
             for school in schools:
                 self.school_filter.Append(str(school.name), school.id)
@@ -282,20 +285,7 @@ class StructuresView(wx.Panel):
     def on_add_school(self, event):
         dialog = AddSchoolDialog(self, self.status_bar)
         if dialog.ShowModal() == wx.ID_OK:
-            results = dialog.get_results()
-            school_id = results.get("school_id")
-            programs = results.get("programs", [])
-
-            if school_id and programs:
-                message = f"School ID: {school_id}\n\n"
-                message += f"Found {len(programs)} program(s):\n\n"
-                wx.MessageBox(
-                    message,
-                    "Import Results",
-                    wx.OK | wx.ICON_INFORMATION,
-                )
-
-                self.load_filter_options()
-                self.load_structures()
+            self.load_filter_options()
+            self.load_structures()
 
         dialog.Destroy()

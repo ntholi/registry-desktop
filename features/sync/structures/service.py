@@ -18,39 +18,64 @@ class SchoolSyncService:
     def __init__(self, repository: StructureRepository):
         self.repository = repository
 
-    def import_school(
-        self,
-        school_code: str,
-        fetch_structures: bool = False,
-        fetch_semesters: bool = False,
-        progress_callback=None,
-    ):
+    def fetch_school_and_programs(self, school_code: str, progress_callback=None):
         if progress_callback:
-            progress_callback(f"Searching for school '{school_code}'...", 1, 4)
+            progress_callback(f"Searching for school '{school_code}'...", 1, 2)
 
         school_data = scrape_school_details(school_code)
         if not school_data:
             raise ValueError(f"School with code '{school_code}' not found")
 
         school_id = int(school_data["id"])
-        school_name = str(school_data["name"])
         school_code = str(school_data["code"])
 
         if progress_callback:
             progress_callback(
                 f"Found school {school_code} (ID: {school_id}). Fetching programs...",
                 2,
-                4,
+                2,
             )
 
         programs = scrape_programs(school_id)
 
         if progress_callback:
+            progress_callback(f"Retrieved {len(programs)} program(s)", 2, 2)
+
+        return school_data, programs
+
+    def import_school_data(
+        self,
+        school_data: dict,
+        programs: list[dict],
+        fetch_structures: bool = False,
+        fetch_semesters: bool = False,
+        progress_callback=None,
+    ):
+        school_id = int(school_data["id"])
+        school_name = str(school_data["name"])
+        school_code = str(school_data["code"])
+
+        total_steps = 2
+        if fetch_structures:
+            total_steps += len(programs)
+
+        current_step = 0
+
+        if progress_callback:
+            current_step += 1
             progress_callback(
-                f"Retrieved {len(programs)} program(s). Saving to database...", 3, 4
+                f"Saving school {school_code} to database...", current_step, total_steps
             )
 
         self.repository.save_school(school_id, school_code, school_name)
+
+        if progress_callback:
+            current_step += 1
+            progress_callback(
+                f"Saving {len(programs)} program(s) to database...",
+                current_step,
+                total_steps,
+            )
 
         for program in programs:
             self.repository.save_program(
@@ -61,41 +86,43 @@ class SchoolSyncService:
             )
 
         if fetch_structures:
-            if progress_callback:
-                progress_callback(
-                    f"Fetching structures for {len(programs)} program(s)...", 4, 4
-                )
-            self._import_structures(programs, fetch_semesters, progress_callback)
+            logger.info(f"Importing structures for {len(programs)} programs")
+            self._import_structures(
+                programs, fetch_semesters, progress_callback, current_step, total_steps
+            )
         else:
             if progress_callback:
                 progress_callback(
                     f"Successfully saved {school_code} and {len(programs)} program(s)",
-                    4,
-                    4,
+                    total_steps,
+                    total_steps,
+                )
+                logger.info(
+                    f"Completed import: {school_code} with {len(programs)} program(s)"
                 )
 
-        return school_id, programs
-
     def _import_structures(
-        self, programs, fetch_semesters: bool, progress_callback=None
+        self,
+        programs,
+        fetch_semesters: bool,
+        progress_callback=None,
+        current_step=0,
+        total_steps=1,
     ):
-        total_programs = len(programs)
-        current_program = 0
-
         logger.info(
-            f"Starting to import structures for {total_programs} programs, fetch_semesters={fetch_semesters}"
+            f"Starting to import structures for {len(programs)} programs, fetch_semesters={fetch_semesters}"
         )
 
         for program in programs:
-            current_program += 1
+            current_step += 1
             program_id = int(program["id"])
             program_code = program["code"]
 
             if progress_callback:
                 progress_callback(
                     f"Fetching structures for {program_code}...",
-                    current_program,
-                    total_programs,
+                    current_step,
+                    total_steps,
                 )
 
             structures = scrape_structures(program_id)

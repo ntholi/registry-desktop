@@ -1,7 +1,7 @@
 from base import get_logger
 
 from .repository import ModuleRepository
-from .scraper import scrape_modules
+from .scraper import scrape_all_modules, scrape_modules
 
 logger = get_logger(__name__)
 
@@ -47,6 +47,48 @@ class ModuleSyncService:
                 f"Successfully saved {saved_count} module(s) to database",
                 3,
                 3,
+            )
+
+        return saved_count
+
+    def fetch_and_save_all_modules(self, progress_callback=None):
+        def scraping_progress(message, current, total):
+            if progress_callback:
+                progress_callback(f"[Scraping] {message}", current, total)
+
+        modules = scrape_all_modules(progress_callback=scraping_progress)
+
+        if not modules:
+            raise ValueError("No modules found")
+
+        total_modules = len(modules)
+        saved_count = 0
+
+        for idx, module in enumerate(modules, start=1):
+            if progress_callback:
+                progress_callback(
+                    f"Saving module {idx}/{total_modules}: {module['code']}",
+                    idx,
+                    total_modules,
+                )
+
+            try:
+                self.repository.save_module(
+                    module_id=int(module["id"]),
+                    code=module["code"],
+                    name=module["name"],
+                    status=module["status"],
+                    timestamp=module["timestamp"],
+                )
+                saved_count += 1
+            except Exception as e:
+                logger.error(f"Error saving module {module['code']}: {e}")
+
+        if progress_callback:
+            progress_callback(
+                f"Successfully saved {saved_count}/{total_modules} modules",
+                total_modules,
+                total_modules,
             )
 
         return saved_count

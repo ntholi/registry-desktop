@@ -1,8 +1,30 @@
+import threading
+
 import wx
 
 from .fetch_module_dialog import FetchModuleDialog
 from .repository import ModuleRepository
 from .service import ModuleSyncService
+
+
+class FetchAllModulesWorker(threading.Thread):
+    def __init__(self, service, callback):
+        super().__init__(daemon=True)
+        self.service = service
+        self.callback = callback
+        self.should_stop = False
+
+    def run(self):
+        try:
+            self.service.fetch_and_save_all_modules(progress_callback=self.progress)
+            wx.CallAfter(lambda: self.callback("complete", None))
+        except Exception as e:
+            error_msg = str(e)
+            wx.CallAfter(lambda: self.callback("error", error_msg))
+
+    def progress(self, message, current, total):
+        if not self.should_stop:
+            wx.CallAfter(lambda: self.callback("progress", message, current, total))
 
 
 class ModulesView(wx.Panel):
@@ -203,8 +225,48 @@ class ModulesView(wx.Panel):
         dialog.Destroy()
 
     def on_fetch_all(self, event):
-        wx.MessageBox(
-            "Fetch All functionality not yet implemented",
-            "Coming Soon",
-            wx.OK | wx.ICON_INFORMATION,
+        dialog = wx.MessageDialog(
+            self,
+            "This will fetch all modules from the CMS and may take a long time.\n\n"
+            "The operation will scrape through all pages of the module list and save them to the database.\n"
+            "Do you want to continue?",
+            "Fetch All Modules - Warning",
+            wx.YES_NO | wx.NO_DEFAULT | wx.ICON_WARNING,
         )
+
+        if dialog.ShowModal() == wx.ID_YES:
+            self.fetch_button.Enable(False)
+            self.fetch_all_button.Enable(False)
+
+            worker = FetchAllModulesWorker(self.service, self.on_fetch_all_callback)
+            worker.start()
+
+        dialog.Destroy()
+
+    def on_fetch_all_callback(self, event_type, *args):
+        if event_type == "progress":
+            message, current, total = args
+            if self.status_bar:
+                self.status_bar.show_progress(message, current, total)
+        elif event_type == "complete":
+            if self.status_bar:
+                self.status_bar.clear()
+            self.fetch_button.Enable(True)
+            self.fetch_all_button.Enable(True)
+            self.load_modules()
+            wx.MessageBox(
+                "All modules have been fetched and saved successfully!",
+                "Success",
+                wx.OK | wx.ICON_INFORMATION,
+            )
+        elif event_type == "error":
+            error_message = args[0] if args else "Unknown error"
+            if self.status_bar:
+                self.status_bar.clear()
+            self.fetch_button.Enable(True)
+            self.fetch_all_button.Enable(True)
+            wx.MessageBox(
+                f"Error fetching modules: {error_message}",
+                "Error",
+                wx.OK | wx.ICON_ERROR,
+            )

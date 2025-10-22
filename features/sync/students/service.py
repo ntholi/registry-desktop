@@ -421,9 +421,6 @@ class StudentSyncService:
             if "status" in data and data["status"]:
                 form_data["x_SemesterStatus"] = data["status"]
 
-            if "caf_no" in data and data["caf_no"]:
-                form_data["x_StdSemCAFNo"] = data["caf_no"]
-
             if "caf_date" in data and data["caf_date"]:
                 form_data["x_StdSemCAFDate"] = data["caf_date"]
             else:
@@ -449,12 +446,8 @@ class StudentSyncService:
                     "caf_date": data.get("caf_date"),
                 }
 
-                if "structure_semester_id" in data and data["structure_semester_id"]:
-                    semester_number = self._repository.get_structure_semester_number(
-                        data["structure_semester_id"]
-                    )
-                    if semester_number:
-                        db_data["semester_number"] = semester_number
+                if "semester_number" in data and data["semester_number"]:
+                    db_data["semester_number"] = data["semester_number"]
 
                 update_success, msg, _ = self._repository.upsert_student_semester(
                     student_program_id, db_data

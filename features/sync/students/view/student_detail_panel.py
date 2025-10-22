@@ -2,6 +2,8 @@ import threading
 
 import wx
 
+from utils.formatters import format_semester
+
 from ..repository import StudentRepository
 from ..service import StudentSyncService
 from .module_form import ModuleFormDialog
@@ -66,7 +68,7 @@ class StudentDetailPanel(wx.Panel):
             self, style=wx.LC_REPORT | wx.BORDER_SIMPLE, size=wx.Size(-1, 145)
         )
         self.semesters_list.AppendColumn("Term", width=100)
-        self.semesters_list.AppendColumn("Semester", width=80)
+        self.semesters_list.AppendColumn("Semester", width=120)
         self.semesters_list.AppendColumn("Status", width=100)
         self.semesters_list.AppendColumn("", width=60)
         self.semesters_list.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_semester_selected)
@@ -154,7 +156,9 @@ class StudentDetailPanel(wx.Panel):
             for row, semester in enumerate(semesters):
                 index = self.semesters_list.InsertItem(row, str(semester.term or ""))
                 self.semesters_list.SetItem(
-                    index, 1, str(semester.semester_number or "")
+                    index,
+                    1,
+                    str(format_semester(semester.semester_number, type="full")),
                 )
                 self.semesters_list.SetItem(index, 2, str(semester.status or ""))
                 self.semesters_list.SetItem(index, 3, "✎ Edit")

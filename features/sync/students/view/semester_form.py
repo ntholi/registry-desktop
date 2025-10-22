@@ -76,19 +76,12 @@ class SemesterFormDialog(wx.Dialog):
             form_panel, style=wx.CB_READONLY, size=wx.Size(200, -1)
         )
         self.status_combo.Append("Active", "Active")
-        self.status_combo.Append("Inactive", "Inactive")
+        self.status_combo.Append("Repeat", "Repeat")
         self.status_combo.SetSelection(0)
         form_sizer.Add(
             status_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALIGN_RIGHT | wx.ALL, 5
         )
         form_sizer.Add(self.status_combo, 0, wx.EXPAND | wx.ALL, 5)
-
-        caf_no_label = wx.StaticText(form_panel, label="CAF No:")
-        self.caf_no_text = wx.TextCtrl(form_panel, size=wx.Size(200, -1))
-        form_sizer.Add(
-            caf_no_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALIGN_RIGHT | wx.ALL, 5
-        )
-        form_sizer.Add(self.caf_no_text, 0, wx.EXPAND | wx.ALL, 5)
 
         caf_date_label = wx.StaticText(form_panel, label="CAF Date:")
         self.caf_date_picker = DatePickerCtrl(form_panel, size=wx.Size(200, -1))
@@ -135,7 +128,9 @@ class SemesterFormDialog(wx.Dialog):
             semesters = self.repository.get_structure_semesters(self.structure_id)
             for semester in semesters:
                 display_text = f"{semester.semester_number:02d} {semester.name}"
-                self.semester_number_combo.Append(display_text, semester.id)
+                self.semester_number_combo.Append(
+                    display_text, (semester.id, semester.semester_number)
+                )
 
             if semesters:
                 self.semester_number_combo.SetSelection(0)
@@ -146,7 +141,6 @@ class SemesterFormDialog(wx.Dialog):
         term = self.term_combo.GetStringSelection()
         semester_idx = self.semester_number_combo.GetSelection()
         status = self.status_combo.GetStringSelection()
-        caf_no = self.caf_no_text.GetValue().strip()
         caf_date = self.caf_date_picker.GetValue()
 
         if not term:
@@ -163,7 +157,8 @@ class SemesterFormDialog(wx.Dialog):
             )
             return
 
-        structure_semester_id = self.semester_number_combo.GetClientData(semester_idx)
+        semester_data = self.semester_number_combo.GetClientData(semester_idx)
+        structure_semester_id, semester_number = semester_data
 
         if not status:
             wx.MessageBox(
@@ -175,8 +170,8 @@ class SemesterFormDialog(wx.Dialog):
             "student_program_id": self.student_program_id,
             "term": term,
             "structure_semester_id": structure_semester_id,
+            "semester_number": semester_number,
             "status": status,
-            "caf_no": caf_no if caf_no else None,
             "caf_date": caf_date if caf_date else None,
         }
 
@@ -190,6 +185,8 @@ class SemesterFormDialog(wx.Dialog):
 
         self.push_worker = PushSemesterWorker(data, self.service, self.push_callback)
         self.push_worker.start()
+
+        self.EndModal(wx.ID_OK)
 
     def push_callback(self, event_type, *args):
         if event_type == "progress":

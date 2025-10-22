@@ -166,8 +166,8 @@ class ModuleFormDialog(wx.Dialog):
         self.results_list = wx.ListCtrl(
             panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL | wx.BORDER_SUNKEN
         )
-        self.results_list.AppendColumn("Module Code", width=120)
-        self.results_list.AppendColumn("Module Name", width=250)
+        self.results_list.AppendColumn("Code", width=80)
+        self.results_list.AppendColumn("Name", width=200)
         self.results_list.AppendColumn("Program", width=200)
         self.results_list.AppendColumn("Credits", width=70)
         self.results_list.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_module_selected)
@@ -180,13 +180,13 @@ class ModuleFormDialog(wx.Dialog):
         self.select_btn.Bind(wx.EVT_BUTTON, self.on_confirm_selection)
         button_sizer.Add(self.select_btn, 0)
 
-        sizer.Add(button_sizer, 0, wx.ALL | wx.ALIGN_CENTER, 10)
+        sizer.Add(button_sizer, 0, wx.ALL | wx.ALIGN_LEFT, 10)
 
         self.selection_label = wx.StaticText(panel, label="")
         font = self.selection_label.GetFont()
         font = font.Bold()
         self.selection_label.SetFont(font)
-        sizer.Add(self.selection_label, 0, wx.ALL | wx.EXPAND, 10)
+        sizer.Add(self.selection_label, 0, wx.ALL | wx.ALIGN_LEFT, 10)
 
         panel.SetSizer(sizer)
         return panel
@@ -236,9 +236,6 @@ class ModuleFormDialog(wx.Dialog):
             self.results_list.SetItem(idx, 2, result["program_name"])
             self.results_list.SetItem(idx, 3, str(result["credits"]))
             self.results_list.SetItemData(idx, result["semester_module_id"])
-
-        if self.status_bar:
-            self.status_bar.show_message(f"Found {len(results)} module(s)")
 
     def on_module_selected(self, event):
         self.select_btn.Enable(True)

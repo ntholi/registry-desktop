@@ -224,7 +224,7 @@ class StudentDetailPanel(wx.Panel):
             "module_code": module.module_code,
             "module_name": module.module_name,
             "status": module.status,
-            "credits": "",
+            "credits": module.credits if hasattr(module, "credits") else "",
             "marks": module.marks,
             "grade": module.grade,
             "student_semester_id": current_semester.id,

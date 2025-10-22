@@ -295,6 +295,7 @@ class StudentRepository:
                     StudentModule.status,
                     StudentModule.marks,
                     StudentModule.grade,
+                    SemesterModule.credits,
                 )
                 .join(
                     SemesterModule,

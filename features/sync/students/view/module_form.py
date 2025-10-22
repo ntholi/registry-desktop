@@ -62,7 +62,7 @@ class ModuleFormDialog(wx.Dialog):
             wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL,
         )
         self.credits_input = wx.TextCtrl(
-            panel, value=str(self.module_data.get("credits", ""))
+            panel, value=str(self.module_data.get("credits") or "")
         )
         form_sizer.Add(self.credits_input, 0, wx.EXPAND)
 

@@ -1,6 +1,7 @@
 import wx
 
 from database.models import Grade, StudentModuleStatus
+from utils.grades import get_letter_grade
 
 
 class ModuleFormDialog(wx.Dialog):
@@ -73,6 +74,7 @@ class ModuleFormDialog(wx.Dialog):
         self.marks_input = wx.TextCtrl(
             panel, value=str(self.module_data.get("marks", ""))
         )
+        self.marks_input.Bind(wx.EVT_TEXT, self.on_marks_changed)
         form_sizer.Add(self.marks_input, 0, wx.EXPAND)
 
         form_sizer.Add(
@@ -102,6 +104,16 @@ class ModuleFormDialog(wx.Dialog):
         main_sizer.Add(button_sizer, 0, wx.ALL | wx.ALIGN_RIGHT, 20)
 
         panel.SetSizer(main_sizer)
+
+    def on_marks_changed(self, event):
+        marks_value = self.marks_input.GetValue().strip()
+        if marks_value:
+            try:
+                marks = float(marks_value)
+                grade = get_letter_grade(marks)
+                self.grade_input.SetStringSelection(grade)
+            except ValueError:
+                pass
 
     def on_save(self, event):
         status = self.status_combobox.GetValue().strip()

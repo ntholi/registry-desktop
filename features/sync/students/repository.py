@@ -321,6 +321,7 @@ class StudentRepository:
                     Module.name.label("module_name"),
                     Program.name.label("program_name"),
                     SemesterModule.credits,
+                    StructureSemester.semester_number,
                 )
                 .join(Module, SemesterModule.module_id == Module.id)
                 .join(
@@ -346,6 +347,7 @@ class StudentRepository:
                     "module_name": r.module_name,
                     "program_name": r.program_name,
                     "credits": r.credits,
+                    "semester_number": r.semester_number,
                 }
                 for r in results
             ]

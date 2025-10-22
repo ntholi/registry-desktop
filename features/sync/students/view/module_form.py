@@ -4,6 +4,7 @@ import wx
 
 from database.models import Grade, StudentModuleStatus
 from features.sync.students.repository import StudentRepository
+from utils.formatters import format_semester
 from utils.grades import get_letter_grade
 
 
@@ -20,6 +21,7 @@ class ModuleFormDialog(wx.Dialog):
         self.selected_semester_module_id = None
         self.semester_module_changed = False
         self.SetSize(wx.Size(650, 500))
+        self.CenterOnScreen()
         self.init_ui()
 
     def init_ui(self):
@@ -169,7 +171,7 @@ class ModuleFormDialog(wx.Dialog):
         self.results_list.AppendColumn("Code", width=80)
         self.results_list.AppendColumn("Name", width=200)
         self.results_list.AppendColumn("Program", width=200)
-        self.results_list.AppendColumn("Credits", width=70)
+        self.results_list.AppendColumn("Semester", width=100)
         self.results_list.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_module_selected)
 
         sizer.Add(self.results_list, 1, wx.ALL | wx.EXPAND, 10)
@@ -234,7 +236,9 @@ class ModuleFormDialog(wx.Dialog):
             self.results_list.InsertItem(idx, result["module_code"])
             self.results_list.SetItem(idx, 1, result["module_name"])
             self.results_list.SetItem(idx, 2, result["program_name"])
-            self.results_list.SetItem(idx, 3, str(result["credits"]))
+            self.results_list.SetItem(
+                idx, 3, format_semester(result.get("semester_number"), type="short")
+            )
             self.results_list.SetItemData(idx, result["semester_module_id"])
 
     def on_module_selected(self, event):

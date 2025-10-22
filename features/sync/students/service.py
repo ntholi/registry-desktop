@@ -324,6 +324,9 @@ class StudentSyncService:
             if "grade" in data and data["grade"]:
                 form_data["x_AlterGrade"] = str(data["grade"])
 
+            if "semester_module_id" in data and data["semester_module_id"]:
+                form_data["x_SemModuleID"] = str(data["semester_module_id"])
+
             if progress_callback:
                 progress_callback(f"Pushing module {std_module_id} to CMS...")
 

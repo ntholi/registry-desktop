@@ -308,6 +308,48 @@ class StudentRepository:
             )
             return modules
 
+    def search_semester_modules(self, search_query: str):
+        with self._session() as session:
+            from database import StructureSemester
+
+            search_pattern = f"%{search_query}%"
+
+            results = (
+                session.query(
+                    SemesterModule.id.label("semester_module_id"),
+                    Module.code.label("module_code"),
+                    Module.name.label("module_name"),
+                    Program.name.label("program_name"),
+                    SemesterModule.credits,
+                )
+                .join(Module, SemesterModule.module_id == Module.id)
+                .join(
+                    StructureSemester,
+                    SemesterModule.semester_id == StructureSemester.id,
+                )
+                .join(Structure, StructureSemester.structure_id == Structure.id)
+                .join(Program, Structure.program_id == Program.id)
+                .filter(
+                    or_(
+                        Module.code.like(search_pattern),
+                        Module.name.like(search_pattern),
+                    )
+                )
+                .order_by(Module.code, Program.name)
+                .all()
+            )
+
+            return [
+                {
+                    "semester_module_id": r.semester_module_id,
+                    "module_code": r.module_code,
+                    "module_name": r.module_name,
+                    "program_name": r.program_name,
+                    "credits": r.credits,
+                }
+                for r in results
+            ]
+
     def upsert_student_program(
         self, student_program_id: str, std_no: int, data: dict
     ) -> tuple[bool, str]:
@@ -459,7 +501,10 @@ class StudentRepository:
                 )
 
                 semester_module_id = None
-                if "module_code" in data:
+
+                if "semester_module_id" in data and data["semester_module_id"]:
+                    semester_module_id = data["semester_module_id"]
+                elif "module_code" in data:
                     student_semester = (
                         session.query(StudentSemester)
                         .filter(StudentSemester.id == student_semester_id)

@@ -1,5 +1,7 @@
 import wx
 
+from database.models import Grade, StudentModuleStatus
+
 
 class ModuleFormDialog(wx.Dialog):
     def __init__(self, module_data, parent=None, status_bar=None):
@@ -46,10 +48,10 @@ class ModuleFormDialog(wx.Dialog):
             wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL,
         )
         self.status_combobox = wx.ComboBox(
-            panel, style=wx.CB_READONLY, choices=["Compulsory", "Elective", "Optional"]
+            panel, style=wx.CB_READONLY, choices=list(StudentModuleStatus.__args__)
         )
         current_status = self.module_data.get("status", "")
-        if current_status in ["Compulsory", "Elective", "Optional"]:
+        if current_status in StudentModuleStatus.__args__:
             self.status_combobox.SetStringSelection(current_status)
         form_sizer.Add(self.status_combobox, 0, wx.EXPAND)
 
@@ -78,9 +80,12 @@ class ModuleFormDialog(wx.Dialog):
             0,
             wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL,
         )
-        self.grade_input = wx.TextCtrl(
-            panel, value=str(self.module_data.get("grade", ""))
+        self.grade_input = wx.ComboBox(
+            panel, style=wx.CB_READONLY, choices=list(Grade.__args__)
         )
+        current_grade = self.module_data.get("grade", "")
+        if current_grade in Grade.__args__:
+            self.grade_input.SetStringSelection(current_grade)
         form_sizer.Add(self.grade_input, 0, wx.EXPAND)
 
         main_sizer.Add(form_sizer, 0, wx.ALL | wx.EXPAND, 20)

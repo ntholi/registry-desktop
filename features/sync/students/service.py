@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 from typing import Callable, Optional
 
 from bs4 import BeautifulSoup
@@ -18,6 +19,10 @@ from .scraper import (
 )
 
 logger = get_logger(__name__)
+
+
+def today() -> str:
+    return datetime.date.today().strftime("%Y-%m-%d")
 
 
 class StudentSyncService:
@@ -356,4 +361,118 @@ class StudentSyncService:
 
         except Exception as e:
             logger.error(f"Error pushing module {std_module_id}: {str(e)}")
+            return False, f"Error: {str(e)}"
+
+    def push_semester(
+        self,
+        data: dict,
+        progress_callback: Optional[Callable[[str], None]] = None,
+    ) -> tuple[bool, str]:
+        student_program_id = data.get("student_program_id")
+        if not student_program_id:
+            return False, "Missing student_program_id"
+
+        url = f"{BASE_URL}/r_stdsemesteradd.php?StdProgramID={student_program_id}"
+
+        try:
+            if progress_callback:
+                progress_callback(f"Fetching add form for semester...")
+
+            response = self._browser.fetch(url)
+            page = BeautifulSoup(response.text, "lxml")
+            form = page.select_one("form#fr_stdsemesteradd")
+
+            if not form:
+                logger.error(f"Could not find add form for semester")
+                return False, "Could not find add form"
+
+            if progress_callback:
+                progress_callback(f"Preparing semester data...")
+
+            form_data = get_form_payload(form)
+
+            form_data["a_add"] = "A"
+
+            program_details = self._repository.get_student_program_details_by_id(
+                student_program_id
+            )
+
+            if program_details:
+                if program_details.get("std_no"):
+                    form_data["x_StdProgramID"] = str(student_program_id)
+
+                if program_details.get("school_id"):
+                    form_data["x_SchoolID"] = str(program_details["school_id"])
+
+                if program_details.get("program_id"):
+                    form_data["x_ProgramID"] = str(program_details["program_id"])
+
+                if program_details.get("structure_id"):
+                    form_data["x_StructureID"] = str(program_details["structure_id"])
+
+            form_data["x_CampusCode"] = "Lesotho"
+
+            if "term" in data and data["term"]:
+                form_data["x_TermCode"] = data["term"]
+
+            if "structure_semester_id" in data and data["structure_semester_id"]:
+                form_data["x_SemesterID"] = str(data["structure_semester_id"])
+
+            if "status" in data and data["status"]:
+                form_data["x_SemesterStatus"] = data["status"]
+
+            if "caf_no" in data and data["caf_no"]:
+                form_data["x_StdSemCAFNo"] = data["caf_no"]
+
+            if "caf_date" in data and data["caf_date"]:
+                form_data["x_StdSemCAFDate"] = data["caf_date"]
+            else:
+                form_data["x_StdSemCAFDate"] = today()
+
+            if progress_callback:
+                progress_callback(f"Pushing semester to CMS...")
+
+            logger.info(f"Posting new semester for program {student_program_id}")
+            post_response = self._browser.post(url, form_data)
+
+            if "Successful" in post_response.text:
+                logger.info(
+                    f"Successfully posted semester for program {student_program_id} to CMS"
+                )
+
+                if progress_callback:
+                    progress_callback(f"Saving semester to database...")
+
+                db_data = {
+                    "term": data.get("term"),
+                    "status": data.get("status"),
+                    "caf_date": data.get("caf_date"),
+                }
+
+                if "structure_semester_id" in data and data["structure_semester_id"]:
+                    semester_number = self._repository.get_structure_semester_number(
+                        data["structure_semester_id"]
+                    )
+                    if semester_number:
+                        db_data["semester_number"] = semester_number
+
+                update_success, msg, _ = self._repository.upsert_student_semester(
+                    student_program_id, db_data
+                )
+                if update_success:
+                    return True, "Semester added successfully"
+                else:
+                    return (
+                        False,
+                        f"CMS update succeeded but database update failed: {msg}",
+                    )
+            else:
+                logger.error(f"CMS update failed for semester")
+                return (
+                    False,
+                    "CMS update failed - response did not contain 'Successful'",
+                )
+
+        except Exception as e:
+            logger.error(f"Error pushing semester: {str(e)}")
             return False, f"Error: {str(e)}"

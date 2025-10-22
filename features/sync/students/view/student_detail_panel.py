@@ -5,6 +5,7 @@ import wx
 from ..repository import StudentRepository
 from ..service import StudentSyncService
 from .module_form import ModuleFormDialog
+from .semester_form import SemesterFormDialog
 
 
 class StudentDetailPanel(wx.Panel):
@@ -42,12 +43,22 @@ class StudentDetailPanel(wx.Panel):
 
         main_sizer.AddSpacer(15)
 
+        semesters_header_sizer = wx.BoxSizer(wx.HORIZONTAL)
+
         semesters_label = wx.StaticText(self, label="Semesters")
         font = semesters_label.GetFont()
         font.PointSize = 10
         font = font.Bold()
         semesters_label.SetFont(font)
-        main_sizer.Add(semesters_label, 0, wx.LEFT | wx.RIGHT, 20)
+        semesters_header_sizer.Add(semesters_label, 0, wx.ALIGN_CENTER_VERTICAL)
+
+        semesters_header_sizer.AddStretchSpacer()
+
+        self.add_semester_button = wx.Button(self, label="Add", size=wx.Size(80, -1))
+        self.add_semester_button.Bind(wx.EVT_BUTTON, self.on_add_semester)
+        semesters_header_sizer.Add(self.add_semester_button, 0)
+
+        main_sizer.Add(semesters_header_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 20)
 
         main_sizer.AddSpacer(10)
 
@@ -195,6 +206,27 @@ class StudentDetailPanel(wx.Panel):
             "Edit Semester",
             wx.OK | wx.ICON_INFORMATION,
         )
+
+    def on_add_semester(self, event):
+        program = self.get_selected_program()
+        if not program or not hasattr(program, "id"):
+            wx.MessageBox(
+                "Please select a program first",
+                "No Program Selected",
+                wx.OK | wx.ICON_WARNING,
+            )
+            return
+
+        student_program_id = program.id
+
+        dialog = SemesterFormDialog(
+            student_program_id, parent=self, status_bar=self.status_bar
+        )
+
+        if dialog.ShowModal() == wx.ID_OK:
+            self.load_semesters(student_program_id)
+
+        dialog.Destroy()
 
     def on_modules_left_click(self, event):
         item, flags, col = self.modules_list.HitTestSubItem(event.GetPosition())

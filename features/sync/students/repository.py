@@ -230,6 +230,63 @@ class StudentRepository:
                 "school_id": program_details.school_id,
             }
 
+    def get_student_program_details_by_id(self, student_program_id: int):
+        with self._session() as session:
+            program_details = (
+                session.query(
+                    StudentProgram.std_no,
+                    StudentProgram.intake_date,
+                    StudentProgram.start_term,
+                    Structure.id.label("structure_id"),
+                    Program.id.label("program_id"),
+                    School.id.label("school_id"),
+                )
+                .join(Structure, StudentProgram.structure_id == Structure.id)
+                .join(Program, Structure.program_id == Program.id)
+                .join(School, Program.school_id == School.id)
+                .filter(StudentProgram.id == student_program_id)
+                .first()
+            )
+
+            if not program_details:
+                return None
+
+            return {
+                "std_no": program_details.std_no,
+                "intake_date": program_details.intake_date,
+                "start_term": program_details.start_term,
+                "structure_id": program_details.structure_id,
+                "program_id": program_details.program_id,
+                "school_id": program_details.school_id,
+            }
+
+    def get_structure_semesters(self, structure_id: int):
+        with self._session() as session:
+            from database import StructureSemester
+
+            semesters = (
+                session.query(
+                    StructureSemester.id,
+                    StructureSemester.semester_number,
+                    StructureSemester.name,
+                )
+                .filter(StructureSemester.structure_id == structure_id)
+                .order_by(StructureSemester.semester_number)
+                .all()
+            )
+            return semesters
+
+    def get_structure_semester_number(self, structure_semester_id: int):
+        with self._session() as session:
+            from database import StructureSemester
+
+            semester = (
+                session.query(StructureSemester.semester_number)
+                .filter(StructureSemester.id == structure_semester_id)
+                .first()
+            )
+            return semester[0] if semester else None
+
     def update_student(self, student_number: str, data: dict):
         try:
             numeric_student_number = int(student_number)

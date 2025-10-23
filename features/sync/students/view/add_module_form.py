@@ -16,7 +16,7 @@ class AddModuleFormDialog(wx.Dialog):
         super().__init__(
             parent,
             title="Add Module",
-            size=wx.Size(700, 500),
+            size=wx.Size(700, 600),
             style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
         )
         self.student_semester_id = student_semester_id
@@ -25,8 +25,10 @@ class AddModuleFormDialog(wx.Dialog):
         self.service = None
         self.push_worker = None
         self.selected_semester_module_id = None
+        self.selected_module_data = None
+        self.stored_results = []
 
-        self.Centre()
+        self.CenterOnScreen()
         self.init_ui()
 
     def init_ui(self):
@@ -78,6 +80,25 @@ class AddModuleFormDialog(wx.Dialog):
 
         main_sizer.Add(self.results_list, 1, wx.ALL | wx.EXPAND, 10)
 
+        details_panel = wx.Panel(self, style=wx.BORDER_STATIC)
+        details_panel_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        self.details_code_name = wx.StaticText(details_panel, label="")
+        font = self.details_code_name.GetFont()
+        font = font.Bold()
+        self.details_code_name.SetFont(font)
+        details_panel_sizer.Add(self.details_code_name, 0, wx.ALL, 5)
+
+        self.details_info = wx.StaticText(details_panel, label="")
+        details_panel_sizer.Add(self.details_info, 1, wx.ALL | wx.EXPAND, 5)
+
+        details_panel.SetSizer(details_panel_sizer)
+        main_sizer.Add(details_panel, 0, wx.ALL | wx.EXPAND, 10)
+
+        main_sizer.Add(
+            wx.StaticLine(self, style=wx.LI_HORIZONTAL), 0, wx.EXPAND | wx.ALL, 5
+        )
+
         form_sizer = wx.BoxSizer(wx.HORIZONTAL)
         form_sizer.Add(
             wx.StaticText(self, label="Module Status:"),
@@ -89,7 +110,8 @@ class AddModuleFormDialog(wx.Dialog):
         self.status_combo = wx.ComboBox(
             self, style=wx.CB_READONLY, choices=list(StudentModuleStatus.__args__)
         )
-        self.status_combo.SetSelection(0)
+        compulsory_index = list(StudentModuleStatus.__args__).index("Compulsory")
+        self.status_combo.SetSelection(compulsory_index)
         form_sizer.Add(self.status_combo, 0, wx.RIGHT, 10)
 
         main_sizer.Add(form_sizer, 0, wx.ALL | wx.EXPAND, 10)
@@ -138,6 +160,10 @@ class AddModuleFormDialog(wx.Dialog):
 
     def _display_search_results(self, results):
         self.results_list.DeleteAllItems()
+        self.details_code_name.SetLabel("")
+        self.details_info.SetLabel("")
+        self.selected_module_data = None
+        self.stored_results = results if results else []
 
         if not results:
             wx.MessageBox(
@@ -169,6 +195,17 @@ class AddModuleFormDialog(wx.Dialog):
             self.selected_semester_module_id = self.results_list.GetItemData(
                 selected_idx
             )
+            if selected_idx < len(self.stored_results):
+                result = self.stored_results[selected_idx]
+                self.selected_module_data = result
+                code_name, info = self._format_module_details(result)
+                self.details_code_name.SetLabel(code_name)
+                self.details_info.SetLabel(info)
+
+    def _format_module_details(self, module_data):
+        code_name = f"{module_data.get('module_name', 'N/A')} ({module_data.get('module_code', 'N/A')})"
+        info = f"{module_data.get('program_name', 'N/A')} • {format_semester(module_data.get('semester_number'), type='short')} • Credits: {module_data.get('credits', 'N/A')}"
+        return code_name, info
 
     def on_module_activated(self, event):
         self.on_add_module(event)

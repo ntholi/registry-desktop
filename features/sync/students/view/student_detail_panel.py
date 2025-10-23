@@ -67,6 +67,7 @@ class StudentDetailPanel(wx.Panel):
         self.semesters_list = wx.ListCtrl(
             self, style=wx.LC_REPORT | wx.BORDER_SIMPLE, size=wx.Size(-1, 145)
         )
+        self.semesters_list.AppendColumn("ID", width=60)
         self.semesters_list.AppendColumn("Term", width=100)
         self.semesters_list.AppendColumn("Semester", width=120)
         self.semesters_list.AppendColumn("Status", width=100)
@@ -90,6 +91,7 @@ class StudentDetailPanel(wx.Panel):
         self.modules_list = wx.ListCtrl(
             self, style=wx.LC_REPORT | wx.BORDER_SIMPLE, size=wx.Size(-1, 300)
         )
+        self.modules_list.AppendColumn("ID", width=60)
         self.modules_list.AppendColumn("Code", width=100)
         self.modules_list.AppendColumn("Name", width=200)
         self.modules_list.AppendColumn("Status", width=100)
@@ -154,14 +156,15 @@ class StudentDetailPanel(wx.Panel):
             self.current_semesters = list(semesters)
 
             for row, semester in enumerate(semesters):
-                index = self.semesters_list.InsertItem(row, str(semester.term or ""))
+                index = self.semesters_list.InsertItem(row, str(semester.id or ""))
+                self.semesters_list.SetItem(index, 1, str(semester.term or ""))
                 self.semesters_list.SetItem(
                     index,
-                    1,
+                    2,
                     str(format_semester(semester.semester_number, type="full")),
                 )
-                self.semesters_list.SetItem(index, 2, str(semester.status or ""))
-                self.semesters_list.SetItem(index, 3, "✎ Edit")
+                self.semesters_list.SetItem(index, 3, str(semester.status or ""))
+                self.semesters_list.SetItem(index, 4, "✎ Edit")
 
             if semesters:
                 self.semesters_list.Select(0)
@@ -185,19 +188,20 @@ class StudentDetailPanel(wx.Panel):
             self.current_modules = list(modules)
 
             for row, module in enumerate(modules):
-                index = self.modules_list.InsertItem(row, str(module.module_code or ""))
-                self.modules_list.SetItem(index, 1, str(module.module_name or ""))
-                self.modules_list.SetItem(index, 2, str(module.status or ""))
-                self.modules_list.SetItem(index, 3, str(module.marks or ""))
-                self.modules_list.SetItem(index, 4, str(module.grade or ""))
-                self.modules_list.SetItem(index, 5, "✎ Edit")
+                index = self.modules_list.InsertItem(row, str(module.id or ""))
+                self.modules_list.SetItem(index, 1, str(module.module_code or ""))
+                self.modules_list.SetItem(index, 2, str(module.module_name or ""))
+                self.modules_list.SetItem(index, 3, str(module.status or ""))
+                self.modules_list.SetItem(index, 4, str(module.marks or ""))
+                self.modules_list.SetItem(index, 5, str(module.grade or ""))
+                self.modules_list.SetItem(index, 6, "✎ Edit")
 
         except Exception as e:
             print(f"Error loading modules: {str(e)}")
 
     def on_semesters_left_click(self, event):
         item, flags, col = self.semesters_list.HitTestSubItem(event.GetPosition())
-        if item != wx.NOT_FOUND and col == 3:
+        if item != wx.NOT_FOUND and col == 4:
             if item < len(self.current_semesters):
                 semester = self.current_semesters[item]
                 self.on_semester_edit_clicked(semester)
@@ -234,7 +238,7 @@ class StudentDetailPanel(wx.Panel):
 
     def on_modules_left_click(self, event):
         item, flags, col = self.modules_list.HitTestSubItem(event.GetPosition())
-        if item != wx.NOT_FOUND and col == 5:
+        if item != wx.NOT_FOUND and col == 6:
             if item < len(self.current_modules):
                 module = self.current_modules[item]
                 self.on_module_edit_clicked(module)

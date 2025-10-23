@@ -13,11 +13,11 @@ TURSO_AUTH_TOKEN = os.getenv("TURSO_AUTH_TOKEN")
 TIMEOUT_SECONDS = 120
 
 
-@event.listens_for(Engine, "connect")
-def set_sqlite_pragma(dbapi_conn):
-    cursor = dbapi_conn.cursor()
-    cursor.execute("PRAGMA foreign_keys=ON")
-    cursor.close()
+# @event.listens_for(Engine, "connect")
+# def set_sqlite_pragma(dbapi_conn):
+#     cursor = dbapi_conn.cursor()
+#     cursor.execute("PRAGMA foreign_keys=ON")
+#     cursor.close()
 
 
 def get_engine(use_local: bool = False) -> Engine:

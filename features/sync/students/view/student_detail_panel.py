@@ -8,6 +8,7 @@ from ..repository import StudentRepository
 from ..service import StudentSyncService
 from .add_module_form import AddModuleFormDialog
 from .module_form import ModuleFormDialog
+from .semester_edit_form import SemesterEditFormDialog
 from .semester_form import SemesterFormDialog
 
 
@@ -220,11 +221,25 @@ class StudentDetailPanel(wx.Panel):
             event.Skip()
 
     def on_semester_edit_clicked(self, semester):
-        wx.MessageBox(
-            f"Edit semester: {semester.term} - Semester {semester.semester_number}",
-            "Edit Semester",
-            wx.OK | wx.ICON_INFORMATION,
+        program = self.get_selected_program()
+        if not program or not hasattr(program, "id"):
+            wx.MessageBox(
+                "Please select a program first",
+                "No Program Selected",
+                wx.OK | wx.ICON_WARNING,
+            )
+            return
+
+        student_program_id = program.id
+
+        dialog = SemesterEditFormDialog(
+            semester.id, parent=self, status_bar=self.status_bar
         )
+
+        if dialog.ShowModal() == wx.ID_OK:
+            self.load_semesters(student_program_id)
+
+        dialog.Destroy()
 
     def on_add_module(self, event):
         selected_semester_index = self.semesters_list.GetFirstSelected()

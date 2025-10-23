@@ -493,6 +493,151 @@ class StudentSyncService:
             logger.error(f"Error pushing semester: {str(e)}")
             return False, f"Error: {str(e)}"
 
+    def update_semester(
+        self,
+        data: dict,
+        progress_callback: Optional[Callable[[str], None]] = None,
+    ) -> tuple[bool, str]:
+        student_semester_id = data.get("student_semester_id")
+        if not student_semester_id:
+            return False, "Missing student_semester_id"
+
+        url = f"{BASE_URL}/r_stdsemesteredit.php?StdSemesterID={student_semester_id}"
+
+        try:
+            if progress_callback:
+                progress_callback(f"Fetching edit form for semester...")
+
+            response = self._browser.fetch(url)
+            page = BeautifulSoup(response.text, "lxml")
+            form = page.select_one("form#fr_stdsemesteredit")
+
+            if not form:
+                logger.error(
+                    f"Could not find edit form for semester {student_semester_id}"
+                )
+                return False, "Could not find edit form"
+
+            if progress_callback:
+                progress_callback(f"Preparing semester data...")
+
+            form_data = get_form_payload(form)
+
+            form_data["a_edit"] = "U"
+            form_data["btnAction"] = "Edit"
+            form_data["x_CampusCode"] = "Lesotho"
+
+            semester_data = self._repository.get_student_semester_by_id(
+                student_semester_id
+            )
+            if not semester_data:
+                return False, "Semester not found in database"
+
+            current_term = semester_data.get("term")
+            structure_id = semester_data.get("structure_id")
+
+            if structure_id:
+                form_data["x_StructureID"] = str(structure_id)
+
+            if "structure_semester_id" in data and data["structure_semester_id"]:
+                form_data["x_SemesterID"] = str(data["structure_semester_id"])
+
+            if "status" in data and data["status"]:
+                form_data["x_SemesterStatus"] = data["status"]
+
+            if progress_callback:
+                progress_callback(f"Pushing semester update to CMS (step 1)...")
+
+            logger.info(
+                f"Posting update for semester {student_semester_id} (without term)"
+            )
+            form_data["x_TermCode"] = ""
+            post_response = self._browser.post(url, form_data)
+
+            if "Successful" not in post_response.text:
+                logger.error(f"CMS update failed for semester {student_semester_id}")
+                return (
+                    False,
+                    "CMS update failed - response did not contain 'Successful'",
+                )
+
+            if progress_callback:
+                progress_callback(f"Fetching edit form again for semester...")
+
+            response = self._browser.fetch(url)
+            page = BeautifulSoup(response.text, "lxml")
+            form = page.select_one("form#fr_stdsemesteredit")
+
+            if not form:
+                logger.error(f"Could not find edit form for second update")
+                return False, "Could not find edit form for second update"
+
+            if progress_callback:
+                progress_callback(f"Preparing semester data for step 2...")
+
+            form_data = get_form_payload(form)
+
+            form_data["a_edit"] = "U"
+            form_data["btnAction"] = "Edit"
+            form_data["x_CampusCode"] = "Lesotho"
+
+            if structure_id:
+                form_data["x_StructureID"] = str(structure_id)
+
+            if current_term:
+                form_data["x_TermCode"] = current_term
+
+            if "structure_semester_id" in data and data["structure_semester_id"]:
+                form_data["x_SemesterID"] = str(data["structure_semester_id"])
+
+            if "status" in data and data["status"]:
+                form_data["x_SemesterStatus"] = data["status"]
+
+            if progress_callback:
+                progress_callback(f"Pushing semester update to CMS (step 2)...")
+
+            logger.info(
+                f"Posting update for semester {student_semester_id} (with term)"
+            )
+            post_response = self._browser.post(url, form_data)
+
+            if "Successful" in post_response.text:
+                logger.info(
+                    f"Successfully posted semester {student_semester_id} to CMS"
+                )
+
+                if progress_callback:
+                    progress_callback(f"Saving semester to database...")
+
+                db_data = {
+                    "id": student_semester_id,
+                    "status": data.get("status"),
+                }
+
+                if "semester_number" in data and data["semester_number"]:
+                    db_data["semester_number"] = data["semester_number"]
+
+                update_success, msg, _ = self._repository.upsert_student_semester(
+                    semester_data["student_program_id"], db_data
+                )
+                if update_success:
+                    return True, "Semester updated successfully"
+                else:
+                    return (
+                        False,
+                        f"CMS update succeeded but database update failed: {msg}",
+                    )
+            else:
+                logger.error(f"CMS update failed for semester {student_semester_id}")
+                return (
+                    False,
+                    "CMS update failed - response did not contain 'Successful'",
+                )
+
+        except Exception as e:
+            logger.error(f"Error updating semester: {str(e)}")
+            return False, f"Error: {str(e)}"
+
     def push_student_module(
         self,
         student_semester_id: int,
@@ -505,7 +650,7 @@ class StudentSyncService:
             if progress_callback:
                 progress_callback(f"Fetching add module form...")
 
-            response = self._browser.fetch(
+            self._browser.fetch(
                 f"{BASE_URL}/r_stdmodulelist.php?showmaster=1&StdSemesterID={student_semester_id}"
             )
 

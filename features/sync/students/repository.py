@@ -342,6 +342,37 @@ class StudentRepository:
             )
             return semesters
 
+    def get_student_semester_by_id(self, student_semester_id: int):
+        with self._session() as session:
+            result = (
+                session.query(
+                    StudentSemester.id,
+                    StudentSemester.student_program_id,
+                    StudentSemester.term,
+                    StudentSemester.semester_number,
+                    StudentSemester.status,
+                    StudentSemester.caf_date,
+                    StudentProgram.structure_id,
+                )
+                .join(
+                    StudentProgram,
+                    StudentSemester.student_program_id == StudentProgram.id,
+                )
+                .filter(StudentSemester.id == student_semester_id)
+                .first()
+            )
+            if result:
+                return {
+                    "id": result[0],
+                    "student_program_id": result[1],
+                    "term": result[2],
+                    "semester_number": result[3],
+                    "status": result[4],
+                    "caf_date": result[5],
+                    "structure_id": result[6],
+                }
+            return None
+
     def get_semester_modules(self, student_semester_id: int):
         with self._session() as session:
             modules = (

@@ -39,19 +39,50 @@ class SemesterEditFormDialog(wx.Dialog):
                 self.student_program_id = semester_data.get("student_program_id")
                 self.current_semester_number = semester_data.get("semester_number")
                 self.current_status = semester_data.get("status")
+                self.current_term = semester_data.get("term")
         except Exception as e:
             logger.error(f"Error loading semester data: {str(e)}")
             self.structure_id = None
             self.student_program_id = None
             self.current_semester_number = None
             self.current_status = None
+            self.current_term = None
 
     def init_ui(self):
         main_sizer = wx.BoxSizer(wx.VERTICAL)
 
         form_panel = wx.Panel(self)
-        form_sizer = wx.FlexGridSizer(2, 2, 10, 10)
+        form_sizer = wx.FlexGridSizer(4, 2, 10, 10)
         form_sizer.AddGrowableCol(1)
+
+        semester_id_label = wx.StaticText(form_panel, label="Semester ID:")
+        semester_id_text = wx.StaticText(
+            form_panel, label=str(self.student_semester_id)
+        )
+        semester_id_font = semester_id_text.GetFont()
+        semester_id_font.PointSize += 1
+        semester_id_font = semester_id_font.Bold()
+        semester_id_text.SetFont(semester_id_font)
+        form_sizer.Add(
+            semester_id_label,
+            0,
+            wx.ALIGN_CENTER_VERTICAL | wx.ALIGN_RIGHT | wx.ALL,
+            5,
+        )
+        form_sizer.Add(semester_id_text, 0, wx.EXPAND | wx.ALL, 5)
+
+        term_label = wx.StaticText(form_panel, label="Term:")
+        term_text = wx.StaticText(
+            form_panel, label=self.current_term if self.current_term else "N/A"
+        )
+        term_font = term_text.GetFont()
+        term_font.PointSize += 1
+        term_font = term_font.Bold()
+        term_text.SetFont(term_font)
+        form_sizer.Add(
+            term_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALIGN_RIGHT | wx.ALL, 5
+        )
+        form_sizer.Add(term_text, 0, wx.EXPAND | wx.ALL, 5)
 
         semester_number_label = wx.StaticText(form_panel, label="Semester:")
         self.semester_number_combo = wx.ComboBox(
@@ -70,13 +101,26 @@ class SemesterEditFormDialog(wx.Dialog):
         self.status_combo = wx.ComboBox(
             form_panel, style=wx.CB_READONLY, size=wx.Size(200, -1)
         )
-        self.status_combo.Append("Active", "Active")
-        self.status_combo.Append("Repeat", "Repeat")
 
-        if self.current_status == "Active":
-            self.status_combo.SetSelection(0)
-        elif self.current_status == "Repeat":
-            self.status_combo.SetSelection(1)
+        statuses = [
+            "Active",
+            "Outstanding",
+            "Deferred",
+            "Deleted",
+            "DNR",
+            "DroppedOut",
+            "Withdrawn",
+            "Enrolled",
+            "Exempted",
+            "Inactive",
+            "Repeat",
+        ]
+
+        for status in statuses:
+            self.status_combo.Append(status)
+
+        if self.current_status and self.current_status in statuses:
+            self.status_combo.SetSelection(statuses.index(self.current_status))
         else:
             self.status_combo.SetSelection(0)
 

@@ -438,9 +438,31 @@ class StudentSyncService:
                 )
 
                 if progress_callback:
+                    progress_callback(f"Fetching created semester ID from CMS...")
+
+                semester_ids = extract_student_semester_ids(str(student_program_id))
+
+                matching_semester_id = None
+                for sem_id in semester_ids:
+                    sem_data = scrape_student_semester_data(sem_id)
+                    if sem_data.get("term") == data.get("term"):
+                        matching_semester_id = sem_id
+                        break
+
+                if not matching_semester_id:
+                    logger.error(
+                        f"Could not find created semester ID for term {data.get('term')}"
+                    )
+                    return (
+                        False,
+                        f"CMS update succeeded but could not retrieve created semester ID",
+                    )
+
+                if progress_callback:
                     progress_callback(f"Saving semester to database...")
 
                 db_data = {
+                    "id": matching_semester_id,
                     "term": data.get("term"),
                     "status": data.get("status"),
                     "caf_date": data.get("caf_date"),

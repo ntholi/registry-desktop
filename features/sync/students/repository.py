@@ -489,41 +489,65 @@ class StudentRepository:
     ) -> tuple[bool, str, Optional[int]]:
         with self._session() as session:
             try:
-                existing = (
-                    session.query(StudentSemester)
-                    .filter(StudentSemester.student_program_id == std_program_id)
-                    .filter(StudentSemester.term == data.get("term"))
-                    .first()
-                )
+                semester_id = None
+                if "id" in data:
+                    try:
+                        semester_id = int(data["id"])
+                    except (TypeError, ValueError):
+                        logger.warning(f"Invalid semester ID: {data.get('id')}")
+
+                existing = None
+                if semester_id:
+                    existing = (
+                        session.query(StudentSemester)
+                        .filter(StudentSemester.id == semester_id)
+                        .first()
+                    )
+
+                if not existing:
+                    existing = (
+                        session.query(StudentSemester)
+                        .filter(StudentSemester.student_program_id == std_program_id)
+                        .filter(StudentSemester.term == data.get("term"))
+                        .first()
+                    )
 
                 if existing:
                     if "semester_number" in data:
                         existing.semester_number = data["semester_number"]
                     if "status" in data:
                         existing.status = data["status"]
+                    if "semester_status" in data:
+                        existing.status = data["semester_status"]
                     if "caf_date" in data:
                         existing.caf_date = data["caf_date"]
 
                     session.commit()
                     logger.info(
-                        f"Updated student semester for program {std_program_id}, term {data.get('term')}"
+                        f"Updated student semester {existing.id} for program {std_program_id}"
                     )
                     return True, "Student semester updated", cast(int, existing.id)
                 else:
+                    if not semester_id:
+                        error_msg = "Cannot create student semester without ID from CMS"
+                        logger.error(error_msg)
+                        return False, error_msg, None
+
                     new_semester = StudentSemester(
+                        id=semester_id,
                         student_program_id=std_program_id,
                         term=data.get("term"),
                         semester_number=data.get("semester_number"),
-                        status=data.get("status", "Active"),
+                        status=data.get("status")
+                        or data.get("semester_status", "Active"),
                         caf_date=data.get("caf_date"),
                     )
                     session.add(new_semester)
                     session.commit()
-                    session.refresh(new_semester)
                     logger.info(
-                        f"Created student semester for program {std_program_id}, term {data.get('term')}"
+                        f"Created student semester {semester_id} for program {std_program_id}"
                     )
-                    return True, "Student semester created", cast(int, new_semester.id)
+                    return True, "Student semester created", semester_id
 
             except Exception as e:
                 session.rollback()

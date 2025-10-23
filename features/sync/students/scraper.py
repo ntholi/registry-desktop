@@ -264,7 +264,7 @@ def scrape_student_semester_data(std_semester_id: str) -> dict:
         logger.error(f"No data table found for student semester {std_semester_id}")
         return {}
 
-    data = {}
+    data: dict = {"id": std_semester_id}
 
     term = get_table_value(table, "Term")
     if term:

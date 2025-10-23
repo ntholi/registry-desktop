@@ -1,8 +1,10 @@
 import threading
+from typing import get_args
 
 import wx
 
 from base import get_logger
+from database.models import SemesterStatus
 from features.sync.students.repository import StudentRepository
 from features.sync.students.service import StudentSyncService
 
@@ -52,7 +54,7 @@ class SemesterEditFormDialog(wx.Dialog):
         main_sizer = wx.BoxSizer(wx.VERTICAL)
 
         form_panel = wx.Panel(self)
-        form_sizer = wx.FlexGridSizer(4, 2, 10, 10)
+        form_sizer = wx.FlexGridSizer(4, 2, 5, 5)
         form_sizer.AddGrowableCol(1)
 
         semester_id_label = wx.StaticText(form_panel, label="Semester ID:")
@@ -67,9 +69,9 @@ class SemesterEditFormDialog(wx.Dialog):
             semester_id_label,
             0,
             wx.ALIGN_CENTER_VERTICAL | wx.ALIGN_RIGHT | wx.ALL,
-            5,
+            3,
         )
-        form_sizer.Add(semester_id_text, 0, wx.EXPAND | wx.ALL, 5)
+        form_sizer.Add(semester_id_text, 0, wx.EXPAND | wx.ALL, 3)
 
         term_label = wx.StaticText(form_panel, label="Term:")
         term_text = wx.StaticText(
@@ -80,9 +82,9 @@ class SemesterEditFormDialog(wx.Dialog):
         term_font = term_font.Bold()
         term_text.SetFont(term_font)
         form_sizer.Add(
-            term_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALIGN_RIGHT | wx.ALL, 5
+            term_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALIGN_RIGHT | wx.ALL, 3
         )
-        form_sizer.Add(term_text, 0, wx.EXPAND | wx.ALL, 5)
+        form_sizer.Add(term_text, 0, wx.EXPAND | wx.ALL, 3)
 
         semester_number_label = wx.StaticText(form_panel, label="Semester:")
         self.semester_number_combo = wx.ComboBox(
@@ -93,28 +95,16 @@ class SemesterEditFormDialog(wx.Dialog):
             semester_number_label,
             0,
             wx.ALIGN_CENTER_VERTICAL | wx.ALIGN_RIGHT | wx.ALL,
-            5,
+            3,
         )
-        form_sizer.Add(self.semester_number_combo, 0, wx.EXPAND | wx.ALL, 5)
+        form_sizer.Add(self.semester_number_combo, 0, wx.EXPAND | wx.ALL, 3)
 
         status_label = wx.StaticText(form_panel, label="Status:")
         self.status_combo = wx.ComboBox(
             form_panel, style=wx.CB_READONLY, size=wx.Size(200, -1)
         )
 
-        statuses = [
-            "Active",
-            "Outstanding",
-            "Deferred",
-            "Deleted",
-            "DNR",
-            "DroppedOut",
-            "Withdrawn",
-            "Enrolled",
-            "Exempted",
-            "Inactive",
-            "Repeat",
-        ]
+        statuses = list(get_args(SemesterStatus))
 
         for status in statuses:
             self.status_combo.Append(status)
@@ -125,9 +115,9 @@ class SemesterEditFormDialog(wx.Dialog):
             self.status_combo.SetSelection(0)
 
         form_sizer.Add(
-            status_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALIGN_RIGHT | wx.ALL, 5
+            status_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALIGN_RIGHT | wx.ALL, 3
         )
-        form_sizer.Add(self.status_combo, 0, wx.EXPAND | wx.ALL, 5)
+        form_sizer.Add(self.status_combo, 0, wx.EXPAND | wx.ALL, 3)
 
         form_panel.SetSizer(form_sizer)
         main_sizer.Add(form_panel, 1, wx.EXPAND | wx.ALL, 10)

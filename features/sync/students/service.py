@@ -491,3 +491,111 @@ class StudentSyncService:
         except Exception as e:
             logger.error(f"Error pushing semester: {str(e)}")
             return False, f"Error: {str(e)}"
+
+    def push_student_module(
+        self,
+        student_semester_id: int,
+        semester_module_id: int,
+        module_status: str,
+        progress_callback: Optional[Callable[[str], None]] = None,
+    ) -> tuple[bool, str]:
+        try:
+            if progress_callback:
+                progress_callback(f"Fetching add module form...")
+
+            response = self._browser.fetch(
+                f"{BASE_URL}/r_stdmodulelist.php?showmaster=1&StdSemesterID={student_semester_id}"
+            )
+
+            if progress_callback:
+                progress_callback(f"Navigating to module add page...")
+
+            add_response = self._browser.fetch(f"{BASE_URL}/r_stdmoduleadd1.php")
+            page = BeautifulSoup(add_response.text, "lxml")
+
+            form_data = get_form_payload(page)
+
+            if progress_callback:
+                progress_callback(f"Fetching module details...")
+
+            from database import SemesterModule
+
+            with self._repository._session() as session:
+                semester_module = (
+                    session.query(SemesterModule)
+                    .filter(SemesterModule.id == semester_module_id)
+                    .first()
+                )
+
+                if not semester_module:
+                    return False, "Semester module not found in database"
+
+                credits = semester_module.credits or 0
+
+            module_string = f"{semester_module_id}-{module_status}-{credits}-1200"
+
+            form_data["Submit"] = "Add+Modules"
+            form_data["take[]"] = [module_string]
+
+            if progress_callback:
+                progress_callback(f"Pushing module to CMS...")
+
+            logger.info(
+                f"Posting module {semester_module_id} to semester {student_semester_id}"
+            )
+            post_response = self._browser.post(
+                f"{BASE_URL}/r_stdmoduleadd1.php", form_data
+            )
+
+            if progress_callback:
+                progress_callback(f"Verifying module was added...")
+
+            verify_response = self._browser.fetch(
+                f"{BASE_URL}/r_stdmodulelist.php?showmaster=1&StdSemesterID={student_semester_id}"
+            )
+            verify_page = BeautifulSoup(verify_response.text, "lxml")
+            module_table = verify_page.select_one("table#ewlistmain")
+
+            if not module_table:
+                logger.error("Could not find module list after adding module")
+                return False, "Could not verify module was added"
+
+            module_rows = module_table.select("tr.ewTableRow, tr.ewTableAltRow")
+
+            if not module_rows:
+                logger.error("No modules found after adding")
+                return False, "Module was not added"
+
+            if progress_callback:
+                progress_callback(f"Syncing new module to database...")
+
+            from .scraper import scrape_student_modules_concurrent
+
+            modules_data = scrape_student_modules_concurrent(
+                str(student_semester_id), student_semester_id
+            )
+
+            added_module_data = None
+            for module_data in modules_data:
+                if module_data.get("semester_module_id") == semester_module_id:
+                    added_module_data = module_data
+                    break
+
+            if not added_module_data:
+                logger.error(
+                    f"Could not find newly added module {semester_module_id} in scraped data"
+                )
+                return False, "Module added but could not sync to database"
+
+            success, msg = self._repository.upsert_student_module(added_module_data)
+            if success:
+                logger.info(
+                    f"Successfully added module {semester_module_id} to semester {student_semester_id}"
+                )
+                return True, "Module added successfully"
+            else:
+                return False, f"Module added to CMS but database sync failed: {msg}"
+
+        except Exception as e:
+            logger.error(f"Error pushing student module: {str(e)}")
+            return False, f"Error: {str(e)}"

@@ -6,6 +6,7 @@ from utils.formatters import format_semester
 
 from ..repository import StudentRepository
 from ..service import StudentSyncService
+from .add_module_form import AddModuleFormDialog
 from .module_form import ModuleFormDialog
 from .semester_form import SemesterFormDialog
 
@@ -79,12 +80,22 @@ class StudentDetailPanel(wx.Panel):
 
         main_sizer.AddSpacer(20)
 
+        modules_header_sizer = wx.BoxSizer(wx.HORIZONTAL)
+
         modules_label = wx.StaticText(self, label="Modules")
         font = modules_label.GetFont()
         font.PointSize = 10
         font = font.Bold()
         modules_label.SetFont(font)
-        main_sizer.Add(modules_label, 0, wx.LEFT | wx.RIGHT, 20)
+        modules_header_sizer.Add(modules_label, 0, wx.ALIGN_CENTER_VERTICAL)
+
+        modules_header_sizer.AddStretchSpacer()
+
+        self.add_module_button = wx.Button(self, label="Add", size=wx.Size(80, -1))
+        self.add_module_button.Bind(wx.EVT_BUTTON, self.on_add_module)
+        modules_header_sizer.Add(self.add_module_button, 0)
+
+        main_sizer.Add(modules_header_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 20)
 
         main_sizer.AddSpacer(10)
 
@@ -214,6 +225,29 @@ class StudentDetailPanel(wx.Panel):
             "Edit Semester",
             wx.OK | wx.ICON_INFORMATION,
         )
+
+    def on_add_module(self, event):
+        selected_semester_index = self.semesters_list.GetFirstSelected()
+        if selected_semester_index == wx.NOT_FOUND or selected_semester_index >= len(
+            self.current_semesters
+        ):
+            wx.MessageBox(
+                "Please select a semester first",
+                "No Semester Selected",
+                wx.OK | wx.ICON_WARNING,
+            )
+            return
+
+        current_semester = self.current_semesters[selected_semester_index]
+
+        dialog = AddModuleFormDialog(
+            current_semester.id, parent=self, status_bar=self.status_bar
+        )
+
+        if dialog.ShowModal() == wx.ID_OK:
+            self.load_modules_for_semester(current_semester.id)
+
+        dialog.Destroy()
 
     def on_add_semester(self, event):
         program = self.get_selected_program()

@@ -50,7 +50,7 @@ class SemesterModuleRow:
 
 class StructureRepository:
     def __init__(self) -> None:
-        self._engine = get_engine(use_local=True)
+        self._engine = get_engine()
 
     @contextmanager
     def _session(self):

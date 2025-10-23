@@ -244,10 +244,24 @@ class AddModuleFormDialog(wx.Dialog):
         if not self.service:
             self.service = StudentSyncService(self.repository)
 
+        module_code = (
+            self.selected_module_data.get("module_code")
+            if self.selected_module_data
+            else None
+        )
+        if not module_code:
+            wx.MessageBox(
+                "Module code not found",
+                "Error",
+                wx.OK | wx.ICON_ERROR,
+            )
+            return
+
         self.push_worker = PushStudentModuleWorker(
             self.student_semester_id,
             self.selected_semester_module_id,
             module_status,
+            module_code,
             self.service,
             self.push_callback,
         )
@@ -304,12 +318,19 @@ class SearchModulesWorker(threading.Thread):
 
 class PushStudentModuleWorker(threading.Thread):
     def __init__(
-        self, student_semester_id, semester_module_id, module_status, service, callback
+        self,
+        student_semester_id,
+        semester_module_id,
+        module_status,
+        module_code,
+        service,
+        callback,
     ):
         super().__init__(daemon=True)
         self.student_semester_id = student_semester_id
         self.semester_module_id = semester_module_id
         self.module_status = module_status
+        self.module_code = module_code
         self.service = service
         self.callback = callback
 
@@ -320,6 +341,7 @@ class PushStudentModuleWorker(threading.Thread):
                 self.student_semester_id,
                 self.semester_module_id,
                 self.module_status,
+                self.module_code,
                 progress_callback=lambda msg: self.callback("progress", msg),
             )
             self.callback("complete", success, message)

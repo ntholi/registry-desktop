@@ -352,6 +352,8 @@ def scrape_student_module_data(std_module_id: str, student_semester_id: int) -> 
         parts = module_str.split(maxsplit=1)
         if parts:
             data["module_code"] = parts[0]
+            if len(parts) > 1:
+                data["module_name"] = parts[1]
 
     module_status = get_table_value(table, "ModuleStatus")
     if module_status:

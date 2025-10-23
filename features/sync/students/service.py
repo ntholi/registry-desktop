@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 
 from base import get_logger
 from base.browser import BASE_URL, Browser, get_form_payload
+from database import Module
 
 from .repository import StudentRepository
 from .scraper import (
@@ -497,6 +498,7 @@ class StudentSyncService:
         student_semester_id: int,
         semester_module_id: int,
         module_status: str,
+        module_code: str,
         progress_callback: Optional[Callable[[str], None]] = None,
     ) -> tuple[bool, str]:
         try:
@@ -543,9 +545,7 @@ class StudentSyncService:
             logger.info(
                 f"Posting module {semester_module_id} to semester {student_semester_id}"
             )
-            post_response = self._browser.post(
-                f"{BASE_URL}/r_stdmoduleadd1.php", form_data
-            )
+            self._browser.post(f"{BASE_URL}/r_stdmoduleadd1.php", form_data)
 
             if progress_callback:
                 progress_callback(f"Verifying module was added...")
@@ -577,13 +577,13 @@ class StudentSyncService:
 
             added_module_data = None
             for module_data in modules_data:
-                if module_data.get("semester_module_id") == semester_module_id:
+                if module_data.get("module_code") == module_code:
                     added_module_data = module_data
                     break
 
             if not added_module_data:
                 logger.error(
-                    f"Could not find newly added module {semester_module_id} in scraped data"
+                    f"Could not find newly added module {module_code} in scraped data"
                 )
                 return False, "Module added but could not sync to database"
 

@@ -62,33 +62,28 @@ class EnrollmentService:
         progress_callback: Optional[Callable[[str, int, int], None]] = None,
     ) -> bool:
         if progress_callback:
-            progress_callback(f"Fetching registration request details...", 0, 100)
+            progress_callback(f"Fetching enrollment data...", 0, 100)
 
-        request_details = self._repository.get_registration_request_details(request_id)
-        if not request_details:
+        enrollment_data = self._repository.get_enrollment_data(request_id)
+        if not enrollment_data:
             logger.error(f"Registration request {request_id} not found")
             return False
 
-        std_no = request_details["std_no"]
-        term_name = request_details["term_name"]
-        semester_number = request_details["semester_number"]
-        semester_status = request_details["semester_status"]
+        std_no = enrollment_data["std_no"]
+        term_name = enrollment_data["term_name"]
+        semester_number = enrollment_data["semester_number"]
+        semester_status = enrollment_data["semester_status"]
+        student_program_id = enrollment_data["student_program_id"]
+        structure_id = enrollment_data["structure_id"]
+        requested_modules = enrollment_data["modules"]
+
+        if not student_program_id or not structure_id:
+            logger.error(f"No active student program found for student {std_no}")
+            return False
 
         logger.info(
             f"Enrolling student {std_no} for term {term_name}, semester {semester_number}"
         )
-
-        if progress_callback:
-            progress_callback(f"Getting student program for {std_no}...", 10, 100)
-
-        student_program = self._repository.get_active_student_program(std_no)
-        if not student_program:
-            logger.error(f"No active student program found for student {std_no}")
-            return False
-
-        student_program_id = student_program["id"]
-        structure_id = student_program["structure_id"]
-
         logger.info(
             f"Found student program {student_program_id} with structure {structure_id}"
         )
@@ -178,8 +173,6 @@ class EnrollmentService:
 
         existing_modules = get_cms_semester_modules(student_semester_id)
         existing_module_codes = {mod["module_code"] for mod in existing_modules}
-
-        requested_modules = self._repository.get_requested_modules(request_id)
 
         modules_added = 0
         modules_skipped = 0

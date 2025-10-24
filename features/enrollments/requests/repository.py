@@ -279,6 +279,64 @@ class ApprovedEnrollmentRepository:
                 "date_approved": request.date_approved,
             }
 
+    def get_enrollment_data(self, registration_request_id: int):
+        with self._session() as session:
+            from database import Structure, StudentProgram
+
+            result = (
+                session.query(
+                    RegistrationRequest.id.label("request_id"),
+                    Student.std_no,
+                    Term.name.label("term_name"),
+                    RegistrationRequest.semester_number,
+                    RegistrationRequest.semester_status,
+                    StudentProgram.id.label("student_program_id"),
+                    StudentProgram.structure_id,
+                )
+                .join(Student, RegistrationRequest.std_no == Student.std_no)
+                .join(Term, RegistrationRequest.term_id == Term.id)
+                .outerjoin(
+                    StudentProgram,
+                    (StudentProgram.std_no == Student.std_no)
+                    & (StudentProgram.status == "Active"),
+                )
+                .filter(RegistrationRequest.id == registration_request_id)
+                .first()
+            )
+
+            if not result:
+                return None
+
+            modules = (
+                session.query(
+                    Module.code.label("module_code"),
+                    RequestedModule.module_status,
+                    RequestedModule.semester_module_id,
+                    SemesterModule.credits,
+                )
+                .join(
+                    SemesterModule,
+                    RequestedModule.semester_module_id == SemesterModule.id,
+                )
+                .join(Module, SemesterModule.module_id == Module.id)
+                .filter(
+                    RequestedModule.registration_request_id == registration_request_id
+                )
+                .order_by(Module.code)
+                .all()
+            )
+
+            return {
+                "request_id": result.request_id,
+                "std_no": result.std_no,
+                "term_name": result.term_name,
+                "semester_number": result.semester_number,
+                "semester_status": result.semester_status,
+                "student_program_id": result.student_program_id,
+                "structure_id": result.structure_id,
+                "modules": modules,
+            }
+
     def get_requested_modules(self, registration_request_id: int):
         with self._session() as session:
             modules = (

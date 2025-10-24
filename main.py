@@ -4,8 +4,8 @@ from base.menu_bar import AppMenuBar
 from base.nav import AccordionNavigation
 from base.splash_screen import SplashScreen
 from base.status.status_bar import StatusBar
-from features.enrollments.approved.approved_view import ApprovedView
 from features.enrollments.module.module_view import ModuleView
+from features.enrollments.requests.requests_view import RequestsView
 from features.enrollments.student.student_view import StudentView
 from features.export.certificates.certificates_view import CertificatesView
 from features.export.reports.reports_view import ReportsView
@@ -40,7 +40,7 @@ class MainWindow(wx.Frame):
             "sync_students": StudentsView(self.content_panel, self.status_bar),
             "sync_structures": StructuresView(self.content_panel, self.status_bar),
             "sync_modules": ModulesView(self.content_panel, self.status_bar),
-            "enrollments_approved": ApprovedView(self.content_panel),
+            "enrollments_approved": RequestsView(self.content_panel),
             "enrollments_module": ModuleView(self.content_panel),
             "enrollments_student": StudentView(self.content_panel),
             "export_certificates": CertificatesView(self.content_panel),

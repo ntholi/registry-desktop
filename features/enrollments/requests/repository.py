@@ -74,8 +74,8 @@ class ApprovedEnrollmentRepository:
 
     def list_statuses(self):
         return [
-            ("pending", "Pending"),
             ("approved", "Approved"),
+            ("pending", "Pending"),
             ("rejected", "Rejected"),
             ("registered", "Registered"),
         ]

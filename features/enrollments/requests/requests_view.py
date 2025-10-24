@@ -15,7 +15,7 @@ class RequestsView(wx.Panel):
         self.selected_school_id = None
         self.selected_program_id = None
         self.selected_term_id = None
-        self.selected_status = None
+        self.selected_status = "approved"
         self.search_timer = None
         self.repository = ApprovedEnrollmentRepository()
         self.checked_items = set()
@@ -88,7 +88,7 @@ class RequestsView(wx.Panel):
             )
             self.status_radio_buttons[status_code] = radio_btn
             status_filters_sizer.Add(radio_btn, 0, wx.RIGHT, 15)
-            if idx == 0:
+            if status_code == "approved":
                 radio_btn.SetValue(True)
 
         main_sizer.Add(status_filters_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 40)

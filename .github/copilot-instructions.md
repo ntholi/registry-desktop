@@ -139,10 +139,9 @@ response = browser.post(url, form_data)
 
 ## Environment & Constraints
 
-- **Windows only**: All terminal commands must work in PowerShell v7
-- **No documentation generation**: NEVER create/update `.md`, `.txt` files
-- **Minimal comments**: Code should be self-documenting
-- **No tests**: Project has no testing infrastructure currently
+- **No comments in source code (ABSOLUTE)**: Never add comments, commented-out code, or explanatory docstrings to source files.
+
+- **No comments in source code (ABSOLUTE)**: Under no circumstances should any model, automated agent, or contributor insert comments into source files. This includes inline comments, block comments, commented-out code, TODO/FIXME comments, or any explanatory notes in code or as docstrings used solely for explanation. All generated code must contain zero comments. This rule is explicit, strict, and non-negotiable.
 
 ## Key Files Reference
 

@@ -3,14 +3,18 @@ from .models import (
     Base,
     Module,
     Program,
+    RegistrationRequest,
+    RequestedModule,
     School,
     SemesterModule,
+    Sponsor,
     Structure,
     StructureSemester,
     Student,
     StudentModule,
     StudentProgram,
     StudentSemester,
+    Term,
 )
 
 __all__ = [
@@ -26,4 +30,8 @@ __all__ = [
     "Module",
     "SemesterModule",
     "StudentModule",
+    "RegistrationRequest",
+    "RequestedModule",
+    "Sponsor",
+    "Term",
 ]

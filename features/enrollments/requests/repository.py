@@ -149,7 +149,7 @@ class ApprovedEnrollmentRepository:
                     if status == "pending":
                         conditions.append(RegistrationRequest.status == "pending")
                     elif status == "approved":
-                        approved_subquery = (
+                        approved_exists = (
                             session.query(RegistrationClearance)
                             .join(
                                 Clearance,
@@ -158,10 +158,27 @@ class ApprovedEnrollmentRepository:
                             .filter(
                                 RegistrationClearance.registration_request_id
                                 == RegistrationRequest.id,
-                                RegistrationRequest.status == "pending",
                                 Clearance.status == "approved",
                             )
                             .exists()
+                        )
+                        nonapproved_exists = (
+                            session.query(RegistrationClearance)
+                            .join(
+                                Clearance,
+                                RegistrationClearance.clearance_id == Clearance.id,
+                            )
+                            .filter(
+                                RegistrationClearance.registration_request_id
+                                == RegistrationRequest.id,
+                                Clearance.status != "approved",
+                            )
+                            .exists()
+                        )
+                        approved_subquery = and_(
+                            RegistrationRequest.status == "pending",
+                            approved_exists,
+                            not_(nonapproved_exists),
                         )
                         conditions.append(approved_subquery)
                     elif status == "rejected":

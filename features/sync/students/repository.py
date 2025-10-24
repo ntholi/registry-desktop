@@ -599,6 +599,15 @@ class StudentRepository:
             )
             return semester_module[0] if semester_module else None
 
+    def get_semester_module_credits(self, semester_module_id: int) -> Optional[float]:
+        with self._session() as session:
+            semester_module = (
+                session.query(SemesterModule.credits)
+                .filter(SemesterModule.id == semester_module_id)
+                .first()
+            )
+            return semester_module[0] if semester_module else None
+
     def upsert_student_module(self, data: dict) -> tuple[bool, str]:
         with self._session() as session:
             try:

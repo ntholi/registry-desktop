@@ -7,7 +7,6 @@ from bs4 import BeautifulSoup
 
 from base import get_logger
 from base.browser import BASE_URL, Browser, get_form_payload
-from database import Module
 
 from .repository import StudentRepository
 from .scraper import (
@@ -665,19 +664,10 @@ class StudentSyncService:
             if progress_callback:
                 progress_callback(f"Fetching module details...")
 
-            from database import SemesterModule
+            credits = self._repository.get_semester_module_credits(semester_module_id)
 
-            with self._repository._session() as session:
-                semester_module = (
-                    session.query(SemesterModule)
-                    .filter(SemesterModule.id == semester_module_id)
-                    .first()
-                )
-
-                if not semester_module:
-                    return False, "Semester module not found in database"
-
-                credits = semester_module.credits or 0
+            if credits is None:
+                return False, "Semester module not found in database"
 
             module_string = f"{semester_module_id}-{module_status}-{credits}-1200"
 

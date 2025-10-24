@@ -100,26 +100,13 @@ class RegistrationDetailPanel(wx.Panel):
 
         main_sizer.AddSpacer(10)
 
-        modules_header_sizer = wx.BoxSizer(wx.HORIZONTAL)
-
-        modules_label = wx.StaticText(self, label="Requested Modules")
-        font = modules_label.GetFont()
-        font.PointSize = 10
-        font = font.Bold()
-        modules_label.SetFont(font)
-        modules_header_sizer.Add(modules_label, 0, wx.ALIGN_CENTER_VERTICAL)
-
-        main_sizer.Add(modules_header_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 20)
-
-        main_sizer.AddSpacer(10)
-
         self.modules_list = wx.ListCtrl(
             self, style=wx.LC_REPORT | wx.BORDER_SIMPLE, size=wx.Size(-1, 400)
         )
-        self.modules_list.AppendColumn("Module Code", width=120)
-        self.modules_list.AppendColumn("Module Name", width=250)
-        self.modules_list.AppendColumn("Credits", width=80)
-        self.modules_list.AppendColumn("Module Status", width=120)
+        self.modules_list.AppendColumn("Code", width=80)
+        self.modules_list.AppendColumn("Name", width=240)
+        self.modules_list.AppendColumn("Status", width=80)
+        self.modules_list.AppendColumn("Credits", width=50)
         self.modules_list.AppendColumn("Status", width=100)
 
         main_sizer.Add(self.modules_list, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 20)
@@ -168,10 +155,13 @@ class RegistrationDetailPanel(wx.Panel):
             modules = self.repository.get_requested_modules(request_id)
 
             for row, module in enumerate(modules):
-                index = self.modules_list.InsertItem(row, module.module_code or "")
-                self.modules_list.SetItem(index, 1, module.module_name or "")
-                self.modules_list.SetItem(index, 2, str(module.credits or ""))
-                self.modules_list.SetItem(index, 3, module.module_status or "")
+                mod_name = module.module_name or ""
+                mod_code = module.module_code or ""
+                index = self.modules_list.InsertItem(row, mod_code)
+                self.modules_list.SetItem(index, 0, mod_code)
+                self.modules_list.SetItem(index, 1, mod_name)
+                self.modules_list.SetItem(index, 2, module.module_status or "")
+                self.modules_list.SetItem(index, 3, str(module.credits or ""))
                 self.modules_list.SetItem(index, 4, module.status or "")
 
         except Exception as e:

@@ -289,6 +289,7 @@ class ApprovedEnrollmentRepository:
                     RequestedModule.module_status,
                     RequestedModule.status,
                     SemesterModule.credits,
+                    RequestedModule.semester_module_id,
                 )
                 .join(
                     SemesterModule,
@@ -302,3 +303,163 @@ class ApprovedEnrollmentRepository:
                 .all()
             )
             return modules
+
+    def get_active_student_program(self, std_no: int):
+        with self._session() as session:
+            from database import Structure, StudentProgram
+
+            program = (
+                session.query(
+                    StudentProgram.id,
+                    StudentProgram.structure_id,
+                    StudentProgram.std_no,
+                )
+                .filter(StudentProgram.std_no == std_no)
+                .filter(StudentProgram.status == "Active")
+                .first()
+            )
+
+            if not program:
+                return None
+
+            return {
+                "id": program.id,
+                "structure_id": program.structure_id,
+                "std_no": program.std_no,
+            }
+
+    def get_structure_semester_by_number(self, structure_id: int, semester_number: int):
+        with self._session() as session:
+            from database import StructureSemester
+
+            semester = (
+                session.query(StructureSemester.id)
+                .filter(StructureSemester.structure_id == structure_id)
+                .filter(StructureSemester.semester_number == semester_number)
+                .first()
+            )
+
+            if not semester:
+                return None
+
+            return semester[0]
+
+    def upsert_student_semester(self, student_program_id: int, data: dict) -> bool:
+        with self._session() as session:
+            from database import StudentSemester
+
+            try:
+                semester_id = data.get("id")
+
+                if semester_id:
+                    existing = (
+                        session.query(StudentSemester)
+                        .filter(StudentSemester.id == semester_id)
+                        .first()
+                    )
+
+                    if existing:
+                        if "semester_number" in data:
+                            existing.semester_number = data["semester_number"]
+                        if "status" in data:
+                            existing.status = data["status"]
+                        if "caf_date" in data:
+                            existing.caf_date = data["caf_date"]
+
+                        session.commit()
+                        logger.info(f"Updated student semester {semester_id}")
+                        return True
+                    else:
+                        new_semester = StudentSemester(
+                            id=semester_id,
+                            student_program_id=student_program_id,
+                            term=data.get("term"),
+                            semester_number=data.get("semester_number"),
+                            status=data.get("status", "Active"),
+                            caf_date=data.get("caf_date"),
+                        )
+                        session.add(new_semester)
+                        session.commit()
+                        logger.info(f"Created student semester {semester_id}")
+                        return True
+                else:
+                    logger.error("Cannot create student semester without ID from CMS")
+                    return False
+
+            except Exception as e:
+                session.rollback()
+                logger.error(f"Error upserting student semester: {str(e)}")
+                return False
+
+    def upsert_student_module(self, data: dict) -> bool:
+        with self._session() as session:
+            from database import StudentModule
+
+            try:
+                module_id = data.get("id")
+                if not module_id:
+                    logger.error("Cannot create student module without ID")
+                    return False
+
+                existing = (
+                    session.query(StudentModule)
+                    .filter(StudentModule.id == module_id)
+                    .first()
+                )
+
+                if existing:
+                    if "semester_module_id" in data:
+                        existing.semester_module_id = data["semester_module_id"]
+                    if "status" in data:
+                        existing.status = data["status"]
+                    if "marks" in data:
+                        existing.marks = data["marks"]
+                    if "grade" in data:
+                        existing.grade = data["grade"]
+
+                    session.commit()
+                    logger.info(f"Updated student module {module_id}")
+                    return True
+                else:
+                    new_module = StudentModule(
+                        id=module_id,
+                        semester_module_id=data.get("semester_module_id"),
+                        status=data.get("status", ""),
+                        marks=data.get("marks", "NM"),
+                        grade=data.get("grade", "NM"),
+                        student_semester_id=data.get("student_semester_id"),
+                    )
+                    session.add(new_module)
+                    session.commit()
+                    logger.info(f"Created student module {module_id}")
+                    return True
+
+            except Exception as e:
+                session.rollback()
+                logger.error(f"Error upserting student module: {str(e)}")
+                return False
+
+    def update_registration_request_status(self, request_id: int, status: str) -> bool:
+        with self._session() as session:
+            try:
+                request = (
+                    session.query(RegistrationRequest)
+                    .filter(RegistrationRequest.id == request_id)
+                    .first()
+                )
+
+                if not request:
+                    logger.error(f"Registration request {request_id} not found")
+                    return False
+
+                request.status = status  # type: ignore
+                session.commit()
+                logger.info(
+                    f"Updated registration request {request_id} status to {status}"
+                )
+                return True
+
+            except Exception as e:
+                session.rollback()
+                logger.error(f"Error updating registration request status: {str(e)}")
+                return False

@@ -1,7 +1,46 @@
+import threading
+
 import wx
 
 from .registration_detail_panel import RegistrationDetailPanel
 from .repository import ApprovedEnrollmentRepository
+from .service import EnrollmentService
+
+
+class EnrollStudentsWorker(threading.Thread):
+    def __init__(
+        self,
+        service: EnrollmentService,
+        request_ids: list[int],
+        callback,
+    ):
+        super().__init__(daemon=True)
+        self.service = service
+        self.request_ids = request_ids
+        self.callback = callback
+        self.should_stop = False
+
+    def run(self):
+        try:
+
+            def progress_callback(message: str, current: int, total: int):
+                if self.should_stop:
+                    return
+                wx.CallAfter(self.callback, "progress", message, current, total)
+
+            success_count, failed_count = self.service.enroll_students(
+                self.request_ids, progress_callback
+            )
+
+            wx.CallAfter(
+                self.callback,
+                "complete",
+                success_count,
+                failed_count,
+            )
+
+        except Exception as e:
+            wx.CallAfter(self.callback, "error", str(e))
 
 
 class RequestsView(wx.Panel):
@@ -18,8 +57,10 @@ class RequestsView(wx.Panel):
         self.selected_status = "approved"
         self.search_timer = None
         self.repository = ApprovedEnrollmentRepository()
+        self.service = EnrollmentService(self.repository)
         self.checked_items = set()
         self.selected_request_item = None
+        self.enroll_worker = None
 
         self.init_ui()
         self.load_filter_options()
@@ -509,6 +550,14 @@ class RequestsView(wx.Panel):
         if not selected_requests:
             return
 
+        if self.enroll_worker and self.enroll_worker.is_alive():
+            wx.MessageBox(
+                "An enrollment operation is already in progress. Please wait for it to complete.",
+                "Operation in Progress",
+                wx.OK | wx.ICON_INFORMATION,
+            )
+            return
+
         dlg = wx.MessageDialog(
             self,
             f"Enroll {len(selected_requests)} student(s)?\n\nThis will process their registration requests and enroll them in the requested modules.",
@@ -521,8 +570,46 @@ class RequestsView(wx.Panel):
             return
         dlg.Destroy()
 
-        wx.MessageBox(
-            "Enrollment functionality will be implemented per your instructions.",
-            "Not Yet Implemented",
-            wx.OK | wx.ICON_INFORMATION,
+        self.enroll_button.Enable(False)
+
+        self.enroll_worker = EnrollStudentsWorker(
+            self.service, selected_requests, self.on_enroll_progress
         )
+        self.enroll_worker.start()
+
+    def on_enroll_progress(self, event_type, *args):
+        if event_type == "progress":
+            message, current, total = args
+            if self.status_bar:
+                self.status_bar.show_progress(message, current, total)
+
+        elif event_type == "complete":
+            success_count, failed_count = args
+            if self.status_bar:
+                self.status_bar.clear()
+
+            result_message = f"Enrollment complete!\n\n"
+            result_message += f"Successfully enrolled: {success_count}\n"
+            result_message += f"Failed: {failed_count}"
+
+            wx.MessageBox(
+                result_message,
+                "Enrollment Complete",
+                wx.OK | (wx.ICON_INFORMATION if failed_count == 0 else wx.ICON_WARNING),
+            )
+
+            self.enroll_button.Enable(True)
+            self.load_registration_requests()
+
+        elif event_type == "error":
+            error_message = args[0]
+            if self.status_bar:
+                self.status_bar.clear()
+
+            wx.MessageBox(
+                f"An error occurred during enrollment:\n\n{error_message}",
+                "Enrollment Error",
+                wx.OK | wx.ICON_ERROR,
+            )
+
+            self.enroll_button.Enable(True)

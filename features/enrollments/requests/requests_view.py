@@ -15,7 +15,7 @@ class RequestsView(wx.Panel):
         self.selected_school_id = None
         self.selected_program_id = None
         self.selected_term_id = None
-        self.selected_statuses = set()
+        self.selected_status = None
         self.search_timer = None
         self.repository = ApprovedEnrollmentRepository()
         self.checked_items = set()
@@ -73,27 +73,25 @@ class RequestsView(wx.Panel):
 
         main_sizer.Add(filters_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 40)
 
-        main_sizer.AddSpacer(10)
+        main_sizer.AddSpacer(20)
 
-        status_filters_label = wx.StaticText(self, label="Status Filters:")
-        main_sizer.Add(status_filters_label, 0, wx.LEFT | wx.RIGHT, 40)
+        status_filters_sizer = wx.BoxSizer(wx.HORIZONTAL)
 
-        main_sizer.AddSpacer(5)
-
-        status_sizer = wx.BoxSizer(wx.HORIZONTAL)
-
-        self.status_checkboxes = {}
-        statuses = self.repository.list_statuses()
-        for status_code, status_label in statuses:
-            checkbox = wx.CheckBox(self, label=status_label)
-            checkbox.Bind(
-                wx.EVT_CHECKBOX,
+        self.status_radio_buttons = {}
+        statuses = [("all", "All")] + self.repository.list_statuses()
+        for idx, (status_code, status_label) in enumerate(statuses):
+            style = wx.RB_GROUP if idx == 0 else 0
+            radio_btn = wx.RadioButton(self, label=status_label, style=style)
+            radio_btn.Bind(
+                wx.EVT_RADIOBUTTON,
                 lambda evt, code=status_code: self.on_status_filter_changed(evt, code),
             )
-            self.status_checkboxes[status_code] = checkbox
-            status_sizer.Add(checkbox, 0, wx.RIGHT, 15)
+            self.status_radio_buttons[status_code] = radio_btn
+            status_filters_sizer.Add(radio_btn, 0, wx.RIGHT, 15)
+            if idx == 0:
+                radio_btn.SetValue(True)
 
-        main_sizer.Add(status_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 40)
+        main_sizer.Add(status_filters_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 40)
 
         main_sizer.AddSpacer(20)
 
@@ -379,11 +377,7 @@ class RequestsView(wx.Panel):
         self.load_registration_requests()
 
     def on_status_filter_changed(self, event, status_code):
-        if event.IsChecked():
-            self.selected_statuses.add(status_code)
-        else:
-            self.selected_statuses.discard(status_code)
-
+        self.selected_status = None if status_code == "all" else status_code
         self.current_page = 1
         self.load_registration_requests()
 
@@ -407,26 +401,16 @@ class RequestsView(wx.Panel):
 
     def load_registration_requests(self):
         try:
-            if len(self.selected_statuses) == 0:
-                selected_status = None
-            elif len(self.selected_statuses) == 1:
-                selected_status = list(self.selected_statuses)[0]
-            else:
-                selected_status = None
-
+            statuses_set = {self.selected_status} if self.selected_status else None
             requests, total = self.repository.fetch_registration_requests(
                 school_id=self.selected_school_id,
                 program_id=self.selected_program_id,
                 term_id=self.selected_term_id,
-                status=selected_status if len(self.selected_statuses) == 1 else None,
+                statuses=statuses_set,
                 search_query=self.search_query,
                 page=self.current_page,
                 page_size=self.page_size,
             )
-
-            if len(self.selected_statuses) > 1:
-                requests = [r for r in requests if r.status in self.selected_statuses]
-                total = len(requests)
 
             self.total_requests = total
             self.list_ctrl.DeleteAllItems()

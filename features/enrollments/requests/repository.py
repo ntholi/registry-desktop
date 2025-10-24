@@ -9,8 +9,10 @@ from sqlalchemy.orm import Session
 
 from base import get_logger
 from database import (
+    Clearance,
     Module,
     Program,
+    RegistrationClearance,
     RegistrationRequest,
     RequestedModule,
     School,
@@ -75,7 +77,6 @@ class ApprovedEnrollmentRepository:
             ("pending", "Pending"),
             ("approved", "Approved"),
             ("rejected", "Rejected"),
-            ("partial", "Partial"),
             ("registered", "Registered"),
         ]
 
@@ -85,7 +86,7 @@ class ApprovedEnrollmentRepository:
         school_id: Optional[int] = None,
         program_id: Optional[int] = None,
         term_id: Optional[int] = None,
-        status: Optional[str] = None,
+        statuses: Optional[set[str]] = None,
         search_query: str = "",
         page: int = 1,
         page_size: int = 30,
@@ -94,7 +95,7 @@ class ApprovedEnrollmentRepository:
         with self._session() as session:
             from database import Structure, StudentProgram
 
-            query = (
+            base_query = (
                 session.query(
                     RegistrationRequest.id,
                     Student.std_no,
@@ -122,20 +123,17 @@ class ApprovedEnrollmentRepository:
             )
 
             if school_id:
-                query = query.filter(School.id == school_id)
+                base_query = base_query.filter(School.id == school_id)
 
             if program_id:
-                query = query.filter(Program.id == program_id)
+                base_query = base_query.filter(Program.id == program_id)
 
             if term_id:
-                query = query.filter(Term.id == term_id)
-
-            if status:
-                query = query.filter(RegistrationRequest.status == status)
+                base_query = base_query.filter(Term.id == term_id)
 
             if search_query:
                 search_term = f"%{search_query}%"
-                query = query.filter(
+                base_query = base_query.filter(
                     or_(
                         Student.std_no.like(search_term),
                         Student.name.like(search_term),
@@ -143,9 +141,53 @@ class ApprovedEnrollmentRepository:
                     )
                 )
 
-            query = query.order_by(RegistrationRequest.created_at.desc())
-            total = query.count()
-            results = query.offset(offset).limit(page_size).all()
+            if statuses:
+                from sqlalchemy import and_, exists, not_
+
+                conditions = []
+                for status in statuses:
+                    if status == "pending":
+                        conditions.append(RegistrationRequest.status == "pending")
+                    elif status == "approved":
+                        approved_subquery = (
+                            session.query(RegistrationClearance)
+                            .join(
+                                Clearance,
+                                RegistrationClearance.clearance_id == Clearance.id,
+                            )
+                            .filter(
+                                RegistrationClearance.registration_request_id
+                                == RegistrationRequest.id,
+                                RegistrationRequest.status == "pending",
+                                Clearance.status == "approved",
+                            )
+                            .exists()
+                        )
+                        conditions.append(approved_subquery)
+                    elif status == "rejected":
+                        rejected_subquery = (
+                            session.query(RegistrationClearance)
+                            .join(
+                                Clearance,
+                                RegistrationClearance.clearance_id == Clearance.id,
+                            )
+                            .filter(
+                                RegistrationClearance.registration_request_id
+                                == RegistrationRequest.id,
+                                Clearance.status == "rejected",
+                            )
+                            .exists()
+                        )
+                        conditions.append(rejected_subquery)
+                    elif status == "registered":
+                        conditions.append(RegistrationRequest.status == "registered")
+
+                if conditions:
+                    base_query = base_query.filter(or_(*conditions))
+
+            base_query = base_query.order_by(RegistrationRequest.created_at.desc())
+            total = base_query.count()
+            results = base_query.offset(offset).limit(page_size).all()
 
         rows = []
         for result in results:

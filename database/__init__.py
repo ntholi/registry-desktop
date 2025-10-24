@@ -1,8 +1,10 @@
 from .connection import get_engine
 from .models import (
     Base,
+    Clearance,
     Module,
     Program,
+    RegistrationClearance,
     RegistrationRequest,
     RequestedModule,
     School,
@@ -34,4 +36,6 @@ __all__ = [
     "RequestedModule",
     "Sponsor",
     "Term",
+    "Clearance",
+    "RegistrationClearance",
 ]

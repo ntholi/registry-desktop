@@ -171,6 +171,7 @@ class RequestsView(wx.Panel):
         self.detail_panel = RegistrationDetailPanel(
             self, self.on_detail_panel_close, self.status_bar
         )
+        self.detail_panel.SetMinSize(wx.Size(550, -1))
         self.detail_panel.Hide()
 
         content_sizer.Add(self.detail_panel, 0, wx.EXPAND | wx.LEFT, 10)
@@ -242,7 +243,28 @@ class RequestsView(wx.Panel):
         item = event.GetIndex()
         if item != wx.NOT_FOUND:
             self.selected_request_item = item
-            request_id = int(self.list_ctrl.GetItemText(item, 0).split("#")[0])
+            data = self.list_ctrl.GetItemData(item)
+            request_id = None
+            if data is not None:
+                try:
+                    request_id = int(data)
+                except Exception:
+                    request_id = None
+
+            if request_id is None:
+                for col in range(self.list_ctrl.GetColumnCount()):
+                    txt = self.list_ctrl.GetItemText(item, col)
+                    if txt:
+                        parts = txt.split("#")
+                        try:
+                            request_id = int(parts[0])
+                            break
+                        except Exception:
+                            continue
+
+            if request_id is None:
+                return
+
             self.show_request_detail(request_id)
 
     def on_list_item_deselected(self, event):

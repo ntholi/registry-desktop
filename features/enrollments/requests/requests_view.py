@@ -401,12 +401,11 @@ class RequestsView(wx.Panel):
 
     def load_registration_requests(self):
         try:
-            statuses_set = {self.selected_status} if self.selected_status else None
             requests, total = self.repository.fetch_registration_requests(
                 school_id=self.selected_school_id,
                 program_id=self.selected_program_id,
                 term_id=self.selected_term_id,
-                statuses=statuses_set,
+                status=self.selected_status,
                 search_query=self.search_query,
                 page=self.current_page,
                 page_size=self.page_size,

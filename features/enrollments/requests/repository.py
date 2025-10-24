@@ -86,7 +86,7 @@ class ApprovedEnrollmentRepository:
         school_id: Optional[int] = None,
         program_id: Optional[int] = None,
         term_id: Optional[int] = None,
-        statuses: Optional[set[str]] = None,
+        status: Optional[str] = None,
         search_query: str = "",
         page: int = 1,
         page_size: int = 30,
@@ -141,66 +141,66 @@ class ApprovedEnrollmentRepository:
                     )
                 )
 
-            if statuses:
-                from sqlalchemy import and_, exists, not_
+            if status:
+                from sqlalchemy import and_, not_
 
-                conditions = []
-                for status in statuses:
-                    if status == "pending":
-                        conditions.append(RegistrationRequest.status == "pending")
-                    elif status == "approved":
-                        approved_exists = (
-                            session.query(RegistrationClearance)
-                            .join(
-                                Clearance,
-                                RegistrationClearance.clearance_id == Clearance.id,
-                            )
-                            .filter(
-                                RegistrationClearance.registration_request_id
-                                == RegistrationRequest.id,
-                                Clearance.status == "approved",
-                            )
-                            .exists()
+                if status == "pending":
+                    base_query = base_query.filter(
+                        RegistrationRequest.status == "pending"
+                    )
+                elif status == "approved":
+                    approved_exists = (
+                        session.query(RegistrationClearance)
+                        .join(
+                            Clearance,
+                            RegistrationClearance.clearance_id == Clearance.id,
                         )
-                        nonapproved_exists = (
-                            session.query(RegistrationClearance)
-                            .join(
-                                Clearance,
-                                RegistrationClearance.clearance_id == Clearance.id,
-                            )
-                            .filter(
-                                RegistrationClearance.registration_request_id
-                                == RegistrationRequest.id,
-                                Clearance.status != "approved",
-                            )
-                            .exists()
+                        .filter(
+                            RegistrationClearance.registration_request_id
+                            == RegistrationRequest.id,
+                            Clearance.status == "approved",
                         )
-                        approved_subquery = and_(
+                        .exists()
+                    )
+                    nonapproved_exists = (
+                        session.query(RegistrationClearance)
+                        .join(
+                            Clearance,
+                            RegistrationClearance.clearance_id == Clearance.id,
+                        )
+                        .filter(
+                            RegistrationClearance.registration_request_id
+                            == RegistrationRequest.id,
+                            Clearance.status != "approved",
+                        )
+                        .exists()
+                    )
+                    base_query = base_query.filter(
+                        and_(
                             RegistrationRequest.status == "pending",
                             approved_exists,
                             not_(nonapproved_exists),
                         )
-                        conditions.append(approved_subquery)
-                    elif status == "rejected":
-                        rejected_subquery = (
-                            session.query(RegistrationClearance)
-                            .join(
-                                Clearance,
-                                RegistrationClearance.clearance_id == Clearance.id,
-                            )
-                            .filter(
-                                RegistrationClearance.registration_request_id
-                                == RegistrationRequest.id,
-                                Clearance.status == "rejected",
-                            )
-                            .exists()
+                    )
+                elif status == "rejected":
+                    rejected_subquery = (
+                        session.query(RegistrationClearance)
+                        .join(
+                            Clearance,
+                            RegistrationClearance.clearance_id == Clearance.id,
                         )
-                        conditions.append(rejected_subquery)
-                    elif status == "registered":
-                        conditions.append(RegistrationRequest.status == "registered")
-
-                if conditions:
-                    base_query = base_query.filter(or_(*conditions))
+                        .filter(
+                            RegistrationClearance.registration_request_id
+                            == RegistrationRequest.id,
+                            Clearance.status == "rejected",
+                        )
+                        .exists()
+                    )
+                    base_query = base_query.filter(rejected_subquery)
+                elif status == "registered":
+                    base_query = base_query.filter(
+                        RegistrationRequest.status == "registered"
+                    )
 
             base_query = base_query.order_by(RegistrationRequest.created_at.desc())
             total = base_query.count()

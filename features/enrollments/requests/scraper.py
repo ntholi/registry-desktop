@@ -33,10 +33,14 @@ def get_cms_semesters(student_program_id: int) -> list[dict]:
 
                 cols = row.select("td")
                 term = None
-                if len(cols) > 1:
-                    term_span = cols[1].select_one("span")
+                if len(cols) > 0:
+                    term_span = cols[0].select_one("span")
                     if term_span:
                         term = term_span.get_text(strip=True)
+                    else:
+                        term_text = cols[0].get_text(strip=True)
+                        if term_text:
+                            term = term_text
 
                 semesters.append({"id": int(semester_id), "term": term})
 

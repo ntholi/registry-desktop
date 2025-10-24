@@ -2,6 +2,7 @@ import wx
 
 from base.menu_bar import AppMenuBar
 from base.nav import AccordionNavigation
+from base.splash_screen import SplashScreen
 from base.status.status_bar import StatusBar
 from features.enrollments.approved.approved_view import ApprovedView
 from features.enrollments.module.module_view import ModuleView
@@ -80,7 +81,16 @@ class MainWindow(wx.Frame):
 
 def main():
     app = wx.App()
+
+    splash = SplashScreen()
+    splash.Show()
+
+    wx.Yield()
+
     window = MainWindow()
+
+    splash.close()
+
     window.Maximize()
     window.Show()
     app.MainLoop()

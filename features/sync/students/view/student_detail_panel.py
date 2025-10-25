@@ -72,11 +72,12 @@ class StudentDetailPanel(wx.Panel):
 
         self.semesters_loader = LoadableControl(self, self.on_semesters_loaded)
         semesters_container = self.semesters_loader.get_container()
+        semesters_container.SetMinSize(wx.Size(-1, 120))
 
         self.semesters_list = wx.ListCtrl(
             semesters_container,
             style=wx.LC_REPORT | wx.BORDER_SIMPLE,
-            size=wx.Size(-1, 145),
+            size=wx.Size(-1, 120),
         )
         self.semesters_list.AppendColumn("ID", width=60)
         self.semesters_list.AppendColumn("Term", width=100)
@@ -112,6 +113,7 @@ class StudentDetailPanel(wx.Panel):
 
         self.modules_loader = LoadableControl(self, self.on_modules_loaded)
         modules_container = self.modules_loader.get_container()
+        # let modules area expand, but ensure semesters area doesn't push it too far down
 
         self.modules_list = wx.ListCtrl(
             modules_container,

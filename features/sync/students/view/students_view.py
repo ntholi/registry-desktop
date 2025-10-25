@@ -87,6 +87,34 @@ class UpdateStudentsWorker(threading.Thread):
         self.should_stop = True
 
 
+class SearchWorker(threading.Thread):
+    def __init__(self, view, callback):
+        super().__init__(daemon=True)
+        self.view = view
+        self.callback = callback
+        self.should_stop = False
+
+    def run(self):
+        if self.should_stop:
+            return
+        try:
+            students, total = self.view.repository.fetch_students(
+                school_id=self.view.selected_school_id,
+                program_id=self.view.selected_program_id,
+                term=self.view.selected_term,
+                semester_number=self.view.selected_semester_number,
+                search_query=self.view.search_query,
+                page=self.view.current_page,
+                page_size=self.view.page_size,
+            )
+            self.callback("search_finished", students, total)
+        except Exception as e:
+            self.callback("search_error", str(e))
+
+    def stop(self):
+        self.should_stop = True
+
+
 class StudentsView(wx.Panel):
     def __init__(self, parent, status_bar=None):
         super().__init__(parent)
@@ -101,6 +129,7 @@ class StudentsView(wx.Panel):
         self.selected_semester_number = None
         self.fetch_worker = None
         self.update_worker = None
+        self.search_worker = None
         self.repository = StudentRepository()
         self.sync_service = StudentSyncService(self.repository)
         self.checked_items = set()
@@ -476,9 +505,10 @@ class StudentsView(wx.Panel):
         self.search_button.Enable(False)
         self.search_query = self.search_input.GetValue().strip()
         self.current_page = 1
-        self.load_students()
-        self.search_button.SetLabel("Search")
-        self.search_button.Enable(True)
+        if self.status_bar:
+            self.status_bar.show_message("Searching students...")
+        self.search_worker = SearchWorker(self, self.on_search_callback)
+        self.search_worker.start()
 
     def load_students(self):
         try:
@@ -713,6 +743,9 @@ class StudentsView(wx.Panel):
     def on_import_callback(self, event_type, *args):
         wx.CallAfter(self._handle_import_event, event_type, *args)
 
+    def on_search_callback(self, event_type, *args):
+        wx.CallAfter(self._handle_search_event, event_type, *args)
+
     def _handle_worker_event(self, event_type, *args):
         if event_type == "progress":
             message, current, total = args
@@ -794,3 +827,42 @@ class StudentsView(wx.Panel):
             self.edit_button.Enable(True)
             self.import_button.Enable(True)
             wx.MessageBox(error_msg, "Error", wx.OK | wx.ICON_WARNING)
+
+    def _handle_search_event(self, event_type, *args):
+        if event_type == "search_finished":
+            students, total = args
+            self.total_students = total
+            self.list_ctrl.DeleteAllItems()
+            self.checked_items.clear()
+
+            for row, student in enumerate(students):
+                index = self.list_ctrl.InsertItem(row, "")
+                self.list_ctrl.SetItemImage(index, self.unchecked_idx)
+                self.list_ctrl.SetItem(index, 1, student.std_no)
+                self.list_ctrl.SetItem(index, 2, student.name or "")
+                self.list_ctrl.SetItem(index, 3, student.gender or "")
+                self.list_ctrl.SetItem(
+                    index, 4, self._calculate_age(student.date_of_birth)
+                )
+                self.list_ctrl.SetItem(index, 5, student.faculty_code or "")
+                self.list_ctrl.SetItem(index, 6, student.program_name or "")
+                self.list_ctrl.SetItem(index, 7, student.phone1 or "")
+                self.list_ctrl.SetItemData(index, row)
+
+            self.update_pagination_controls()
+            self.update_total_label()
+            self.select_all_checkbox.SetValue(False)
+            self.update_selection_state()
+        elif event_type == "search_error":
+            error_msg = args[0]
+            print(f"Error searching students: {error_msg}")
+            self.list_ctrl.DeleteAllItems()
+            self.checked_items.clear()
+            self.page_label.SetLabel("No data available")
+            self.records_label.SetLabel("")
+            self.update_selection_state()
+
+        if self.status_bar:
+            self.status_bar.clear()
+        self.search_button.SetLabel("Search")
+        self.search_button.Enable(True)

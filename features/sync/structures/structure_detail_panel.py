@@ -2,6 +2,7 @@ import threading
 
 import wx
 
+from .loader_control import LoadableControl
 from .repository import StructureRepository
 from .service import SchoolSyncService
 
@@ -97,6 +98,8 @@ class StructureDetailPanel(wx.Panel):
         self.selected_semester_name = None
         self.fetch_worker = None
         self.fetch_modules_worker = None
+        self.semesters_loader: LoadableControl
+        self.modules_loader: LoadableControl
 
         self.init_ui()
 
@@ -129,13 +132,18 @@ class StructureDetailPanel(wx.Panel):
         line = wx.StaticLine(self)
         sizer.Add(line, 0, wx.EXPAND | wx.BOTTOM, 15)
 
+        self.semesters_loader = LoadableControl(self, self.on_semesters_loaded)
+        semesters_container = self.semesters_loader.get_container()
+
         self.semesters_list = wx.ListCtrl(
-            self, style=wx.LC_REPORT | wx.BORDER_SIMPLE | wx.LC_SINGLE_SEL
+            semesters_container, style=wx.LC_REPORT | wx.BORDER_SIMPLE | wx.LC_SINGLE_SEL
         )
         self.semesters_list.AppendColumn("Semester", width=200)
         self.semesters_list.AppendColumn("Credits", width=80)
         self.semesters_list.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_semester_selected)
-        sizer.Add(self.semesters_list, 4, wx.EXPAND | wx.BOTTOM, 15)
+        self.semesters_loader.set_content_panel(self.semesters_list)
+
+        sizer.Add(semesters_container, 4, wx.EXPAND | wx.BOTTOM, 15)
 
         modules_header_sizer = wx.BoxSizer(wx.HORIZONTAL)
 
@@ -155,12 +163,17 @@ class StructureDetailPanel(wx.Panel):
 
         sizer.Add(modules_header_sizer, 0, wx.EXPAND | wx.BOTTOM, 5)
 
-        self.modules_list = wx.ListCtrl(self, style=wx.LC_REPORT | wx.BORDER_SIMPLE)
+        self.modules_loader = LoadableControl(self, self.on_modules_loaded)
+        modules_container = self.modules_loader.get_container()
+
+        self.modules_list = wx.ListCtrl(modules_container, style=wx.LC_REPORT | wx.BORDER_SIMPLE)
         self.modules_list.AppendColumn("Code", width=100)
         self.modules_list.AppendColumn("Name", width=250)
         self.modules_list.AppendColumn("Type", width=100)
         self.modules_list.AppendColumn("Credits", width=70)
-        sizer.Add(self.modules_list, 5, wx.EXPAND)
+        self.modules_loader.set_content_panel(self.modules_list)
+
+        sizer.Add(modules_container, 5, wx.EXPAND)
 
         self.SetSizer(sizer)
 
@@ -176,20 +189,32 @@ class StructureDetailPanel(wx.Panel):
             info_text = f"{desc}\n{program}"
             self.detail_info.SetLabel(info_text)
 
-            semesters = self.repository.get_structure_semesters(structure_id)
-            self.semesters_list.DeleteAllItems()
-
-            for row, semester in enumerate(semesters):
-                index = self.semesters_list.InsertItem(row, semester.name)
-                self.semesters_list.SetItem(index, 1, f"{semester.total_credits:.1f}")
-                self.semesters_list.SetItemData(index, semester.id)
-
             self.modules_list.DeleteAllItems()
 
-            self.Layout()
+            def load_data():
+                return self.repository.get_structure_semesters(structure_id)
+
+            self.semesters_loader.load_async(load_data, "Loading semesters...")
 
         except Exception as e:
             print(f"Error loading structure details: {str(e)}")
+
+    def on_semesters_loaded(self, success, data):
+        if not success:
+            wx.MessageBox(
+                f"Error loading semesters: {data}", "Load Error", wx.OK | wx.ICON_ERROR
+            )
+            return
+
+        semesters = data
+        self.semesters_list.DeleteAllItems()
+
+        for row, semester in enumerate(semesters):
+            index = self.semesters_list.InsertItem(row, semester.name)
+            self.semesters_list.SetItem(index, 1, f"{semester.total_credits:.1f}")
+            self.semesters_list.SetItemData(index, semester.id)
+
+        self.Layout()
 
     def on_fetch(self, event):
         if not self.selected_structure_id or not self.selected_structure_code:
@@ -225,20 +250,14 @@ class StructureDetailPanel(wx.Panel):
             self.fetch_button.Enable(True)
 
             if self.selected_structure_id:
-                semesters = self.repository.get_structure_semesters(
-                    self.selected_structure_id
-                )
-                self.semesters_list.DeleteAllItems()
-
-                for row, semester in enumerate(semesters):
-                    index = self.semesters_list.InsertItem(row, semester.name)
-                    self.semesters_list.SetItem(
-                        index, 1, f"{semester.total_credits:.1f}"
-                    )
-                    self.semesters_list.SetItemData(index, semester.id)
-
                 self.modules_list.DeleteAllItems()
-                self.Layout()
+
+                def load_data():
+                    return self.repository.get_structure_semesters(
+                        self.selected_structure_id
+                    )
+
+                self.semesters_loader.load_async(load_data, "Loading semesters...")
 
             wx.MessageBox(
                 f"Successfully fetched structure data for {self.selected_structure_code}.",
@@ -318,23 +337,31 @@ class StructureDetailPanel(wx.Panel):
             wx.MessageBox(f"Fetch failed: {error_msg}", "Error", wx.OK | wx.ICON_ERROR)
 
     def load_semester_modules(self, semester_id):
-        try:
-            modules = self.repository.get_semester_modules(semester_id)
-            self.modules_list.DeleteAllItems()
+        def load_data():
+            return self.repository.get_semester_modules(semester_id)
 
-            for row, module in enumerate(modules):
-                if module.hidden:
-                    continue
+        self.modules_loader.load_async(load_data, "Loading modules...")
 
-                index = self.modules_list.InsertItem(row, module.module_code)
-                self.modules_list.SetItem(index, 1, module.module_name)
-                self.modules_list.SetItem(index, 2, module.type)
-                self.modules_list.SetItem(index, 3, f"{module.credits:.1f}")
+    def on_modules_loaded(self, success, data):
+        if not success:
+            wx.MessageBox(
+                f"Error loading modules: {data}", "Load Error", wx.OK | wx.ICON_ERROR
+            )
+            return
 
-            self.Layout()
+        modules = data
+        self.modules_list.DeleteAllItems()
 
-        except Exception as e:
-            print(f"Error loading semester modules: {str(e)}")
+        for row, module in enumerate(modules):
+            if module.hidden:
+                continue
+
+            index = self.modules_list.InsertItem(row, module.module_code)
+            self.modules_list.SetItem(index, 1, module.module_name)
+            self.modules_list.SetItem(index, 2, module.type)
+            self.modules_list.SetItem(index, 3, f"{module.credits:.1f}")
+
+        self.Layout()
 
     def clear(self):
         self.selected_structure_id = None

@@ -88,6 +88,9 @@ class EnrollmentService:
             f"Found student program {student_program_id} with structure {structure_id}"
         )
 
+        requested_module_codes = [mod.module_code for mod in requested_modules]
+        logger.info(f"Requested modules for enrollment: {requested_module_codes}")
+
         if progress_callback:
             progress_callback(
                 f"Checking CMS for existing semesters for student {std_no}...", 20, 100
@@ -211,52 +214,62 @@ class EnrollmentService:
                 f"({modules_skipped} already exist)"
             )
 
-            registered_module_codes = self._add_modules_to_cms_semester(
-                student_semester_id, modules_to_push
-            )
+            self._add_modules_to_cms_semester(student_semester_id, modules_to_push)
 
             if progress_callback:
                 progress_callback(
-                    f"Syncing {len(registered_module_codes)} modules to database...",
+                    f"Syncing {len(modules_to_push)} modules to database...",
                     80,
                     100,
                 )
 
             updated_modules = get_cms_semester_modules(student_semester_id)
+            updated_modules_map = {mod["module_code"]: mod for mod in updated_modules}
+
             modules_added = 0
+            modules_failed = []
 
             for req_mod in requested_modules:
                 module_code = req_mod.module_code
-                semester_module_id = req_mod.semester_module_id
-                module_status = req_mod.module_status
 
                 if module_code in existing_module_codes:
                     continue
 
-                for cms_mod in updated_modules:
-                    if cms_mod["module_code"] == module_code:
-                        self._repository.upsert_student_module(
-                            {
-                                "id": cms_mod["id"],
-                                "semester_module_id": semester_module_id,
-                                "status": module_status,
-                                "marks": "NM",
-                                "grade": "NM",
-                                "student_semester_id": student_semester_id,
-                            }
-                        )
-                        modules_added += 1
-                        break
+                if module_code in updated_modules_map:
+                    cms_mod = updated_modules_map[module_code]
+                    self._repository.upsert_student_module(
+                        {
+                            "id": cms_mod["id"],
+                            "semester_module_id": req_mod.semester_module_id,
+                            "status": req_mod.module_status,
+                            "marks": "NM",
+                            "grade": "NM",
+                            "student_semester_id": student_semester_id,
+                        }
+                    )
+                    modules_added += 1
+                    logger.info(f"Successfully saved module {module_code} to database")
+                else:
+                    modules_failed.append(module_code)
+                    logger.error(
+                        f"Module {module_code} not found on CMS after push. "
+                        f"Available modules: {list(updated_modules_map.keys())}"
+                    )
 
-            modules_failed = len(modules_to_push) - modules_added
+            failed_count = len(modules_failed)
+
+            if modules_failed:
+                logger.warning(
+                    f"Failed to sync {failed_count} modules to database: {modules_failed}"
+                )
 
             logger.info(
                 f"Enrollment complete for request {request_id}: "
-                f"{modules_added} modules added, {modules_skipped} skipped, {modules_failed} failed"
+                f"{modules_added} modules added, {modules_skipped} skipped, {failed_count} failed"
             )
         else:
             modules_added = 0
-            modules_failed = 0
+            failed_count = 0
             logger.info(
                 f"All {modules_skipped} modules already exist on website for request {request_id}"
             )
@@ -264,7 +277,7 @@ class EnrollmentService:
         if progress_callback:
             progress_callback(f"Finalizing enrollment for student {std_no}...", 95, 100)
 
-        if modules_failed == 0:
+        if failed_count == 0:
             self._repository.update_registration_request_status(
                 request_id, "registered"
             )
@@ -275,7 +288,7 @@ class EnrollmentService:
             return True
         else:
             logger.warning(
-                f"Request {request_id} partially completed with {modules_failed} failures"
+                f"Request {request_id} partially completed with {failed_count} failures"
             )
             return False
 
@@ -338,38 +351,15 @@ class EnrollmentService:
         self,
         student_semester_id: int,
         modules_data: list[dict],
-    ) -> list[str]:
+    ):
 
         if not modules_data:
             logger.info(f"No modules to push for semester {student_semester_id}")
             return []
 
         try:
-            existing_modules = get_cms_semester_modules(student_semester_id)
-            existing_module_codes = {mod["module_code"] for mod in existing_modules}
-
-            if existing_module_codes:
-                logger.info(
-                    f"Found {len(existing_module_codes)} modules already on website: {existing_module_codes}"
-                )
-
-            modules_to_push = []
-            for module_data in modules_data:
-                module_code = module_data["module_code"]
-                if module_code not in existing_module_codes:
-                    modules_to_push.append(module_data)
-                else:
-                    logger.info(
-                        f"Module {module_code} already exists in semester {student_semester_id}, skipping"
-                    )
-
-            if not modules_to_push:
-                logger.info("All modules already exist on website, skipping batch push")
-                return list(existing_module_codes)
-
             logger.info(
-                f"Will push {len(modules_to_push)} new modules "
-                f"(skipping {len(modules_data) - len(modules_to_push)} already on website)"
+                f"Pushing {len(modules_data)} modules to semester {student_semester_id}"
             )
 
             self._browser.fetch(
@@ -380,7 +370,7 @@ class EnrollmentService:
             page = BeautifulSoup(add_response.text, "lxml")
 
             modules_with_amounts = []
-            for module_data in modules_to_push:
+            for module_data in modules_data:
                 semester_module_id = module_data["semester_module_id"]
                 module_status = module_data["module_status"]
                 credits = module_data["credits"]
@@ -388,8 +378,8 @@ class EnrollmentService:
                 modules_with_amounts.append(module_string)
 
             if not modules_with_amounts:
-                logger.warning("No valid modules to push after filtering")
-                return list(existing_module_codes)
+                logger.warning("No valid modules to push")
+                return []
 
             form_data = get_form_payload(page)
             form_data["Submit"] = "Add+Modules"
@@ -399,15 +389,6 @@ class EnrollmentService:
                 f"Posting batch of {len(modules_with_amounts)} modules to semester {student_semester_id}"
             )
             self._browser.post(f"{BASE_URL}/r_stdmoduleadd1.php", form_data)
-
-            updated_modules = get_cms_semester_modules(student_semester_id)
-            updated_module_codes = [mod["module_code"] for mod in updated_modules]
-
-            logger.info(
-                f"Successfully pushed batch modules - total on website: {len(updated_module_codes)}"
-            )
-
-            return updated_module_codes
 
         except Exception as e:
             logger.error(f"Error adding batch modules to CMS semester: {str(e)}")

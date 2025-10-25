@@ -42,7 +42,7 @@ class RegistrationRequestRow:
     created_at: Optional[str]
 
 
-class ApprovedEnrollmentRepository:
+class EnrollmentRequestRepository:
     def __init__(self) -> None:
         self._engine = get_engine()
 

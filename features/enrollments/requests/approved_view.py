@@ -1,7 +1,7 @@
 import wx
 
 from .registration_detail_panel import RegistrationDetailPanel
-from .repository import ApprovedEnrollmentRepository
+from .repository import EnrollmentRequestRepository
 
 
 class ApprovedView(wx.Panel):
@@ -17,7 +17,7 @@ class ApprovedView(wx.Panel):
         self.selected_term_id = None
         self.selected_statuses = set()
         self.search_timer = None
-        self.repository = ApprovedEnrollmentRepository()
+        self.repository = EnrollmentRequestRepository()
         self.checked_items = set()
         self.selected_request_item = None
 

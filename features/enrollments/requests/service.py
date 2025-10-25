@@ -8,7 +8,7 @@ from bs4 import BeautifulSoup
 from base import get_logger
 from base.browser import BASE_URL, Browser, get_form_payload
 
-from .repository import ApprovedEnrollmentRepository
+from .repository import EnrollmentRequestRepository
 from .scraper import get_cms_semester_modules, get_cms_semesters
 
 logger = get_logger(__name__)
@@ -20,9 +20,9 @@ def today() -> str:
 
 class EnrollmentService:
     def __init__(
-        self, repository: Optional[ApprovedEnrollmentRepository] = None
+        self, repository: Optional[EnrollmentRequestRepository] = None
     ) -> None:
-        self._repository = repository or ApprovedEnrollmentRepository()
+        self._repository = repository or EnrollmentRequestRepository()
         self._browser = Browser()
 
     def enroll_students(

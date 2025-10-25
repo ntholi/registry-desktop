@@ -3,7 +3,7 @@ import threading
 import wx
 
 from .registration_detail_panel import RegistrationDetailPanel
-from .repository import ApprovedEnrollmentRepository
+from .repository import EnrollmentRequestRepository
 from .service import EnrollmentService
 
 
@@ -56,7 +56,7 @@ class RequestsView(wx.Panel):
         self.selected_term_id = None
         self.selected_status = "approved"
         self.search_timer = None
-        self.repository = ApprovedEnrollmentRepository()
+        self.repository = EnrollmentRequestRepository()
         self.service = EnrollmentService(self.repository)
         self.checked_items = set()
         self.selected_request_item = None

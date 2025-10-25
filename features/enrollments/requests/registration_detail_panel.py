@@ -1,6 +1,6 @@
 import wx
 
-from .repository import ApprovedEnrollmentRepository
+from .repository import EnrollmentRequestRepository
 
 
 class RegistrationDetailPanel(wx.Panel):
@@ -8,7 +8,7 @@ class RegistrationDetailPanel(wx.Panel):
         super().__init__(parent)
         self.on_close_callback = on_close_callback
         self.status_bar = status_bar
-        self.repository = ApprovedEnrollmentRepository()
+        self.repository = EnrollmentRequestRepository()
         self.current_request_id = None
 
         self.init_ui()

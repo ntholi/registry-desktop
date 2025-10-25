@@ -379,3 +379,30 @@ class EnrollmentService:
         except Exception as e:
             logger.error(f"Error adding batch modules to CMS semester: {str(e)}")
             return []
+
+    def check_clearances_for_requests(self, request_ids: list[int]) -> str:
+        issues = []
+        for request_id in request_ids:
+            clearances = self._repository.get_clearances_for_request(request_id)
+            if not clearances:
+                issues.append(f"Request #{request_id}: No clearances found")
+                continue
+
+            pending_departments = []
+            rejected_departments = []
+
+            for clearance in clearances:
+                if clearance.status == "pending":
+                    pending_departments.append(clearance.department)
+                elif clearance.status == "rejected":
+                    rejected_departments.append(clearance.department)
+
+            if pending_departments or rejected_departments:
+                issue_parts = []
+                if pending_departments:
+                    issue_parts.append(f"Pending: {', '.join(pending_departments)}")
+                if rejected_departments:
+                    issue_parts.append(f"Rejected: {', '.join(rejected_departments)}")
+                issues.append(f"Request #{request_id}: {', '.join(issue_parts)}")
+
+        return "\n".join(issues)

@@ -558,6 +558,15 @@ class RequestsView(wx.Panel):
             )
             return
 
+        clearance_issues = self.service.check_clearances_for_requests(selected_requests)
+        if clearance_issues:
+            wx.MessageBox(
+                f"Cannot enroll students due to incomplete clearances:\n\n{clearance_issues}",
+                "Clearance Required",
+                wx.OK | wx.ICON_WARNING,
+            )
+            return
+
         dlg = wx.MessageDialog(
             self,
             f"Enroll {len(selected_requests)} student(s)?\n\nThis will process their registration requests and enroll them in the requested modules.",

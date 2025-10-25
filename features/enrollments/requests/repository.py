@@ -521,3 +521,27 @@ class EnrollmentRequestRepository:
                 session.rollback()
                 logger.error(f"Error updating registration request status: {str(e)}")
                 return False
+
+    def get_clearances_for_request(self, registration_request_id: int):
+        with self._session() as session:
+            clearances = (
+                session.query(
+                    Clearance.id,
+                    Clearance.department,
+                    Clearance.status,
+                    Clearance.message,
+                    Clearance.responded_by,
+                    Clearance.response_date,
+                )
+                .join(
+                    RegistrationClearance,
+                    RegistrationClearance.clearance_id == Clearance.id,
+                )
+                .filter(
+                    RegistrationClearance.registration_request_id
+                    == registration_request_id
+                )
+                .order_by(Clearance.department)
+                .all()
+            )
+            return clearances

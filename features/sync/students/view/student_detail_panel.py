@@ -135,6 +135,7 @@ class StudentDetailPanel(wx.Panel):
         main_sizer.AddSpacer(20)
 
         self.SetSizer(main_sizer)
+        self.SetMaxSize(wx.Size(800, -1))
 
     def load_student_programs(self, student_no):
         self.current_student_no = student_no

@@ -498,7 +498,10 @@ class StudentsView(wx.Panel):
         self.search_input.SetValue("")
         self.search_query = ""
         self.current_page = 1
-        self.load_students()
+        if self.status_bar:
+            self.status_bar.show_message("Loading students...")
+        self.search_worker = SearchWorker(self, self.on_search_callback)
+        self.search_worker.start()
 
     def perform_search(self, event=None):
         self.search_button.SetLabel("Searching...")

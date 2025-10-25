@@ -75,8 +75,8 @@ def get_cms_semester_modules(student_semester_id: int) -> list[dict]:
 
                 cols = row.select("td")
                 module_code = None
-                if len(cols) > 1:
-                    module_span = cols[1].select_one("span")
+                if len(cols) > 0:
+                    module_span = cols[0].select_one("span")
                     if module_span:
                         module_text = module_span.get_text(strip=True)
                         parts = module_text.split(maxsplit=1)

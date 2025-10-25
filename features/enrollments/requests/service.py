@@ -228,10 +228,7 @@ class EnrollmentService:
 
                 new_modules = get_cms_semester_modules(student_semester_id)
                 for new_mod in new_modules:
-                    if (
-                        new_mod["module_code"] == module_code
-                        and new_mod["id"] not in existing_module_codes
-                    ):
+                    if new_mod["module_code"] == module_code:
                         self._repository.upsert_student_module(
                             {
                                 "id": new_mod["id"],

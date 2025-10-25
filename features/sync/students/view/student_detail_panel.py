@@ -136,11 +136,17 @@ class StudentDetailPanel(wx.Panel):
 
     def load_student_programs(self, student_no):
         self.current_student_no = student_no
-
         self.clear_tables()
         self.current_semesters = []
         self.current_modules = []
 
+        try:
+            if self.semesters_loader:
+                self.semesters_loader.show_loader("Loading semesters...")
+            if self.modules_loader:
+                self.modules_loader.show_loader("Loading modules...")
+        except Exception:
+            pass
         self.program_combobox.Clear()
         self.program_combobox.Append("Loading programs...", None)
         self.program_combobox.SetSelection(0)
@@ -172,6 +178,13 @@ class StudentDetailPanel(wx.Panel):
             self.program_combobox.Append(f"Error: {data}", None)
             self.program_combobox.SetSelection(0)
             self.program_combobox.Enable(False)
+            try:
+                if self.semesters_loader:
+                    self.semesters_loader.hide_loader()
+                if self.modules_loader:
+                    self.modules_loader.hide_loader()
+            except Exception:
+                pass
             return
 
         programs = data
@@ -179,6 +192,13 @@ class StudentDetailPanel(wx.Panel):
             self.program_combobox.Append("No programs found", None)
             self.program_combobox.SetSelection(0)
             self.program_combobox.Enable(False)
+            try:
+                if self.semesters_loader:
+                    self.semesters_loader.hide_loader()
+                if self.modules_loader:
+                    self.modules_loader.hide_loader()
+            except Exception:
+                pass
             return
 
         self.program_combobox.Enable(True)

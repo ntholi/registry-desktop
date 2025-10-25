@@ -143,6 +143,11 @@ response = browser.post(url, form_data)
 
 - **No comments in source code (ABSOLUTE)**: Under no circumstances should any model, automated agent, or contributor insert comments into source files. This includes inline comments, block comments, commented-out code, TODO/FIXME comments, or any explanatory notes in code or as docstrings used solely for explanation. All generated code must contain zero comments. This rule is explicit, strict, and non-negotiable.
 
+## Important! Always Fix Errors after you have completed all your changes.
+
+- After completing your code changes, always check for and fix any errors or issues in the code.
+- Fix all lint errors and type errors.
+
 ## Key Files Reference
 
 - `main.py`: App entry point, view orchestration

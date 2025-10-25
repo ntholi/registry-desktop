@@ -20,7 +20,7 @@ TIMEOUT_SECONDS = 120
 #     cursor.close()
 
 
-def get_engine(use_local: bool = True) -> Engine:
+def get_engine(use_local: bool = False) -> Engine:
     print("Using local database" if use_local else "Using production database")
     if use_local:
         engine = create_engine(

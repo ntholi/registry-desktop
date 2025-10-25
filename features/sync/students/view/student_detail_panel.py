@@ -7,6 +7,7 @@ from utils.formatters import format_semester
 from ..repository import StudentRepository
 from ..service import StudentSyncService
 from .add_module_form import AddModuleFormDialog
+from .loaders import LoadableControl
 from .module_form import ModuleFormDialog
 from .semester_edit_form import SemesterEditFormDialog
 from .semester_form import SemesterFormDialog
@@ -23,6 +24,9 @@ class StudentDetailPanel(wx.Panel):
         self.current_semesters = []
         self.current_modules = []
         self.push_worker = None
+        self.programs_loader = None
+        self.semesters_loader: LoadableControl
+        self.modules_loader: LoadableControl
 
         self.init_ui()
 
@@ -66,8 +70,13 @@ class StudentDetailPanel(wx.Panel):
 
         main_sizer.AddSpacer(10)
 
+        self.semesters_loader = LoadableControl(self, self.on_semesters_loaded)
+        semesters_container = self.semesters_loader.get_container()
+
         self.semesters_list = wx.ListCtrl(
-            self, style=wx.LC_REPORT | wx.BORDER_SIMPLE, size=wx.Size(-1, 145)
+            semesters_container,
+            style=wx.LC_REPORT | wx.BORDER_SIMPLE,
+            size=wx.Size(-1, 145),
         )
         self.semesters_list.AppendColumn("ID", width=60)
         self.semesters_list.AppendColumn("Term", width=100)
@@ -76,8 +85,9 @@ class StudentDetailPanel(wx.Panel):
         self.semesters_list.AppendColumn("", width=60)
         self.semesters_list.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_semester_selected)
         self.semesters_list.Bind(wx.EVT_LEFT_DOWN, self.on_semesters_left_click)
+        self.semesters_loader.set_content_panel(self.semesters_list)
 
-        main_sizer.Add(self.semesters_list, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 20)
+        main_sizer.Add(semesters_container, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 20)
 
         main_sizer.AddSpacer(20)
 
@@ -100,8 +110,13 @@ class StudentDetailPanel(wx.Panel):
 
         main_sizer.AddSpacer(10)
 
+        self.modules_loader = LoadableControl(self, self.on_modules_loaded)
+        modules_container = self.modules_loader.get_container()
+
         self.modules_list = wx.ListCtrl(
-            self, style=wx.LC_REPORT | wx.BORDER_SIMPLE, size=wx.Size(-1, 300)
+            modules_container,
+            style=wx.LC_REPORT | wx.BORDER_SIMPLE,
+            size=wx.Size(-1, 300),
         )
         self.modules_list.AppendColumn("ID", width=60)
         self.modules_list.AppendColumn("Code", width=100)
@@ -111,8 +126,9 @@ class StudentDetailPanel(wx.Panel):
         self.modules_list.AppendColumn("Grade", width=70)
         self.modules_list.AppendColumn("", width=60)
         self.modules_list.Bind(wx.EVT_LEFT_DOWN, self.on_modules_left_click)
+        self.modules_loader.set_content_panel(self.modules_list)
 
-        main_sizer.Add(self.modules_list, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 20)
+        main_sizer.Add(modules_container, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 20)
 
         main_sizer.AddSpacer(20)
 
@@ -120,31 +136,59 @@ class StudentDetailPanel(wx.Panel):
 
     def load_student_programs(self, student_no):
         self.current_student_no = student_no
+
+        self.clear_tables()
+        self.current_semesters = []
+        self.current_modules = []
+
+        self.program_combobox.Clear()
+        self.program_combobox.Append("Loading programs...", None)
+        self.program_combobox.SetSelection(0)
+        self.program_combobox.Enable(False)
+
+        def load_programs():
+            return self.repository.get_student_programs(student_no)
+
+        def on_programs_loaded(success, data):
+            wx.CallAfter(self._populate_programs, success, data)
+
+        loader_thread = threading.Thread(
+            target=lambda: self._load_programs_async(load_programs, on_programs_loaded),
+            daemon=True,
+        )
+        loader_thread.start()
+
+    def _load_programs_async(self, load_func, callback):
+        try:
+            programs = load_func()
+            callback(True, programs)
+        except Exception as e:
+            callback(False, str(e))
+
+    def _populate_programs(self, success, data):
         self.program_combobox.Clear()
 
-        try:
-            programs = self.repository.get_student_programs(student_no)
-
-            if not programs:
-                self.program_combobox.Append("No programs found", None)
-                self.program_combobox.SetSelection(0)
-                self.program_combobox.Enable(False)
-                return
-
-            self.program_combobox.Enable(True)
-            for program in programs:
-                display_text = self._format_program_display(program)
-                self.program_combobox.Append(display_text, program)
-
-            if programs:
-                self.program_combobox.SetSelection(0)
-                self.load_program_data()
-
-        except Exception as e:
-            print(f"Error loading student programs: {str(e)}")
-            self.program_combobox.Append("Error loading programs", None)
+        if not success:
+            self.program_combobox.Append(f"Error: {data}", None)
             self.program_combobox.SetSelection(0)
             self.program_combobox.Enable(False)
+            return
+
+        programs = data
+        if not programs:
+            self.program_combobox.Append("No programs found", None)
+            self.program_combobox.SetSelection(0)
+            self.program_combobox.Enable(False)
+            return
+
+        self.program_combobox.Enable(True)
+        for program in programs:
+            display_text = self._format_program_display(program)
+            self.program_combobox.Append(display_text, program)
+
+        if programs:
+            self.program_combobox.SetSelection(0)
+            self.load_program_data()
 
     def on_program_selected(self, event):
         self.load_program_data()
@@ -163,27 +207,35 @@ class StudentDetailPanel(wx.Panel):
         self.modules_list.DeleteAllItems()
         self.current_semesters = []
 
-        try:
-            semesters = self.repository.get_student_semesters(student_program_id)
-            self.current_semesters = list(semesters)
+        def load_data():
+            return self.repository.get_student_semesters(student_program_id)
 
-            for row, semester in enumerate(semesters):
-                index = self.semesters_list.InsertItem(row, str(semester.id or ""))
-                self.semesters_list.SetItem(index, 1, str(semester.term or ""))
-                self.semesters_list.SetItem(
-                    index,
-                    2,
-                    str(format_semester(semester.semester_number, type="full")),
-                )
-                self.semesters_list.SetItem(index, 3, str(semester.status or ""))
-                self.semesters_list.SetItem(index, 4, "✎ Edit")
+        self.semesters_loader.load_async(load_data, "Loading semesters...")
 
-            if semesters:
-                self.semesters_list.Select(0)
-                self.load_modules_for_semester(semesters[0].id)
+    def on_semesters_loaded(self, success, data):
+        if not success:
+            wx.MessageBox(
+                f"Error loading semesters: {data}", "Load Error", wx.OK | wx.ICON_ERROR
+            )
+            return
 
-        except Exception as e:
-            print(f"Error loading semesters: {str(e)}")
+        semesters = data
+        self.current_semesters = list(semesters)
+
+        for row, semester in enumerate(semesters):
+            index = self.semesters_list.InsertItem(row, str(semester.id or ""))
+            self.semesters_list.SetItem(index, 1, str(semester.term or ""))
+            self.semesters_list.SetItem(
+                index,
+                2,
+                str(format_semester(semester.semester_number, type="full")),
+            )
+            self.semesters_list.SetItem(index, 3, str(semester.status or ""))
+            self.semesters_list.SetItem(index, 4, "✎ Edit")
+
+        if semesters:
+            self.semesters_list.Select(0)
+            self.load_modules_for_semester(semesters[0].id)
 
     def on_semester_selected(self, event):
         item = event.GetIndex()
@@ -195,21 +247,29 @@ class StudentDetailPanel(wx.Panel):
         self.modules_list.DeleteAllItems()
         self.current_modules = []
 
-        try:
-            modules = self.repository.get_semester_modules(student_semester_id)
-            self.current_modules = list(modules)
+        def load_data():
+            return self.repository.get_semester_modules(student_semester_id)
 
-            for row, module in enumerate(modules):
-                index = self.modules_list.InsertItem(row, str(module.id or ""))
-                self.modules_list.SetItem(index, 1, str(module.module_code or ""))
-                self.modules_list.SetItem(index, 2, str(module.module_name or ""))
-                self.modules_list.SetItem(index, 3, str(module.status or ""))
-                self.modules_list.SetItem(index, 4, str(module.marks or ""))
-                self.modules_list.SetItem(index, 5, str(module.grade or ""))
-                self.modules_list.SetItem(index, 6, "✎ Edit")
+        self.modules_loader.load_async(load_data, "Loading modules...")
 
-        except Exception as e:
-            print(f"Error loading modules: {str(e)}")
+    def on_modules_loaded(self, success, data):
+        if not success:
+            wx.MessageBox(
+                f"Error loading modules: {data}", "Load Error", wx.OK | wx.ICON_ERROR
+            )
+            return
+
+        modules = data
+        self.current_modules = list(modules)
+
+        for row, module in enumerate(modules):
+            index = self.modules_list.InsertItem(row, str(module.id or ""))
+            self.modules_list.SetItem(index, 1, str(module.module_code or ""))
+            self.modules_list.SetItem(index, 2, str(module.module_name or ""))
+            self.modules_list.SetItem(index, 3, str(module.status or ""))
+            self.modules_list.SetItem(index, 4, str(module.marks or ""))
+            self.modules_list.SetItem(index, 5, str(module.grade or ""))
+            self.modules_list.SetItem(index, 6, "✎ Edit")
 
     def on_semesters_left_click(self, event):
         item, flags, col = self.semesters_list.HitTestSubItem(event.GetPosition())
@@ -398,6 +458,10 @@ class StudentDetailPanel(wx.Panel):
                 self.load_modules_for_semester(semester.id)
 
     def on_close(self, event):
+        if self.semesters_loader:
+            self.semesters_loader.cleanup()
+        if self.modules_loader:
+            self.modules_loader.cleanup()
         if self.on_close_callback:
             self.on_close_callback()
 

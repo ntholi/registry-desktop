@@ -2,12 +2,12 @@ import threading
 
 import wx
 
+from features.sync.students.view.loader_control import LoadableControl
 from utils.formatters import format_semester
 
 from ..repository import StudentRepository
 from ..service import StudentSyncService
 from .add_module_form import AddModuleFormDialog
-from .loaders import LoadableControl
 from .module_form import ModuleFormDialog
 from .semester_edit_form import SemesterEditFormDialog
 from .semester_form import SemesterFormDialog

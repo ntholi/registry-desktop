@@ -2,6 +2,7 @@ import threading
 
 import wx
 
+from .loader_control import LoadableControl
 from .registration_detail_panel import RegistrationDetailPanel
 from .repository import EnrollmentRequestRepository
 from .service import EnrollmentService
@@ -61,6 +62,9 @@ class RequestsView(wx.Panel):
         self.checked_items = set()
         self.selected_request_item = None
         self.enroll_worker = None
+        self.detail_loader: LoadableControl | None = None
+        self.detail_container: wx.Panel | None = None
+        self.active_request_id: int | None = None
 
         self.init_ui()
         self.load_filter_options()
@@ -207,13 +211,17 @@ class RequestsView(wx.Panel):
 
         content_sizer.Add(self.list_ctrl, 1, wx.EXPAND)
 
-        self.detail_panel = RegistrationDetailPanel(
-            self, self.on_detail_panel_close, self.status_bar
-        )
-        self.detail_panel.SetMinSize(wx.Size(550, -1))
-        self.detail_panel.Hide()
+        self.detail_loader = LoadableControl(self, self.on_detail_load_complete)
+        self.detail_container = self.detail_loader.get_container()
+        self.detail_container.SetMinSize(wx.Size(550, -1))
 
-        content_sizer.Add(self.detail_panel, 0, wx.EXPAND | wx.LEFT, 10)
+        self.detail_panel = RegistrationDetailPanel(
+            self.detail_container, self.on_detail_panel_close, self.status_bar
+        )
+        self.detail_loader.set_content_panel(self.detail_panel)
+        self.detail_container.Hide()
+
+        content_sizer.Add(self.detail_container, 0, wx.EXPAND | wx.LEFT, 10)
 
         main_sizer.Add(content_sizer, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 40)
 
@@ -312,15 +320,74 @@ class RequestsView(wx.Panel):
         self.selected_request_item = None
 
     def show_request_detail(self, request_id: int):
-        self.detail_panel.load_registration_request(request_id)
-        self.detail_panel.Show()
+        self.active_request_id = request_id
+
+        if self.detail_container and not self.detail_container.IsShown():
+            self.detail_container.Show()
+
+        def load_data():
+            details = self.repository.get_registration_request_details(request_id)
+            if not details:
+                raise ValueError("Registration request not found.")
+            modules = self.repository.get_requested_modules(request_id)
+            return {
+                "request_id": request_id,
+                "details": details,
+                "modules": modules,
+            }
+
+        if self.detail_loader:
+            self.detail_loader.load_async(
+                load_data, "Loading registration details..."
+            )
+
         self.Layout()
 
     def on_detail_panel_close(self):
-        self.detail_panel.Hide()
+        self.active_request_id = None
+        if self.detail_panel:
+            self.detail_panel.Hide()
+        if self.detail_container and self.detail_container.IsShown():
+            self.detail_container.Hide()
         if self.selected_request_item is not None:
             self.list_ctrl.Select(self.selected_request_item, False)
             self.selected_request_item = None
+        self.Layout()
+
+    def on_detail_load_complete(self, success: bool, data):
+        if not success:
+            error_message = data if isinstance(data, str) else "Unable to load details."
+            wx.MessageBox(
+                f"Error loading registration request:\n\n{error_message}",
+                "Error",
+                wx.OK | wx.ICON_ERROR,
+            )
+            if self.detail_container and self.detail_container.IsShown():
+                self.detail_container.Hide()
+                self.Layout()
+            return
+
+        if not isinstance(data, dict):
+            return
+
+        request_id = data.get("request_id")
+        if request_id is None or request_id != self.active_request_id:
+            return
+
+        details = data.get("details")
+        modules = data.get("modules") or []
+
+        if not details:
+            if self.detail_container and self.detail_container.IsShown():
+                self.detail_container.Hide()
+                self.Layout()
+            return
+
+        self.detail_panel.populate_from_data(request_id, details, modules)
+        if self.detail_panel and not self.detail_panel.IsShown():
+            self.detail_panel.Show()
+        if self.detail_container and not self.detail_container.IsShown():
+            self.detail_container.Show()
         self.Layout()
 
     def on_list_right_click(self, event):

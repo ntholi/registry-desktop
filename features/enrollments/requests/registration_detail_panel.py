@@ -1,3 +1,5 @@
+from typing import Any
+
 import wx
 
 from .repository import EnrollmentRequestRepository
@@ -116,8 +118,6 @@ class RegistrationDetailPanel(wx.Panel):
         self.SetSizer(main_sizer)
 
     def load_registration_request(self, request_id: int):
-        self.current_request_id = request_id
-
         try:
             details = self.repository.get_registration_request_details(request_id)
 
@@ -129,17 +129,8 @@ class RegistrationDetailPanel(wx.Panel):
                 )
                 return
 
-            student_info = f"{details['std_no']} - {details['student_name'] or 'N/A'}"
-            self.info_label.SetLabel(f"Registration Request #{request_id}")
-            self.student_value.SetLabel(student_info)
-            self.sponsor_value.SetLabel(details["sponsor_name"] or "N/A")
-            self.term_value.SetLabel(details["term_name"] or "N/A")
-            self.semester_value.SetLabel(
-                f"Semester {details['semester_number']} ({details['semester_status']})"
-            )
-            self.status_value.SetLabel(details["status"].upper())
-
-            self.load_modules(request_id)
+            modules = self.repository.get_requested_modules(request_id)
+            self.populate_from_data(request_id, details, modules)
 
         except Exception as e:
             wx.MessageBox(
@@ -153,21 +144,50 @@ class RegistrationDetailPanel(wx.Panel):
 
         try:
             modules = self.repository.get_requested_modules(request_id)
-
-            for row, module in enumerate(modules):
-                mod_name = module.module_name or ""
-                mod_code = module.module_code or ""
-                index = self.modules_list.InsertItem(row, mod_code)
-                self.modules_list.SetItem(index, 0, mod_code)
-                self.modules_list.SetItem(index, 1, mod_name)
-                self.modules_list.SetItem(index, 2, module.module_status or "")
-                self.modules_list.SetItem(index, 3, str(module.credits or ""))
-                self.modules_list.SetItem(index, 4, module.status or "")
+            self._render_modules(modules)
 
         except Exception as e:
             wx.MessageBox(
                 f"Error loading modules: {str(e)}", "Error", wx.OK | wx.ICON_ERROR
             )
+
+    def populate_from_data(
+        self,
+        request_id: int,
+        details: dict[str, Any],
+        modules: list[Any],
+    ) -> None:
+        self.current_request_id = request_id
+
+        student_info = f"{details['std_no']} - {details['student_name'] or 'N/A'}"
+        self.info_label.SetLabel(f"Registration Request #{request_id}")
+        self.student_value.SetLabel(student_info)
+        self.sponsor_value.SetLabel(details.get("sponsor_name") or "N/A")
+        self.term_value.SetLabel(details.get("term_name") or "N/A")
+        self.semester_value.SetLabel(
+            f"Semester {details.get('semester_number')} ({details.get('semester_status')})"
+        )
+        status = details.get("status")
+        self.status_value.SetLabel(status.upper() if isinstance(status, str) else "")
+
+        self.modules_list.DeleteAllItems()
+        self._render_modules(modules or [])
+        self.Layout()
+
+    def _render_modules(self, modules: list[Any]) -> None:
+        for row, module in enumerate(modules):
+            mod_name = getattr(module, "module_name", "") or ""
+            mod_code = getattr(module, "module_code", "") or ""
+            module_status = getattr(module, "module_status", "") or ""
+            credits = getattr(module, "credits", "")
+            overall_status = getattr(module, "status", "") or ""
+
+            index = self.modules_list.InsertItem(row, mod_code)
+            self.modules_list.SetItem(index, 0, mod_code)
+            self.modules_list.SetItem(index, 1, mod_name)
+            self.modules_list.SetItem(index, 2, module_status)
+            self.modules_list.SetItem(index, 3, str(credits or ""))
+            self.modules_list.SetItem(index, 4, overall_status)
 
     def on_close(self, event):
         if self.on_close_callback:

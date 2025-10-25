@@ -41,10 +41,12 @@ class MainWindow(wx.Frame):
             "sync_structures": StructuresView(self.content_panel, self.status_bar),
             "sync_modules": ModulesView(self.content_panel, self.status_bar),
             "enrollment_requests": RequestsView(self.content_panel, self.status_bar),
-            "enrollments_module": ModuleView(self.content_panel),
-            "enrollments_student": StudentView(self.content_panel),
-            "export_certificates": CertificatesView(self.content_panel),
-            "export_reports": ReportsView(self.content_panel),
+            "enrollments_module": ModuleView(self.content_panel, self.status_bar),
+            "enrollments_student": StudentView(self.content_panel, self.status_bar),
+            "export_certificates": CertificatesView(
+                self.content_panel, self.status_bar
+            ),
+            "export_reports": ReportsView(self.content_panel, self.status_bar),
         }
 
         self.current_view = self.views["sync_students"]

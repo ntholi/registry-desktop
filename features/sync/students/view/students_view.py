@@ -99,7 +99,6 @@ class StudentsView(wx.Panel):
         self.selected_program_id = None
         self.selected_term = None
         self.selected_semester_number = None
-        self.search_timer = None
         self.fetch_worker = None
         self.update_worker = None
         self.repository = StudentRepository()
@@ -177,13 +176,13 @@ class StudentsView(wx.Panel):
 
         self.search_input = wx.SearchCtrl(self, size=wx.Size(400, -1))
         self.search_input.SetDescriptiveText("Search by student number, name...")
-        self.search_input.Bind(wx.EVT_TEXT, self.on_search_changed)
+        self.search_input.ShowCancelButton(True)
+        self.search_input.Bind(wx.EVT_SEARCHCTRL_CANCEL_BTN, self.clear_search)
         search_sizer.Add(self.search_input, 0, wx.RIGHT, 10)
 
-        self.clear_search_button = wx.Button(self, label="Clear")
-        self.clear_search_button.Bind(wx.EVT_BUTTON, self.clear_search)
-        self.clear_search_button.Enable(False)
-        search_sizer.Add(self.clear_search_button, 0, wx.RIGHT, 10)
+        self.search_button = wx.Button(self, label="Search")
+        self.search_button.Bind(wx.EVT_BUTTON, self.perform_search)
+        search_sizer.Add(self.search_button, 0, wx.RIGHT, 10)
 
         search_sizer.AddStretchSpacer()
 
@@ -466,23 +465,20 @@ class StudentsView(wx.Panel):
         self.current_page = 1
         self.load_students()
 
-    def on_search_changed(self, event):
-        text = self.search_input.GetValue()
-        self.clear_search_button.Enable(bool(text))
-        if self.search_timer:
-            self.search_timer.Stop()
-        self.search_timer = wx.CallLater(500, self.perform_search)
-
-    def clear_search(self, event):
+    def clear_search(self, event=None):
         self.search_input.SetValue("")
         self.search_query = ""
         self.current_page = 1
         self.load_students()
 
-    def perform_search(self):
+    def perform_search(self, event=None):
+        self.search_button.SetLabel("Searching...")
+        self.search_button.Enable(False)
         self.search_query = self.search_input.GetValue().strip()
         self.current_page = 1
         self.load_students()
+        self.search_button.SetLabel("Search")
+        self.search_button.Enable(True)
 
     def load_students(self):
         try:

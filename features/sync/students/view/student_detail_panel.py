@@ -113,7 +113,6 @@ class StudentDetailPanel(wx.Panel):
 
         self.modules_loader = LoadableControl(self, self.on_modules_loaded)
         modules_container = self.modules_loader.get_container()
-        # let modules area expand, but ensure semesters area doesn't push it too far down
 
         self.modules_list = wx.ListCtrl(
             modules_container,
@@ -135,7 +134,7 @@ class StudentDetailPanel(wx.Panel):
         main_sizer.AddSpacer(20)
 
         self.SetSizer(main_sizer)
-        self.SetMaxSize(wx.Size(800, -1))
+        self.SetMaxSize(wx.Size(600, -1))
 
     def load_student_programs(self, student_no):
         self.current_student_no = student_no

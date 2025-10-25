@@ -4,8 +4,8 @@ import wx
 class LoadingPanel(wx.Panel):
     def __init__(self, parent: wx.Window, message: str = "Loading...") -> None:
         super().__init__(parent)
-        self._indicator: wx.ActivityIndicator | None = None
-        self._message: wx.StaticText | None = None
+        self.spinner: wx.ActivityIndicator | None = None
+        self.message: wx.StaticText | None = None
         self._setup_ui(parent, message)
 
     def _setup_ui(self, parent: wx.Window, message: str) -> None:
@@ -20,25 +20,25 @@ class LoadingPanel(wx.Panel):
         container_sizer = wx.BoxSizer(wx.VERTICAL)
         container.SetSizer(container_sizer)
 
-        self._indicator = wx.ActivityIndicator(container)
-        self._indicator.SetMinSize(wx.Size(32, 32))
+        self.spinner = wx.ActivityIndicator(container)
+        self.spinner.SetMinSize(wx.Size(32, 32))
+        self.spinner.Start()
 
-        self._message = wx.StaticText(container, label=message)
-        font = self._message.GetFont()
-        font.PointSize = 12
-        self._message.SetFont(font)
+        self.message = wx.StaticText(container, label=message)
+        font = self.message.GetFont()
+        self.message.SetFont(font)
 
         container_sizer.AddStretchSpacer()
 
         indicator_sizer = wx.BoxSizer(wx.HORIZONTAL)
         indicator_sizer.AddStretchSpacer()
-        indicator_sizer.Add(self._indicator, 0, wx.ALL, 12)
+        indicator_sizer.Add(self.spinner, 0, wx.ALL, 12)
         indicator_sizer.AddStretchSpacer()
         container_sizer.Add(indicator_sizer, 0, wx.EXPAND)
 
         message_sizer = wx.BoxSizer(wx.HORIZONTAL)
         message_sizer.AddStretchSpacer()
-        message_sizer.Add(self._message, 0, wx.ALL, 6)
+        message_sizer.Add(self.message, 0, wx.ALL, 6)
         message_sizer.AddStretchSpacer()
         container_sizer.Add(message_sizer, 0, wx.EXPAND)
 
@@ -48,17 +48,16 @@ class LoadingPanel(wx.Panel):
         outer_sizer.AddStretchSpacer()
 
         self.SetSizer(outer_sizer)
-        self._indicator.Start()
 
     def set_message(self, message: str) -> None:
-        if self._message:
-            self._message.SetLabel(message)
+        if self.message:
+            self.message.SetLabel(message)
             self.Layout()
 
     def start(self) -> None:
-        if self._indicator and not self._indicator.IsRunning():
-            self._indicator.Start()
+        if self.spinner and not self.spinner.IsRunning():
+            self.spinner.Start()
 
     def stop(self) -> None:
-        if self._indicator and self._indicator.IsRunning():
-            self._indicator.Stop()
+        if self.spinner and self.spinner.IsRunning():
+            self.spinner.Stop()

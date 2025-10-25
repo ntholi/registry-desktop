@@ -1,3 +1,6 @@
+import json
+from pathlib import Path
+
 import wx
 
 from base.menu_bar import AppMenuBar
@@ -49,16 +52,7 @@ class MainWindow(wx.Frame):
             "export_reports": ReportsView,
         }
 
-        self.view_titles = {
-            "sync_students": "Students",
-            "sync_structures": "Structures",
-            "sync_modules": "Modules",
-            "enrollment_requests": "Enrollment Requests",
-            "enrollments_module": "Enrollment Modules",
-            "enrollments_student": "Student Enrollments",
-            "export_certificates": "Certificates",
-            "export_reports": "Reports",
-        }
+        self.view_titles = self._load_view_titles()
 
         self.views = {}
 
@@ -134,6 +128,25 @@ class MainWindow(wx.Frame):
                 self.on_navigation_clicked(next_action)
             else:
                 self.pending_action = None
+
+    def _load_view_titles(self) -> dict[str, str]:
+        """Load view titles/descriptions from menu.json"""
+        config_path = Path(__file__).parent / "base" / "nav" / "menu.json"
+        titles = {}
+        
+        try:
+            with open(config_path, "r") as f:
+                config = json.load(f)
+            
+            for item in config["menu_items"]:
+                for submenu in item["submenu"]:
+                    action = submenu["action"]
+                    title = submenu.get("title", submenu["title"])
+                    titles[action] = title
+        except (FileNotFoundError, json.JSONDecodeError, KeyError) as e:
+            print(f"Error loading menu titles: {e}")
+        
+        return titles
 
     def _show_loading(self, action):
         title = self.view_titles.get(action, "data")

@@ -28,19 +28,18 @@ class EnrollmentService:
     def enroll_students(
         self,
         registration_request_ids: list[int],
-        progress_callback: Optional[Callable[[str, int, int], None]] = None,
+        progress_callback: Callable[[str, int, int], None],
     ) -> tuple[int, int]:
 
         success_count = 0
         failed_count = 0
 
         for idx, request_id in enumerate(registration_request_ids):
-            if progress_callback:
-                progress_callback(
-                    f"Processing registration request {request_id}...",
-                    idx + 1,
-                    len(registration_request_ids),
-                )
+            progress_callback(
+                f"Processing registration request {request_id}...",
+                idx + 1,
+                len(registration_request_ids),
+            )
 
             try:
                 success = self._enroll_single_request(request_id, progress_callback)
@@ -59,10 +58,9 @@ class EnrollmentService:
     def _enroll_single_request(
         self,
         request_id: int,
-        progress_callback: Optional[Callable[[str, int, int], None]] = None,
+        progress_callback: Callable[[str, int, int], None],
     ) -> bool:
-        if progress_callback:
-            progress_callback(f"Fetching enrollment data...", 0, 100)
+        progress_callback(f"Fetching enrollment data...", 0, 100)
 
         enrollment_data = self._repository.get_enrollment_data(request_id)
         if not enrollment_data:
@@ -91,10 +89,9 @@ class EnrollmentService:
         requested_module_codes = [mod.module_code for mod in requested_modules]
         logger.info(f"Requested modules for enrollment: {requested_module_codes}")
 
-        if progress_callback:
-            progress_callback(
-                f"Checking CMS for existing semesters for student {std_no}...", 20, 100
-            )
+        progress_callback(
+            f"Checking CMS for existing semesters for student {std_no}...", 20, 100
+        )
 
         existing_semesters = get_cms_semesters(student_program_id)
 
@@ -111,17 +108,15 @@ class EnrollmentService:
             student_semester_id = existing_semester_id
             logger.info(f"Reusing existing semester {student_semester_id}")
 
-            if progress_callback:
-                progress_callback(
-                    f"Reusing existing semester for student {std_no}...", 40, 100
-                )
+            progress_callback(
+                f"Reusing existing semester for student {std_no}...", 40, 100
+            )
         else:
             logger.info(f"Creating new semester for student {std_no}, term {term_name}")
 
-            if progress_callback:
-                progress_callback(
-                    f"Getting structure semester for student {std_no}...", 30, 100
-                )
+            progress_callback(
+                f"Getting structure semester for student {std_no}...", 30, 100
+            )
 
             structure_semester_id = self._repository.get_structure_semester_by_number(
                 structure_id, semester_number
@@ -132,10 +127,9 @@ class EnrollmentService:
                 )
                 return False
 
-            if progress_callback:
-                progress_callback(
-                    f"Creating semester on CMS for student {std_no}...", 35, 100
-                )
+            progress_callback(
+                f"Creating semester on CMS for student {std_no}...", 35, 100
+            )
 
             created_sem_id = self._create_semester_on_cms(
                 student_program_id,
@@ -153,10 +147,9 @@ class EnrollmentService:
             student_semester_id = created_sem_id
             logger.info(f"Created new semester {student_semester_id} on CMS")
 
-            if progress_callback:
-                progress_callback(
-                    f"Saving semester to database for student {std_no}...", 40, 100
-                )
+            progress_callback(
+                f"Saving semester to database for student {std_no}...", 40, 100
+            )
 
             self._repository.upsert_student_semester(
                 student_program_id,
@@ -169,10 +162,7 @@ class EnrollmentService:
                 },
             )
 
-        if progress_callback:
-            progress_callback(
-                f"Checking existing modules for student {std_no}...", 50, 100
-            )
+        progress_callback(f"Checking existing modules for student {std_no}...", 50, 100)
 
         existing_modules = get_cms_semester_modules(student_semester_id)
         existing_module_codes = {mod["module_code"] for mod in existing_modules}
@@ -202,12 +192,11 @@ class EnrollmentService:
                 )
 
         if modules_to_push:
-            if progress_callback:
-                progress_callback(
-                    f"Pushing {len(modules_to_push)} modules to CMS in batch...",
-                    60,
-                    100,
-                )
+            progress_callback(
+                f"Pushing {len(modules_to_push)} modules to CMS in batch...",
+                60,
+                100,
+            )
 
             logger.info(
                 f"Pushing {len(modules_to_push)} modules to semester {student_semester_id} "
@@ -216,12 +205,11 @@ class EnrollmentService:
 
             self._add_modules_to_cms_semester(student_semester_id, modules_to_push)
 
-            if progress_callback:
-                progress_callback(
-                    f"Syncing {len(modules_to_push)} modules to database...",
-                    80,
-                    100,
-                )
+            progress_callback(
+                f"Syncing {len(modules_to_push)} modules to database...",
+                80,
+                100,
+            )
 
             updated_modules = get_cms_semester_modules(student_semester_id)
             updated_modules_map = {mod["module_code"]: mod for mod in updated_modules}
@@ -274,8 +262,7 @@ class EnrollmentService:
                 f"All {modules_skipped} modules already exist on website for request {request_id}"
             )
 
-        if progress_callback:
-            progress_callback(f"Finalizing enrollment for student {std_no}...", 95, 100)
+        progress_callback(f"Finalizing enrollment for student {std_no}...", 95, 100)
 
         if failed_count == 0:
             self._repository.update_registration_request_status(
@@ -283,8 +270,7 @@ class EnrollmentService:
             )
             logger.info(f"Marked registration request {request_id} as registered")
 
-            if progress_callback:
-                progress_callback(f"Enrollment complete for student {std_no}", 100, 100)
+            progress_callback(f"Enrollment complete for student {std_no}", 100, 100)
             return True
         else:
             logger.warning(

@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Callable
 
 from base import get_logger
 
@@ -18,9 +19,10 @@ class SchoolSyncService:
     def __init__(self, repository: StructureRepository):
         self.repository = repository
 
-    def fetch_school_and_programs(self, school_code: str, progress_callback=None):
-        if progress_callback:
-            progress_callback(f"Searching for school '{school_code}'...", 1, 2)
+    def fetch_school_and_programs(
+        self, school_code: str, progress_callback: Callable[[str, int, int], None]
+    ):
+        progress_callback(f"Searching for school '{school_code}'...", 1, 2)
 
         school_data = scrape_school_details(school_code)
         if not school_data:
@@ -29,17 +31,15 @@ class SchoolSyncService:
         school_id = int(school_data["id"])
         school_code = str(school_data["code"])
 
-        if progress_callback:
-            progress_callback(
-                f"Found school {school_code} (ID: {school_id}). Fetching programs...",
-                2,
-                2,
-            )
+        progress_callback(
+            f"Found school {school_code} (ID: {school_id}). Fetching programs...",
+            2,
+            2,
+        )
 
         programs = scrape_programs(school_id)
 
-        if progress_callback:
-            progress_callback(f"Retrieved {len(programs)} program(s)", 2, 2)
+        progress_callback(f"Retrieved {len(programs)} program(s)", 2, 2)
 
         return school_data, programs
 
@@ -47,9 +47,9 @@ class SchoolSyncService:
         self,
         school_data: dict,
         programs: list[dict],
+        progress_callback: Callable[[str, int, int], None],
         fetch_structures: bool = False,
         fetch_semesters: bool = False,
-        progress_callback=None,
     ):
         school_id = int(school_data["id"])
         school_name = str(school_data["name"])
@@ -61,21 +61,19 @@ class SchoolSyncService:
 
         current_step = 0
 
-        if progress_callback:
-            current_step += 1
-            progress_callback(
-                f"Saving school {school_code} to database...", current_step, total_steps
-            )
+        current_step += 1
+        progress_callback(
+            f"Saving school {school_code} to database...", current_step, total_steps
+        )
 
         self.repository.save_school(school_id, school_code, school_name)
 
-        if progress_callback:
-            current_step += 1
-            progress_callback(
-                f"Saving {len(programs)} program(s) to database...",
-                current_step,
-                total_steps,
-            )
+        current_step += 1
+        progress_callback(
+            f"Saving {len(programs)} program(s) to database...",
+            current_step,
+            total_steps,
+        )
 
         for program in programs:
             self.repository.save_program(
@@ -91,21 +89,20 @@ class SchoolSyncService:
                 programs, fetch_semesters, progress_callback, current_step, total_steps
             )
         else:
-            if progress_callback:
-                progress_callback(
-                    f"Successfully saved {school_code} and {len(programs)} program(s)",
-                    total_steps,
-                    total_steps,
-                )
-                logger.info(
-                    f"Completed import: {school_code} with {len(programs)} program(s)"
-                )
+            progress_callback(
+                f"Successfully saved {school_code} and {len(programs)} program(s)",
+                total_steps,
+                total_steps,
+            )
+            logger.info(
+                f"Completed import: {school_code} with {len(programs)} program(s)"
+            )
 
     def _import_structures(
         self,
         programs,
         fetch_semesters: bool,
-        progress_callback=None,
+        progress_callback: Callable[[str, int, int], None],
         current_step=0,
         total_steps=1,
     ):
@@ -118,12 +115,11 @@ class SchoolSyncService:
             program_id = int(program["id"])
             program_code = program["code"]
 
-            if progress_callback:
-                progress_callback(
-                    f"Fetching structures for {program_code}...",
-                    current_step,
-                    total_steps,
-                )
+            progress_callback(
+                f"Fetching structures for {program_code}...",
+                current_step,
+                total_steps,
+            )
 
             structures = scrape_structures(program_id)
             logger.info(
@@ -144,18 +140,22 @@ class SchoolSyncService:
                 )
                 self._import_semesters(structures, program_code, progress_callback)
 
-    def _import_semesters(self, structures, program_code: str, progress_callback=None):
+    def _import_semesters(
+        self,
+        structures,
+        program_code: str,
+        progress_callback: Callable[[str, int, int], None],
+    ):
         logger.info(f"Starting to import semesters for {len(structures)} structures")
         for structure in structures:
             structure_id = int(structure["id"])
             structure_code = str(structure["code"])
 
-            if progress_callback:
-                progress_callback(
-                    f"Fetching semesters for {program_code}/{structure_code}...",
-                    0,
-                    1,
-                )
+            progress_callback(
+                f"Fetching semesters for {program_code}/{structure_code}...",
+                0,
+                1,
+            )
 
             semesters = scrape_semesters(structure_id)
             logger.info(
@@ -180,7 +180,10 @@ class SchoolSyncService:
                 )
 
     def _import_semester_modules_concurrent(
-        self, semesters, structure_code: str, progress_callback=None
+        self,
+        semesters,
+        structure_code: str,
+        progress_callback: Callable[[str, int, int], None],
     ):
         total_semesters = len(semesters)
 
@@ -200,12 +203,11 @@ class SchoolSyncService:
                     semester_modules = future.result()
                     completed += 1
 
-                    if progress_callback:
-                        progress_callback(
-                            f"Saving modules for {structure_code}/{semester_name}...",
-                            completed,
-                            total_semesters,
-                        )
+                    progress_callback(
+                        f"Saving modules for {structure_code}/{semester_name}...",
+                        completed,
+                        total_semesters,
+                    )
 
                     for sem_module in semester_modules:
                         self.repository.save_semester_module(
@@ -222,9 +224,8 @@ class SchoolSyncService:
                     logger.error(
                         f"Error importing semester modules for {semester_name}: {e}"
                     )
-                    if progress_callback:
-                        progress_callback(
-                            f"Error importing semester modules for {semester_name}",
-                            completed,
-                            total_semesters,
-                        )
+                    progress_callback(
+                        f"Error importing semester modules for {semester_name}",
+                        completed,
+                        total_semesters,
+                    )

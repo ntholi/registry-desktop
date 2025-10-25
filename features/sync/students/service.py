@@ -33,14 +33,13 @@ class StudentSyncService:
     def fetch_student(
         self,
         student_number: str,
-        progress_callback: Optional[Callable[[str, int, int], None]] = None,
+        progress_callback: Callable[[str, int, int], None],
     ) -> bool:
         total_steps = 3
 
-        if progress_callback:
-            progress_callback(
-                f"Fetching personal data for {student_number}...", 1, total_steps
-            )
+        progress_callback(
+            f"Fetching personal data for {student_number}...", 1, total_steps
+        )
 
         scraped_data = scrape_student_data(student_number)
         if not scraped_data:
@@ -48,10 +47,9 @@ class StudentSyncService:
 
         student_updated = self._repository.update_student(student_number, scraped_data)
 
-        if progress_callback:
-            progress_callback(
-                f"Fetching program list for {student_number}...", 2, total_steps
-            )
+        progress_callback(
+            f"Fetching program list for {student_number}...", 2, total_steps
+        )
 
         program_ids = extract_student_program_ids(student_number)
 
@@ -63,12 +61,11 @@ class StudentSyncService:
         modules_failed = 0
 
         for idx, program_id in enumerate(program_ids, 1):
-            if progress_callback:
-                progress_callback(
-                    f"Syncing program {idx} of {len(program_ids)} for {student_number}...",
-                    2,
-                    total_steps,
-                )
+            progress_callback(
+                f"Syncing program {idx} of {len(program_ids)} for {student_number}...",
+                2,
+                total_steps,
+            )
 
             try:
                 program_data = scrape_student_program_data(program_id)
@@ -88,13 +85,12 @@ class StudentSyncService:
                         semester_ids = extract_student_semester_ids(program_id)
 
                         for sem_idx, sem_id in enumerate(semester_ids, 1):
-                            if progress_callback:
-                                progress_callback(
-                                    f"Syncing semester {sem_idx} of {len(semester_ids)} "
-                                    f"for program {idx}/{len(program_ids)} - {student_number}...",
-                                    2,
-                                    total_steps,
-                                )
+                            progress_callback(
+                                f"Syncing semester {sem_idx} of {len(semester_ids)} "
+                                f"for program {idx}/{len(program_ids)} - {student_number}...",
+                                2,
+                                total_steps,
+                            )
 
                             try:
                                 semester_data = scrape_student_semester_data(sem_id)
@@ -107,13 +103,12 @@ class StudentSyncService:
                                     if sem_success and db_semester_id:
                                         semesters_synced += 1
 
-                                        if progress_callback:
-                                            progress_callback(
-                                                f"Syncing modules for semester {sem_idx}/{len(semester_ids)} "
-                                                f"- program {idx}/{len(program_ids)} - {student_number}...",
-                                                2,
-                                                total_steps,
-                                            )
+                                        progress_callback(
+                                            f"Syncing modules for semester {sem_idx}/{len(semester_ids)} "
+                                            f"- program {idx}/{len(program_ids)} - {student_number}...",
+                                            2,
+                                            total_steps,
+                                        )
 
                                         try:
                                             modules_data = (
@@ -165,13 +160,12 @@ class StudentSyncService:
                 logger.error(f"Error syncing program {program_id}: {str(e)}")
                 programs_failed += 1
 
-        if progress_callback:
-            progress_callback(
-                f"Completed sync for {student_number}: {programs_synced} programs, "
-                f"{semesters_synced} semesters, {modules_synced} modules synced",
-                total_steps,
-                total_steps,
-            )
+        progress_callback(
+            f"Completed sync for {student_number}: {programs_synced} programs, "
+            f"{semesters_synced} semesters, {modules_synced} modules synced",
+            total_steps,
+            total_steps,
+        )
 
         logger.info(
             f"Fetch completed for {student_number}: Student updated={student_updated}, "
@@ -187,13 +181,12 @@ class StudentSyncService:
         self,
         student_number: str,
         data: dict,
-        progress_callback: Optional[Callable[[str], None]] = None,
+        progress_callback: Callable[[str], None],
     ) -> tuple[bool, str]:
         url = f"{BASE_URL}/r_studentedit.php?StudentID={student_number}"
 
         try:
-            if progress_callback:
-                progress_callback(f"Fetching edit form for {student_number}...")
+            progress_callback(f"Fetching edit form for {student_number}...")
 
             response = self._browser.fetch(url)
             page = BeautifulSoup(response.text, "lxml")
@@ -203,8 +196,7 @@ class StudentSyncService:
                 logger.error(f"Could not find edit form for student {student_number}")
                 return False, "Could not find edit form"
 
-            if progress_callback:
-                progress_callback(f"Preparing data for {student_number}...")
+            progress_callback(f"Preparing data for {student_number}...")
 
             form_data = get_form_payload(form)
 
@@ -262,8 +254,7 @@ class StudentSyncService:
             if "national_id" in data:
                 form_data["x_StudentNo"] = data["national_id"]
 
-            if progress_callback:
-                progress_callback(f"Pushing {student_number} to CMS...")
+            progress_callback(f"Pushing {student_number} to CMS...")
 
             logger.info(f"Posting update for student {student_number}")
             post_response = self._browser.post(url, form_data)
@@ -271,8 +262,7 @@ class StudentSyncService:
             if "Successful" in post_response.text:
                 logger.info(f"Successfully posted student {student_number} to CMS")
 
-                if progress_callback:
-                    progress_callback(f"Saving {student_number} to database...")
+                progress_callback(f"Saving {student_number} to database...")
 
                 update_success = self._repository.update_student(student_number, data)
                 if update_success:
@@ -294,13 +284,12 @@ class StudentSyncService:
         self,
         std_module_id: int,
         data: dict,
-        progress_callback: Optional[Callable[[str], None]] = None,
+        progress_callback: Callable[[str], None],
     ) -> tuple[bool, str]:
         url = f"{BASE_URL}/r_stdmoduleedit.php?StdModuleID={std_module_id}"
 
         try:
-            if progress_callback:
-                progress_callback(f"Fetching edit form for module {std_module_id}...")
+            progress_callback(f"Fetching edit form for module {std_module_id}...")
 
             response = self._browser.fetch(url)
             page = BeautifulSoup(response.text, "lxml")
@@ -310,8 +299,7 @@ class StudentSyncService:
                 logger.error(f"Could not find edit form for module {std_module_id}")
                 return False, "Could not find edit form"
 
-            if progress_callback:
-                progress_callback(f"Preparing data for module {std_module_id}...")
+            progress_callback(f"Preparing data for module {std_module_id}...")
 
             form_data = get_form_payload(form)
 
@@ -332,8 +320,7 @@ class StudentSyncService:
             if "semester_module_id" in data and data["semester_module_id"]:
                 form_data["x_SemModuleID"] = str(data["semester_module_id"])
 
-            if progress_callback:
-                progress_callback(f"Pushing module {std_module_id} to CMS...")
+            progress_callback(f"Pushing module {std_module_id} to CMS...")
 
             logger.info(f"Posting update for module {std_module_id}")
             post_response = self._browser.post(url, form_data)
@@ -341,8 +328,7 @@ class StudentSyncService:
             if "Successful" in post_response.text:
                 logger.info(f"Successfully posted module {std_module_id} to CMS")
 
-                if progress_callback:
-                    progress_callback(f"Saving module {std_module_id} to database...")
+                progress_callback(f"Saving module {std_module_id} to database...")
 
                 update_success, msg = self._repository.upsert_student_module(data)
                 if update_success:
@@ -366,7 +352,7 @@ class StudentSyncService:
     def push_semester(
         self,
         data: dict,
-        progress_callback: Optional[Callable[[str], None]] = None,
+        progress_callback: Callable[[str], None],
     ) -> tuple[bool, str]:
         student_program_id = data.get("student_program_id")
         if not student_program_id:
@@ -375,8 +361,7 @@ class StudentSyncService:
         url = f"{BASE_URL}/r_stdsemesteradd.php?StdProgramID={student_program_id}"
 
         try:
-            if progress_callback:
-                progress_callback(f"Fetching add form for semester...")
+            progress_callback(f"Fetching add form for semester...")
 
             response = self._browser.fetch(url)
             page = BeautifulSoup(response.text, "lxml")
@@ -386,8 +371,7 @@ class StudentSyncService:
                 logger.error(f"Could not find add form for semester")
                 return False, "Could not find add form"
 
-            if progress_callback:
-                progress_callback(f"Preparing semester data...")
+            progress_callback(f"Preparing semester data...")
 
             form_data = get_form_payload(form)
 
@@ -426,8 +410,7 @@ class StudentSyncService:
             else:
                 form_data["x_StdSemCAFDate"] = today()
 
-            if progress_callback:
-                progress_callback(f"Pushing semester to CMS...")
+            progress_callback(f"Pushing semester to CMS...")
 
             logger.info(f"Posting new semester for program {student_program_id}")
             post_response = self._browser.post(url, form_data)
@@ -437,8 +420,7 @@ class StudentSyncService:
                     f"Successfully posted semester for program {student_program_id} to CMS"
                 )
 
-                if progress_callback:
-                    progress_callback(f"Fetching created semester ID from CMS...")
+                progress_callback(f"Fetching created semester ID from CMS...")
 
                 semester_ids = extract_student_semester_ids(str(student_program_id))
 
@@ -458,8 +440,7 @@ class StudentSyncService:
                         f"CMS update succeeded but could not retrieve created semester ID",
                     )
 
-                if progress_callback:
-                    progress_callback(f"Saving semester to database...")
+                progress_callback(f"Saving semester to database...")
 
                 db_data = {
                     "id": matching_semester_id,
@@ -495,7 +476,7 @@ class StudentSyncService:
     def update_semester(
         self,
         data: dict,
-        progress_callback: Optional[Callable[[str], None]] = None,
+        progress_callback: Callable[[str], None],
     ) -> tuple[bool, str]:
         student_semester_id = data.get("student_semester_id")
         if not student_semester_id:
@@ -504,8 +485,7 @@ class StudentSyncService:
         url = f"{BASE_URL}/r_stdsemesteredit.php?StdSemesterID={student_semester_id}"
 
         try:
-            if progress_callback:
-                progress_callback(f"Fetching edit form for semester...")
+            progress_callback(f"Fetching edit form for semester...")
 
             response = self._browser.fetch(url)
             page = BeautifulSoup(response.text, "lxml")
@@ -517,8 +497,7 @@ class StudentSyncService:
                 )
                 return False, "Could not find edit form"
 
-            if progress_callback:
-                progress_callback(f"Preparing semester data...")
+            progress_callback(f"Preparing semester data...")
 
             form_data = get_form_payload(form)
 
@@ -544,8 +523,7 @@ class StudentSyncService:
             if "status" in data and data["status"]:
                 form_data["x_SemesterStatus"] = data["status"]
 
-            if progress_callback:
-                progress_callback(f"Pushing semester update to CMS (step 1)...")
+            progress_callback(f"Pushing semester update to CMS (step 1)...")
 
             logger.info(
                 f"Posting update for semester {student_semester_id} (without term)"
@@ -560,8 +538,7 @@ class StudentSyncService:
                     "CMS update failed - response did not contain 'Successful'",
                 )
 
-            if progress_callback:
-                progress_callback(f"Fetching edit form again for semester...")
+            progress_callback(f"Fetching edit form again for semester...")
 
             response = self._browser.fetch(url)
             page = BeautifulSoup(response.text, "lxml")
@@ -571,8 +548,7 @@ class StudentSyncService:
                 logger.error(f"Could not find edit form for second update")
                 return False, "Could not find edit form for second update"
 
-            if progress_callback:
-                progress_callback(f"Preparing semester data for step 2...")
+            progress_callback(f"Preparing semester data for step 2...")
 
             form_data = get_form_payload(form)
 
@@ -592,8 +568,7 @@ class StudentSyncService:
             if "status" in data and data["status"]:
                 form_data["x_SemesterStatus"] = data["status"]
 
-            if progress_callback:
-                progress_callback(f"Pushing semester update to CMS (step 2)...")
+            progress_callback(f"Pushing semester update to CMS (step 2)...")
 
             logger.info(
                 f"Posting update for semester {student_semester_id} (with term)"
@@ -605,8 +580,7 @@ class StudentSyncService:
                     f"Successfully posted semester {student_semester_id} to CMS"
                 )
 
-                if progress_callback:
-                    progress_callback(f"Saving semester to database...")
+                progress_callback(f"Saving semester to database...")
 
                 db_data = {
                     "id": student_semester_id,
@@ -643,26 +617,23 @@ class StudentSyncService:
         semester_module_id: int,
         module_status: str,
         module_code: str,
-        progress_callback: Optional[Callable[[str], None]] = None,
+        progress_callback: Callable[[str], None],
     ) -> tuple[bool, str]:
         try:
-            if progress_callback:
-                progress_callback(f"Fetching add module form...")
+            progress_callback(f"Fetching add module form...")
 
             self._browser.fetch(
                 f"{BASE_URL}/r_stdmodulelist.php?showmaster=1&StdSemesterID={student_semester_id}"
             )
 
-            if progress_callback:
-                progress_callback(f"Navigating to module add page...")
+            progress_callback(f"Navigating to module add page...")
 
             add_response = self._browser.fetch(f"{BASE_URL}/r_stdmoduleadd1.php")
             page = BeautifulSoup(add_response.text, "lxml")
 
             form_data = get_form_payload(page)
 
-            if progress_callback:
-                progress_callback(f"Fetching module details...")
+            progress_callback(f"Fetching module details...")
 
             credits = self._repository.get_semester_module_credits(semester_module_id)
 
@@ -674,16 +645,14 @@ class StudentSyncService:
             form_data["Submit"] = "Add+Modules"
             form_data["take[]"] = [module_string]
 
-            if progress_callback:
-                progress_callback(f"Pushing module to CMS...")
+            progress_callback(f"Pushing module to CMS...")
 
             logger.info(
                 f"Posting module {semester_module_id} to semester {student_semester_id}"
             )
             self._browser.post(f"{BASE_URL}/r_stdmoduleadd1.php", form_data)
 
-            if progress_callback:
-                progress_callback(f"Verifying module was added...")
+            progress_callback(f"Verifying module was added...")
 
             verify_response = self._browser.fetch(
                 f"{BASE_URL}/r_stdmodulelist.php?showmaster=1&StdSemesterID={student_semester_id}"
@@ -701,8 +670,7 @@ class StudentSyncService:
                 logger.error("No modules found after adding")
                 return False, "Module was not added"
 
-            if progress_callback:
-                progress_callback(f"Syncing new module to database...")
+            progress_callback(f"Syncing new module to database...")
 
             from .scraper import scrape_student_modules_concurrent
 

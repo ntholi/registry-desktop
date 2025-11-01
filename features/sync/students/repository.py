@@ -20,8 +20,38 @@ from database import (
     StudentSemester,
     get_engine,
 )
+from database.models import StudentModuleStatus
 
 logger = get_logger(__name__)
+
+
+VALID_STUDENT_MODULE_STATUSES = set(StudentModuleStatus.__args__)
+STATUS_ALIASES: dict[str, str] = {
+    "ACTIVE": "Compulsory",
+}
+DEFAULT_STUDENT_MODULE_STATUS = "Compulsory"
+
+
+def normalize_student_module_status(status: str | None) -> str:
+    if not status:
+        return DEFAULT_STUDENT_MODULE_STATUS
+
+    candidate = status.strip()
+    if not candidate:
+        return DEFAULT_STUDENT_MODULE_STATUS
+
+    if candidate.lower().startswith("repeat"):
+        suffix = candidate[6:]
+        try:
+            repeat_number = int(suffix)
+        except ValueError:
+            repeat_number = None
+
+        if repeat_number is not None and 1 <= repeat_number <= 7:
+            return f"Repeat{repeat_number}"
+        return "Repeat1"
+
+    return DEFAULT_STUDENT_MODULE_STATUS
 
 
 @dataclass(frozen=True)
@@ -659,7 +689,9 @@ class StudentRepository:
                     if semester_module_id:
                         existing.semester_module_id = semester_module_id  # type: ignore
                     if "status" in data:
-                        existing.status = data["status"]
+                        existing.status = normalize_student_module_status(
+                            data["status"]
+                        )
                     if "marks" in data:
                         existing.marks = data["marks"]
                     if "grade" in data:
@@ -679,7 +711,7 @@ class StudentRepository:
                     new_module = StudentModule(
                         id=std_module_id,
                         semester_module_id=semester_module_id or 0,
-                        status=data.get("status", ""),
+                        status=normalize_student_module_status(data.get("status")),
                         marks=data.get("marks", "NM"),
                         grade=data.get("grade", "NM"),
                         student_semester_id=student_semester_id,

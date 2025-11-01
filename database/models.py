@@ -10,7 +10,6 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
-    TypeDecorator,
     UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, declarative_base, mapped_column
@@ -21,6 +20,17 @@ DashboardUser = Literal[
 UserRole = Literal[
     "user", "student", "finance", "registry", "library", "resource", "academic", "admin"
 ]
+UserPosition = Literal[
+    "manager",
+    "program_leader",
+    "principal_lecturer",
+    "year_leader",
+    "lecturer",
+    "admin",
+]
+
+Gender = Literal["Male", "Female", "Unknown"]
+MaritalStatus = Literal["Single", "Married", "Divorced", "Windowed", "Other"]
 
 SignupStatus = Literal["pending", "approved", "rejected"]
 
@@ -38,6 +48,8 @@ SemesterStatus = Literal[
     "Inactive",
     "Repeat",
 ]
+SemesterStatusForRegistration = Literal["Active", "Repeat"]
+
 StudentModuleStatus = Literal[
     "Add",
     "Compulsory",
@@ -74,7 +86,7 @@ Grade = Literal[
     "PX",
     "AP",
     "X",
-    "Def",
+    "DEF",
     "GNS",
     "ANN",
     "FIN",
@@ -126,58 +138,9 @@ TaskStatus = Literal["scheduled", "active", "in_progress", "completed", "cancell
 TaskPriority = Literal["low", "medium", "high", "urgent"]
 
 
-class SafeDateTime(TypeDecorator):
-    impl = Text
-    cache_ok = True
-
-    def process_bind_param(self, value, dialect):
-        if value is None:
-            return None
-        if isinstance(value, datetime):
-            return value.isoformat()
-        if isinstance(value, str):
-            return value
-        return None
-
-    def process_result_value(self, value, dialect):
-        if value is None:
-            return None
-        if isinstance(value, datetime):
-            return value
-        if isinstance(value, str):
-            try:
-                return datetime.fromisoformat(value.replace("Z", "+00:00"))
-            except (ValueError, AttributeError):
-                return None
-        return None
-
-
-class UnixTimestamp(TypeDecorator):
-    """Store datetime as Unix timestamp (integer seconds since epoch)"""
-
-    impl = Integer
-    cache_ok = True
-
-    def process_bind_param(self, value, dialect):
-        if value is None:
-            return None
-        if isinstance(value, datetime):
-            return int(value.timestamp())
-        if isinstance(value, int):
-            return value
-        return None
-
-    def process_result_value(self, value, dialect):
-        if value is None:
-            return None
-        if isinstance(value, int):
-            return datetime.fromtimestamp(value)
-        return None
-
-
-def utc_timestamp():
-    """Return current UTC time as Unix timestamp"""
-    return int(datetime.utcnow().timestamp())
+def utc_now():
+    """Return current UTC time"""
+    return datetime.utcnow()
 
 
 Base = declarative_base()
@@ -189,7 +152,7 @@ class User(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True)
     name: Mapped[str | None] = mapped_column(Text, nullable=True)
     role: Mapped[UserRole] = mapped_column(String, nullable=False, default="user")
-    position: Mapped[str | None] = mapped_column(String, nullable=True)
+    position: Mapped[UserPosition | None] = mapped_column(String, nullable=True)
     email: Mapped[str | None] = mapped_column(String, unique=True, nullable=True)
     email_verified: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     image: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -236,7 +199,9 @@ class VerificationToken(Base):
 class Authenticator(Base):
     __tablename__ = "authenticators"
 
-    credential_id: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    credential_id: Mapped[str] = mapped_column(
+        String, nullable=False, unique=True, primary_key=True
+    )
     user_id: Mapped[str] = mapped_column(
         String,
         ForeignKey("users.id", ondelete="CASCADE"),
@@ -269,9 +234,14 @@ class Signup(Base):
         Text, default="Pending approval", nullable=True
     )
     created_at: Mapped[datetime | None] = mapped_column(
-        UnixTimestamp, default=utc_timestamp, nullable=True
+        DateTime, default=utc_now, nullable=True
     )
-    updated_at: Mapped[datetime | None] = mapped_column(UnixTimestamp, nullable=True)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    __table_args__ = (
+        Index("idx_signups_status", "status"),
+        Index("fk_signups_user_id", "user_id"),
+    )
 
 
 class Student(Base):
@@ -281,18 +251,20 @@ class Student(Base):
     name: Mapped[str] = mapped_column(Text, nullable=False)
     national_id: Mapped[str] = mapped_column(String, nullable=False)
     sem: Mapped[int] = mapped_column(Integer, nullable=False)
-    date_of_birth: Mapped[str | None] = mapped_column(SafeDateTime, nullable=True)
+    date_of_birth: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     phone1: Mapped[str | None] = mapped_column(String, nullable=True)
     phone2: Mapped[str | None] = mapped_column(String, nullable=True)
-    gender: Mapped[str | None] = mapped_column(String, nullable=True)
-    marital_status: Mapped[str | None] = mapped_column(String, nullable=True)
+    gender: Mapped[Gender | None] = mapped_column(String, nullable=True)
+    marital_status: Mapped[MaritalStatus | None] = mapped_column(String, nullable=True)
     religion: Mapped[str | None] = mapped_column(Text, nullable=True)
     user_id: Mapped[str | None] = mapped_column(
         String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
-    created_at: Mapped[str | None] = mapped_column(
-        SafeDateTime, default=datetime.utcnow, nullable=True
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime, default=utc_now, nullable=True
     )
+
+    __table_args__ = (Index("fk_students_user_id", "user_id"),)
 
 
 class School(Base):
@@ -303,7 +275,7 @@ class School(Base):
     name: Mapped[str] = mapped_column(Text, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime | None] = mapped_column(
-        UnixTimestamp, default=utc_timestamp, nullable=True
+        DateTime, default=utc_now, nullable=True
     )
 
 
@@ -318,8 +290,10 @@ class Program(Base):
         Integer, ForeignKey("schools.id", ondelete="CASCADE"), nullable=False
     )
     created_at: Mapped[datetime | None] = mapped_column(
-        UnixTimestamp, default=utc_timestamp, nullable=True
+        DateTime, default=utc_now, nullable=True
     )
+
+    __table_args__ = (Index("fk_programs_school_id", "school_id"),)
 
 
 class Structure(Base):
@@ -332,8 +306,10 @@ class Structure(Base):
         Integer, ForeignKey("programs.id", ondelete="CASCADE"), nullable=False
     )
     created_at: Mapped[datetime | None] = mapped_column(
-        UnixTimestamp, default=utc_timestamp, nullable=True
+        DateTime, default=utc_now, nullable=True
     )
+
+    __table_args__ = (Index("fk_structures_program_id", "program_id"),)
 
 
 class StudentProgram(Base):
@@ -354,7 +330,14 @@ class StudentProgram(Base):
     status: Mapped[StudentProgramStatus] = mapped_column(String, nullable=False)
     assist_provider: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime | None] = mapped_column(
-        UnixTimestamp, default=utc_timestamp, nullable=True
+        DateTime, default=utc_now, nullable=True
+    )
+
+    __table_args__ = (
+        Index("fk_student_programs_std_no", "std_no"),
+        Index("idx_student_programs_status", "status"),
+        Index("fk_student_programs_structure_id", "structure_id"),
+        Index("idx_student_programs_std_no_status", "std_no", "status"),
     )
 
 
@@ -369,7 +352,7 @@ class StructureSemester(Base):
     name: Mapped[str] = mapped_column(Text, nullable=False)
     total_credits: Mapped[float] = mapped_column(Float, nullable=False)
     created_at: Mapped[datetime | None] = mapped_column(
-        UnixTimestamp, default=utc_timestamp, nullable=True
+        DateTime, default=utc_now, nullable=True
     )
 
 
@@ -385,7 +368,13 @@ class StudentSemester(Base):
     )
     caf_date: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime | None] = mapped_column(
-        UnixTimestamp, default=utc_timestamp, nullable=True
+        DateTime, default=utc_now, nullable=True
+    )
+
+    __table_args__ = (
+        Index("fk_student_semesters_student_program_id", "student_program_id"),
+        Index("idx_student_semesters_term", "term"),
+        Index("idx_student_semesters_status", "status"),
     )
 
 
@@ -405,8 +394,8 @@ class SemesterModule(Base):
     __tablename__ = "semester_modules"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    module_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("modules.id"), nullable=True
+    module_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("modules.id"), nullable=False
     )
     type: Mapped[ModuleType] = mapped_column(String, nullable=False)
     credits: Mapped[float] = mapped_column(Float, nullable=False)
@@ -417,7 +406,12 @@ class SemesterModule(Base):
     )
     hidden: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime | None] = mapped_column(
-        UnixTimestamp, default=utc_timestamp, nullable=True
+        DateTime, default=utc_now, nullable=True
+    )
+
+    __table_args__ = (
+        Index("fk_semester_modules_module_id", "module_id"),
+        Index("fk_semester_modules_semester_id", "semester_id"),
     )
 
 
@@ -435,7 +429,13 @@ class StudentModule(Base):
         Integer, ForeignKey("student_semesters.id", ondelete="CASCADE"), nullable=False
     )
     created_at: Mapped[datetime | None] = mapped_column(
-        UnixTimestamp, default=utc_timestamp, nullable=True
+        DateTime, default=utc_now, nullable=True
+    )
+
+    __table_args__ = (
+        Index("fk_student_modules_student_semester_id", "student_semester_id"),
+        Index("fk_student_modules_semester_module_id", "semester_module_id"),
+        Index("idx_student_modules_status", "status"),
     )
 
 
@@ -450,7 +450,7 @@ class ModulePrerequisite(Base):
         Integer, ForeignKey("semester_modules.id", ondelete="CASCADE"), nullable=False
     )
     created_at: Mapped[datetime | None] = mapped_column(
-        UnixTimestamp, default=utc_timestamp, nullable=True
+        DateTime, default=utc_now, nullable=True
     )
 
     __table_args__ = (UniqueConstraint("semester_module_id", "prerequisite_id"),)
@@ -464,7 +464,7 @@ class Term(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     semester: Mapped[int] = mapped_column(Integer, nullable=False)
     created_at: Mapped[datetime | None] = mapped_column(
-        UnixTimestamp, default=utc_timestamp, nullable=True
+        DateTime, default=utc_now, nullable=True
     )
 
 
@@ -474,9 +474,9 @@ class Sponsor(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
     created_at: Mapped[datetime | None] = mapped_column(
-        UnixTimestamp, default=utc_timestamp, nullable=True
+        DateTime, default=utc_now, nullable=True
     )
-    updated_at: Mapped[datetime | None] = mapped_column(UnixTimestamp, nullable=True)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 class RegistrationRequest(Base):
@@ -497,16 +497,24 @@ class RegistrationRequest(Base):
     )
     mail_sent: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     count: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
-    semester_status: Mapped[str] = mapped_column(String, nullable=False)
+    semester_status: Mapped[SemesterStatusForRegistration] = mapped_column(
+        String, nullable=False
+    )
     semester_number: Mapped[int] = mapped_column(Integer, nullable=False)
     message: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime | None] = mapped_column(
-        UnixTimestamp, default=utc_timestamp, nullable=True
+        DateTime, default=utc_now, nullable=True
     )
-    updated_at: Mapped[datetime | None] = mapped_column(UnixTimestamp, nullable=True)
-    date_approved: Mapped[datetime | None] = mapped_column(UnixTimestamp, nullable=True)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    date_approved: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
-    __table_args__ = (UniqueConstraint("std_no", "term_id"),)
+    __table_args__ = (
+        UniqueConstraint("std_no", "term_id"),
+        Index("fk_registration_requests_std_no", "std_no"),
+        Index("fk_registration_requests_term_id", "term_id"),
+        Index("idx_registration_requests_status", "status"),
+        Index("fk_registration_requests_sponsor_id", "sponsor_id"),
+    )
 
 
 class RequestedModule(Base):
@@ -528,7 +536,14 @@ class RequestedModule(Base):
         String, nullable=False, default="pending"
     )
     created_at: Mapped[datetime | None] = mapped_column(
-        UnixTimestamp, default=utc_timestamp, nullable=True
+        DateTime, default=utc_now, nullable=True
+    )
+
+    __table_args__ = (
+        Index(
+            "fk_requested_modules_registration_request_id", "registration_request_id"
+        ),
+        Index("fk_requested_modules_semester_module_id", "semester_module_id"),
     )
 
 
@@ -545,9 +560,14 @@ class Clearance(Base):
     responded_by: Mapped[str | None] = mapped_column(
         String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True
     )
-    response_date: Mapped[datetime | None] = mapped_column(UnixTimestamp, nullable=True)
+    response_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime | None] = mapped_column(
-        UnixTimestamp, default=utc_timestamp, nullable=True
+        DateTime, default=utc_now, nullable=True
+    )
+
+    __table_args__ = (
+        Index("idx_clearance_department", "department"),
+        Index("idx_clearance_status", "status"),
     )
 
 
@@ -564,10 +584,17 @@ class RegistrationClearance(Base):
         Integer, ForeignKey("clearance.id", ondelete="CASCADE"), nullable=False
     )
     created_at: Mapped[datetime | None] = mapped_column(
-        UnixTimestamp, default=utc_timestamp, nullable=True
+        DateTime, default=utc_now, nullable=True
     )
 
-    __table_args__ = (UniqueConstraint("registration_request_id", "clearance_id"),)
+    __table_args__ = (
+        UniqueConstraint("registration_request_id", "clearance_id"),
+        Index(
+            "fk_registration_clearance_registration_request_id",
+            "registration_request_id",
+        ),
+        Index("fk_registration_clearance_clearance_id", "clearance_id"),
+    )
 
 
 class GraduationRequest(Base):
@@ -585,9 +612,13 @@ class GraduationRequest(Base):
     )
     message: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime | None] = mapped_column(
-        UnixTimestamp, default=utc_timestamp, nullable=True
+        DateTime, default=utc_now, nullable=True
     )
-    updated_at: Mapped[datetime | None] = mapped_column(UnixTimestamp, nullable=True)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    __table_args__ = (
+        Index("fk_graduation_requests_student_program_id", "student_program_id"),
+    )
 
 
 class GraduationClearance(Base):
@@ -603,10 +634,14 @@ class GraduationClearance(Base):
         Integer, ForeignKey("clearance.id", ondelete="CASCADE"), nullable=False
     )
     created_at: Mapped[datetime | None] = mapped_column(
-        UnixTimestamp, default=utc_timestamp, nullable=True
+        DateTime, default=utc_now, nullable=True
     )
 
-    __table_args__ = (UniqueConstraint("clearance_id"),)
+    __table_args__ = (
+        UniqueConstraint("clearance_id"),
+        Index("fk_graduation_clearance_graduation_request_id", "graduation_request_id"),
+        Index("fk_graduation_clearance_clearance_id", "clearance_id"),
+    )
 
 
 class GraduationList(Base):
@@ -622,9 +657,9 @@ class GraduationList(Base):
     created_by: Mapped[str | None] = mapped_column(
         String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
-    populated_at: Mapped[datetime | None] = mapped_column(UnixTimestamp, nullable=True)
+    populated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime | None] = mapped_column(
-        UnixTimestamp, default=utc_timestamp, nullable=True
+        DateTime, default=utc_now, nullable=True
     )
 
 
@@ -640,7 +675,11 @@ class PaymentReceipt(Base):
     payment_type: Mapped[PaymentType] = mapped_column(String, nullable=False)
     receipt_no: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     created_at: Mapped[datetime | None] = mapped_column(
-        UnixTimestamp, default=utc_timestamp, nullable=True
+        DateTime, default=utc_now, nullable=True
+    )
+
+    __table_args__ = (
+        Index("fk_payment_receipts_graduation_request_id", "graduation_request_id"),
     )
 
 
@@ -660,11 +699,14 @@ class ClearanceAudit(Base):
     created_by: Mapped[str] = mapped_column(
         String, ForeignKey("users.id", ondelete="SET NULL"), nullable=False
     )
-    date: Mapped[datetime] = mapped_column(
-        UnixTimestamp, default=utc_timestamp, nullable=False
-    )
+    date: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
     message: Mapped[str | None] = mapped_column(Text, nullable=True)
     modules: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    __table_args__ = (
+        Index("fk_clearance_audit_clearance_id", "clearance_id"),
+        Index("fk_clearance_audit_created_by", "created_by"),
+    )
 
 
 class SponsoredStudent(Base):
@@ -684,11 +726,15 @@ class SponsoredStudent(Base):
         Boolean, default=False, nullable=True
     )
     created_at: Mapped[datetime | None] = mapped_column(
-        UnixTimestamp, default=utc_timestamp, nullable=True
+        DateTime, default=utc_now, nullable=True
     )
-    updated_at: Mapped[datetime | None] = mapped_column(UnixTimestamp, nullable=True)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
-    __table_args__ = (UniqueConstraint("sponsor_id", "std_no"),)
+    __table_args__ = (
+        UniqueConstraint("sponsor_id", "std_no"),
+        Index("fk_sponsored_students_sponsor_id", "sponsor_id"),
+        Index("fk_sponsored_students_std_no", "std_no"),
+    )
 
 
 class SponsoredTerm(Base):
@@ -702,11 +748,15 @@ class SponsoredTerm(Base):
         Integer, ForeignKey("terms.id", ondelete="CASCADE"), nullable=False
     )
     created_at: Mapped[datetime | None] = mapped_column(
-        UnixTimestamp, default=utc_timestamp, nullable=True
+        DateTime, default=utc_now, nullable=True
     )
-    updated_at: Mapped[datetime | None] = mapped_column(UnixTimestamp, nullable=True)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
-    __table_args__ = (UniqueConstraint("sponsored_student_id", "term_id"),)
+    __table_args__ = (
+        UniqueConstraint("sponsored_student_id", "term_id"),
+        Index("fk_sponsored_terms_sponsored_student_id", "sponsored_student_id"),
+        Index("fk_sponsored_terms_term_id", "term_id"),
+    )
 
 
 class AssignedModule(Base):
@@ -724,7 +774,13 @@ class AssignedModule(Base):
         Integer, ForeignKey("semester_modules.id", ondelete="CASCADE"), nullable=False
     )
     created_at: Mapped[datetime | None] = mapped_column(
-        UnixTimestamp, default=utc_timestamp, nullable=True
+        DateTime, default=utc_now, nullable=True
+    )
+
+    __table_args__ = (
+        Index("fk_assigned_modules_user_id", "user_id"),
+        Index("fk_assigned_modules_term_id", "term_id"),
+        Index("fk_assigned_modules_semester_module_id", "semester_module_id"),
     )
 
 
@@ -739,10 +795,14 @@ class UserSchool(Base):
         Integer, ForeignKey("schools.id", ondelete="CASCADE"), nullable=False
     )
     created_at: Mapped[datetime | None] = mapped_column(
-        UnixTimestamp, default=utc_timestamp, nullable=True
+        DateTime, default=utc_now, nullable=True
     )
 
-    __table_args__ = (UniqueConstraint("user_id", "school_id"),)
+    __table_args__ = (
+        UniqueConstraint("user_id", "school_id"),
+        Index("fk_user_schools_user_id", "user_id"),
+        Index("fk_user_schools_school_id", "school_id"),
+    )
 
 
 class Assessment(Base):
@@ -760,10 +820,14 @@ class Assessment(Base):
     total_marks: Mapped[float] = mapped_column(Float, nullable=False)
     weight: Mapped[float] = mapped_column(Float, nullable=False)
     created_at: Mapped[datetime | None] = mapped_column(
-        UnixTimestamp, default=utc_timestamp, nullable=True
+        DateTime, default=utc_now, nullable=True
     )
 
-    __table_args__ = (UniqueConstraint("module_id", "assessment_number", "term_id"),)
+    __table_args__ = (
+        UniqueConstraint("module_id", "assessment_number", "term_id"),
+        Index("fk_assessments_module_id", "module_id"),
+        Index("fk_assessments_term_id", "term_id"),
+    )
 
 
 class AssessmentMark(Base):
@@ -778,7 +842,13 @@ class AssessmentMark(Base):
     )
     marks: Mapped[float] = mapped_column(Float, nullable=False)
     created_at: Mapped[datetime | None] = mapped_column(
-        UnixTimestamp, default=utc_timestamp, nullable=True
+        DateTime, default=utc_now, nullable=True
+    )
+
+    __table_args__ = (
+        Index("fk_assessment_marks_assessment_id", "assessment_id"),
+        Index("fk_assessment_marks_std_no", "std_no"),
+        Index("idx_assessment_marks_assessment_id_std_no", "assessment_id", "std_no"),
     )
 
 
@@ -795,8 +865,11 @@ class AssessmentMarksAudit(Base):
     created_by: Mapped[str] = mapped_column(
         String, ForeignKey("users.id", ondelete="SET NULL"), nullable=False
     )
-    date: Mapped[datetime] = mapped_column(
-        UnixTimestamp, default=utc_timestamp, nullable=False
+    date: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
+
+    __table_args__ = (
+        Index("fk_assessment_marks_audit_assessment_mark_id", "assessment_mark_id"),
+        Index("fk_assessment_marks_audit_created_by", "created_by"),
     )
 
 
@@ -823,8 +896,11 @@ class AssessmentsAudit(Base):
     created_by: Mapped[str] = mapped_column(
         String, ForeignKey("users.id", ondelete="SET NULL"), nullable=False
     )
-    date: Mapped[datetime] = mapped_column(
-        UnixTimestamp, default=utc_timestamp, nullable=False
+    date: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
+
+    __table_args__ = (
+        Index("fk_assessments_audit_assessment_id", "assessment_id"),
+        Index("fk_assessments_audit_created_by", "created_by"),
     )
 
 
@@ -841,10 +917,10 @@ class ModuleGrade(Base):
     grade: Mapped[Grade] = mapped_column(String, nullable=False)
     weighted_total: Mapped[float] = mapped_column(Float, nullable=False)
     created_at: Mapped[datetime | None] = mapped_column(
-        UnixTimestamp, default=utc_timestamp, nullable=True
+        DateTime, default=utc_now, nullable=True
     )
     updated_at: Mapped[datetime | None] = mapped_column(
-        UnixTimestamp, default=utc_timestamp, nullable=True
+        DateTime, default=utc_now, nullable=True
     )
 
     __table_args__ = (UniqueConstraint("module_id", "std_no"),)
@@ -869,7 +945,12 @@ class StatementOfResultsPrint(Base):
     academic_status: Mapped[str | None] = mapped_column(Text, nullable=True)
     graduation_date: Mapped[str | None] = mapped_column(Text, nullable=True)
     printed_at: Mapped[datetime] = mapped_column(
-        UnixTimestamp, default=utc_timestamp, nullable=False
+        DateTime, default=utc_now, nullable=False
+    )
+
+    __table_args__ = (
+        Index("fk_statement_of_results_prints_std_no", "std_no"),
+        Index("fk_statement_of_results_prints_printed_by", "printed_by"),
     )
 
 
@@ -888,7 +969,12 @@ class TranscriptPrint(Base):
     total_credits: Mapped[int] = mapped_column(Integer, nullable=False)
     cgpa: Mapped[float | None] = mapped_column(Float, nullable=True)
     printed_at: Mapped[datetime] = mapped_column(
-        UnixTimestamp, default=utc_timestamp, nullable=False
+        DateTime, default=utc_now, nullable=False
+    )
+
+    __table_args__ = (
+        Index("fk_transcript_prints_std_no", "std_no"),
+        Index("fk_transcript_prints_printed_by", "printed_by"),
     )
 
 
@@ -905,17 +991,16 @@ class BlockedStudent(Base):
         Integer, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
     )
     created_at: Mapped[datetime | None] = mapped_column(
-        UnixTimestamp, default=utc_timestamp, nullable=True
+        DateTime, default=utc_now, nullable=True
     )
 
-    __table_args__ = (Index("blocked_students_std_no_idx", "std_no"),)
+    __table_args__ = (Index("fk_blocked_students_std_no", "std_no"),)
 
 
 class StudentCardPrint(Base):
     __tablename__ = "student_card_prints"
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
-    receiptNo: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     receipt_no: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     std_no: Mapped[int] = mapped_column(
         Integer, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
@@ -924,7 +1009,12 @@ class StudentCardPrint(Base):
         String, ForeignKey("users.id", ondelete="SET NULL"), nullable=False
     )
     created_at: Mapped[datetime | None] = mapped_column(
-        UnixTimestamp, default=utc_timestamp, nullable=True
+        DateTime, default=utc_now, nullable=True
+    )
+
+    __table_args__ = (
+        Index("fk_student_card_prints_std_no", "std_no"),
+        Index("fk_student_card_prints_printed_by", "printed_by"),
     )
 
 
@@ -938,8 +1028,10 @@ class Document(Base):
         Integer, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
     )
     created_at: Mapped[datetime | None] = mapped_column(
-        UnixTimestamp, default=utc_timestamp, nullable=True
+        DateTime, default=utc_now, nullable=True
     )
+
+    __table_args__ = (Index("fk_documents_std_no", "std_no"),)
 
 
 class FortinetRegistration(Base):
@@ -958,11 +1050,16 @@ class FortinetRegistration(Base):
     )
     message: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime | None] = mapped_column(
-        UnixTimestamp, default=utc_timestamp, nullable=True
+        DateTime, default=utc_now, nullable=True
     )
-    updated_at: Mapped[datetime | None] = mapped_column(UnixTimestamp, nullable=True)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
-    __table_args__ = (UniqueConstraint("std_no", "level"),)
+    __table_args__ = (
+        UniqueConstraint("std_no", "level"),
+        Index("fk_fortinet_registrations_std_no", "std_no"),
+        Index("fk_fortinet_registrations_school_id", "school_id"),
+        Index("idx_fortinet_registrations_status", "status"),
+    )
 
 
 class Task(Base):
@@ -979,13 +1076,13 @@ class Task(Base):
     created_by: Mapped[str] = mapped_column(
         String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    scheduled_for: Mapped[datetime | None] = mapped_column(UnixTimestamp, nullable=True)
-    due_date: Mapped[datetime | None] = mapped_column(UnixTimestamp, nullable=True)
-    completed_at: Mapped[datetime | None] = mapped_column(UnixTimestamp, nullable=True)
+    scheduled_for: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    due_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime | None] = mapped_column(
-        UnixTimestamp, default=utc_timestamp, nullable=True
+        DateTime, default=utc_now, nullable=True
     )
-    updated_at: Mapped[datetime | None] = mapped_column(UnixTimestamp, nullable=True)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     __table_args__ = (
         Index("tasks_department_idx", "department"),
@@ -1005,10 +1102,10 @@ class TaskAssignment(Base):
         String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     created_at: Mapped[datetime | None] = mapped_column(
-        UnixTimestamp, default=utc_timestamp, nullable=True
+        DateTime, default=utc_now, nullable=True
     )
 
     __table_args__ = (
         UniqueConstraint("task_id", "user_id"),
-        Index("task_assignments_user_id_idx", "user_id"),
+        Index("fk_task_assignments_user_id", "user_id"),
     )

@@ -10,7 +10,9 @@ wheels/
 .venv
 /.env
 
+
 # Database
 local.db
 /samples
 /session.pkl
+.claude/settings.local.json

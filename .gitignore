@@ -16,3 +16,4 @@ local.db
 /samples
 /session.pkl
 .claude/settings.local.json
+/CLAUDE.md

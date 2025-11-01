@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import datetime
-from typing import Callable, Optional
+from typing import TYPE_CHECKING, Callable, Optional
 
 from bs4 import BeautifulSoup
 
@@ -18,6 +18,9 @@ from .scraper import (
     scrape_student_semester_data,
 )
 
+if TYPE_CHECKING:
+    from features.enrollments.semester import SemesterEnrollmentService
+
 logger = get_logger(__name__)
 
 
@@ -29,6 +32,14 @@ class StudentSyncService:
     def __init__(self, repository: Optional[StudentRepository] = None) -> None:
         self._repository = repository or StudentRepository()
         self._browser = Browser()
+        self._enrollment_service: Optional[SemesterEnrollmentService] = None
+
+    def _get_enrollment_service(self) -> SemesterEnrollmentService:
+        if self._enrollment_service is None:
+            from features.enrollments.semester import SemesterEnrollmentService
+
+            self._enrollment_service = SemesterEnrollmentService()
+        return self._enrollment_service
 
     def fetch_student(
         self,
@@ -354,262 +365,14 @@ class StudentSyncService:
         data: dict,
         progress_callback: Callable[[str], None],
     ) -> tuple[bool, str]:
-        student_program_id = data.get("student_program_id")
-        if not student_program_id:
-            return False, "Missing student_program_id"
-
-        url = f"{BASE_URL}/r_stdsemesteradd.php?StdProgramID={student_program_id}"
-
-        try:
-            progress_callback(f"Fetching add form for semester...")
-
-            response = self._browser.fetch(url)
-            page = BeautifulSoup(response.text, "lxml")
-            form = page.select_one("form#fr_stdsemesteradd")
-
-            if not form:
-                logger.error(f"Could not find add form for semester")
-                return False, "Could not find add form"
-
-            progress_callback(f"Preparing semester data...")
-
-            form_data = get_form_payload(form)
-
-            form_data["a_add"] = "A"
-
-            program_details = self._repository.get_student_program_details_by_id(
-                student_program_id
-            )
-
-            if program_details:
-                if program_details.get("std_no"):
-                    form_data["x_StdProgramID"] = str(student_program_id)
-
-                if program_details.get("school_id"):
-                    form_data["x_SchoolID"] = str(program_details["school_id"])
-
-                if program_details.get("program_id"):
-                    form_data["x_ProgramID"] = str(program_details["program_id"])
-
-                if program_details.get("structure_id"):
-                    form_data["x_StructureID"] = str(program_details["structure_id"])
-
-            form_data["x_CampusCode"] = "Lesotho"
-
-            if "term" in data and data["term"]:
-                form_data["x_TermCode"] = data["term"]
-
-            if "structure_semester_id" in data and data["structure_semester_id"]:
-                form_data["x_SemesterID"] = str(data["structure_semester_id"])
-
-            if "status" in data and data["status"]:
-                form_data["x_SemesterStatus"] = data["status"]
-
-            if "caf_date" in data and data["caf_date"]:
-                form_data["x_StdSemCAFDate"] = data["caf_date"]
-            else:
-                form_data["x_StdSemCAFDate"] = today()
-
-            progress_callback(f"Pushing semester to CMS...")
-
-            logger.info(f"Posting new semester for program {student_program_id}")
-            post_response = self._browser.post(url, form_data)
-
-            if "Successful" in post_response.text:
-                logger.info(
-                    f"Successfully posted semester for program {student_program_id} to CMS"
-                )
-
-                progress_callback(f"Fetching created semester ID from CMS...")
-
-                semester_ids = extract_student_semester_ids(str(student_program_id))
-
-                matching_semester_id = None
-                for sem_id in semester_ids:
-                    sem_data = scrape_student_semester_data(sem_id)
-                    if sem_data.get("term") == data.get("term"):
-                        matching_semester_id = sem_id
-                        break
-
-                if not matching_semester_id:
-                    logger.error(
-                        f"Could not find created semester ID for term {data.get('term')}"
-                    )
-                    return (
-                        False,
-                        f"CMS update succeeded but could not retrieve created semester ID",
-                    )
-
-                progress_callback(f"Saving semester to database...")
-
-                db_data = {
-                    "id": matching_semester_id,
-                    "term": data.get("term"),
-                    "status": data.get("status"),
-                    "caf_date": data.get("caf_date"),
-                }
-
-                if "semester_number" in data and data["semester_number"]:
-                    db_data["semester_number"] = data["semester_number"]
-
-                update_success, msg, _ = self._repository.upsert_student_semester(
-                    student_program_id, db_data
-                )
-                if update_success:
-                    return True, "Semester added successfully"
-                else:
-                    return (
-                        False,
-                        f"CMS update succeeded but database update failed: {msg}",
-                    )
-            else:
-                logger.error(f"CMS update failed for semester")
-                return (
-                    False,
-                    "CMS update failed - response did not contain 'Successful'",
-                )
-
-        except Exception as e:
-            logger.error(f"Error pushing semester: {str(e)}")
-            return False, f"Error: {str(e)}"
+        return self._get_enrollment_service().create_semester(data, progress_callback)
 
     def update_semester(
         self,
         data: dict,
         progress_callback: Callable[[str], None],
     ) -> tuple[bool, str]:
-        student_semester_id = data.get("student_semester_id")
-        if not student_semester_id:
-            return False, "Missing student_semester_id"
-
-        url = f"{BASE_URL}/r_stdsemesteredit.php?StdSemesterID={student_semester_id}"
-
-        try:
-            progress_callback(f"Fetching edit form for semester...")
-
-            response = self._browser.fetch(url)
-            page = BeautifulSoup(response.text, "lxml")
-            form = page.select_one("form#fr_stdsemesteredit")
-
-            if not form:
-                logger.error(
-                    f"Could not find edit form for semester {student_semester_id}"
-                )
-                return False, "Could not find edit form"
-
-            progress_callback(f"Preparing semester data...")
-
-            form_data = get_form_payload(form)
-
-            form_data["a_edit"] = "U"
-            form_data["btnAction"] = "Edit"
-            form_data["x_CampusCode"] = "Lesotho"
-
-            semester_data = self._repository.get_student_semester_by_id(
-                student_semester_id
-            )
-            if not semester_data:
-                return False, "Semester not found in database"
-
-            current_term = semester_data.get("term")
-            structure_id = semester_data.get("structure_id")
-
-            if structure_id:
-                form_data["x_StructureID"] = str(structure_id)
-
-            if "structure_semester_id" in data and data["structure_semester_id"]:
-                form_data["x_SemesterID"] = str(data["structure_semester_id"])
-
-            if "status" in data and data["status"]:
-                form_data["x_SemesterStatus"] = data["status"]
-
-            progress_callback(f"Pushing semester update to CMS (step 1)...")
-
-            logger.info(
-                f"Posting update for semester {student_semester_id} (without term)"
-            )
-            form_data["x_TermCode"] = ""
-            post_response = self._browser.post(url, form_data)
-
-            if "Successful" not in post_response.text:
-                logger.error(f"CMS update failed for semester {student_semester_id}")
-                return (
-                    False,
-                    "CMS update failed - response did not contain 'Successful'",
-                )
-
-            progress_callback(f"Fetching edit form again for semester...")
-
-            response = self._browser.fetch(url)
-            page = BeautifulSoup(response.text, "lxml")
-            form = page.select_one("form#fr_stdsemesteredit")
-
-            if not form:
-                logger.error(f"Could not find edit form for second update")
-                return False, "Could not find edit form for second update"
-
-            progress_callback(f"Preparing semester data for step 2...")
-
-            form_data = get_form_payload(form)
-
-            form_data["a_edit"] = "U"
-            form_data["btnAction"] = "Edit"
-            form_data["x_CampusCode"] = "Lesotho"
-
-            if structure_id:
-                form_data["x_StructureID"] = str(structure_id)
-
-            if current_term:
-                form_data["x_TermCode"] = current_term
-
-            if "structure_semester_id" in data and data["structure_semester_id"]:
-                form_data["x_SemesterID"] = str(data["structure_semester_id"])
-
-            if "status" in data and data["status"]:
-                form_data["x_SemesterStatus"] = data["status"]
-
-            progress_callback(f"Pushing semester update to CMS (step 2)...")
-
-            logger.info(
-                f"Posting update for semester {student_semester_id} (with term)"
-            )
-            post_response = self._browser.post(url, form_data)
-
-            if "Successful" in post_response.text:
-                logger.info(
-                    f"Successfully posted semester {student_semester_id} to CMS"
-                )
-
-                progress_callback(f"Saving semester to database...")
-
-                db_data = {
-                    "id": student_semester_id,
-                    "status": data.get("status"),
-                }
-
-                if "semester_number" in data and data["semester_number"]:
-                    db_data["semester_number"] = data["semester_number"]
-
-                update_success, msg, _ = self._repository.upsert_student_semester(
-                    semester_data["student_program_id"], db_data
-                )
-                if update_success:
-                    return True, "Semester updated successfully"
-                else:
-                    return (
-                        False,
-                        f"CMS update succeeded but database update failed: {msg}",
-                    )
-            else:
-                logger.error(f"CMS update failed for semester {student_semester_id}")
-                return (
-                    False,
-                    "CMS update failed - response did not contain 'Successful'",
-                )
-
-        except Exception as e:
-            logger.error(f"Error updating semester: {str(e)}")
-            return False, f"Error: {str(e)}"
+        return self._get_enrollment_service().update_semester(data, progress_callback)
 
     def push_student_module(
         self,
@@ -619,86 +382,10 @@ class StudentSyncService:
         module_code: str,
         progress_callback: Callable[[str], None],
     ) -> tuple[bool, str]:
-        try:
-            progress_callback(f"Fetching add module form...")
-
-            self._browser.fetch(
-                f"{BASE_URL}/r_stdmodulelist.php?showmaster=1&StdSemesterID={student_semester_id}"
-            )
-
-            progress_callback(f"Navigating to module add page...")
-
-            add_response = self._browser.fetch(f"{BASE_URL}/r_stdmoduleadd1.php")
-            page = BeautifulSoup(add_response.text, "lxml")
-
-            form_data = get_form_payload(page)
-
-            progress_callback(f"Fetching module details...")
-
-            credits = self._repository.get_semester_module_credits(semester_module_id)
-
-            if credits is None:
-                return False, "Semester module not found in database"
-
-            module_string = f"{semester_module_id}-{module_status}-{credits}-1200"
-
-            form_data["Submit"] = "Add+Modules"
-            form_data["take[]"] = [module_string]
-
-            progress_callback(f"Pushing module to CMS...")
-
-            logger.info(
-                f"Posting module {semester_module_id} to semester {student_semester_id}"
-            )
-            self._browser.post(f"{BASE_URL}/r_stdmoduleadd1.php", form_data)
-
-            progress_callback(f"Verifying module was added...")
-
-            verify_response = self._browser.fetch(
-                f"{BASE_URL}/r_stdmodulelist.php?showmaster=1&StdSemesterID={student_semester_id}"
-            )
-            verify_page = BeautifulSoup(verify_response.text, "lxml")
-            module_table = verify_page.select_one("table#ewlistmain")
-
-            if not module_table:
-                logger.error("Could not find module list after adding module")
-                return False, "Could not verify module was added"
-
-            module_rows = module_table.select("tr.ewTableRow, tr.ewTableAltRow")
-
-            if not module_rows:
-                logger.error("No modules found after adding")
-                return False, "Module was not added"
-
-            progress_callback(f"Syncing new module to database...")
-
-            from .scraper import scrape_student_modules_concurrent
-
-            modules_data = scrape_student_modules_concurrent(
-                str(student_semester_id), student_semester_id
-            )
-
-            added_module_data = None
-            for module_data in modules_data:
-                if module_data.get("module_code") == module_code:
-                    added_module_data = module_data
-                    break
-
-            if not added_module_data:
-                logger.error(
-                    f"Could not find newly added module {module_code} in scraped data"
-                )
-                return False, "Module added but could not sync to database"
-
-            success, msg = self._repository.upsert_student_module(added_module_data)
-            if success:
-                logger.info(
-                    f"Successfully added module {semester_module_id} to semester {student_semester_id}"
-                )
-                return True, "Module added successfully"
-            else:
-                return False, f"Module added to CMS but database sync failed: {msg}"
-
-        except Exception as e:
-            logger.error(f"Error pushing student module: {str(e)}")
-            return False, f"Error: {str(e)}"
+        return self._get_enrollment_service().add_module_to_semester(
+            student_semester_id,
+            semester_module_id,
+            module_status,
+            module_code,
+            progress_callback,
+        )

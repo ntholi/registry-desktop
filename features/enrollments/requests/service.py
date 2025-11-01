@@ -3,10 +3,9 @@ from __future__ import annotations
 import datetime
 from typing import Callable, Optional
 
-from bs4 import BeautifulSoup
-
 from base import get_logger
-from base.browser import BASE_URL, Browser, get_form_payload
+from base.browser import Browser
+from features.enrollments.semester import SemesterEnrollmentService
 
 from .repository import EnrollmentRequestRepository
 from .scraper import get_cms_semester_modules, get_cms_semesters
@@ -24,6 +23,7 @@ class EnrollmentService:
     ) -> None:
         self._repository = repository or EnrollmentRequestRepository()
         self._browser = Browser()
+        self._semester_service = SemesterEnrollmentService()
 
     def enroll_students(
         self,
@@ -131,7 +131,7 @@ class EnrollmentService:
                 f"Creating semester on CMS for student {std_no}...", 35, 100
             )
 
-            created_sem_id = self._create_semester_on_cms(
+            created_sem_id = self._semester_service.create_semester_on_cms(
                 student_program_id,
                 structure_id,
                 term_name,
@@ -203,7 +203,7 @@ class EnrollmentService:
                 f"({modules_skipped} already exist)"
             )
 
-            self._add_modules_to_cms_semester(student_semester_id, modules_to_push)
+            self._semester_service.add_modules_batch(student_semester_id, modules_to_push)
 
             progress_callback(
                 f"Syncing {len(modules_to_push)} modules to database...",
@@ -277,108 +277,6 @@ class EnrollmentService:
                 f"Request {request_id} partially completed with {failed_count} failures"
             )
             return False
-
-    def _create_semester_on_cms(
-        self,
-        student_program_id: int,
-        structure_id: int,
-        term: str,
-        structure_semester_id: int,
-        status: str,
-        caf_date: str,
-    ) -> Optional[int]:
-        url = f"{BASE_URL}/r_stdsemesteradd.php?StdProgramID={student_program_id}"
-
-        try:
-            response = self._browser.fetch(url)
-            page = BeautifulSoup(response.text, "lxml")
-            form = page.select_one("form#fr_stdsemesteradd")
-
-            if not form:
-                logger.error("Could not find semester add form")
-                return None
-
-            form_data = get_form_payload(form)
-
-            form_data["a_add"] = "A"
-            form_data["x_StdProgramID"] = str(student_program_id)
-            form_data["x_StructureID"] = str(structure_id)
-            form_data["x_CampusCode"] = "Lesotho"
-            form_data["x_TermCode"] = term
-            form_data["x_SemesterID"] = str(structure_semester_id)
-            form_data["x_SemesterStatus"] = status
-            form_data["x_StdSemCAFDate"] = caf_date
-
-            logger.info(f"Posting new semester for program {student_program_id}")
-            post_response = self._browser.post(url, form_data)
-
-            if "Successful" not in post_response.text:
-                logger.error("CMS semester creation did not return 'Successful'")
-                return None
-
-            logger.info(
-                f"Successfully posted semester for program {student_program_id}"
-            )
-
-            semesters = get_cms_semesters(student_program_id)
-            for sem in semesters:
-                if sem.get("term") == term:
-                    logger.info(f"Found created semester ID: {sem['id']}")
-                    return sem["id"]
-
-            logger.error("Could not find created semester in CMS list")
-            return None
-
-        except Exception as e:
-            logger.error(f"Error creating semester on CMS: {str(e)}")
-            return None
-
-    def _add_modules_to_cms_semester(
-        self,
-        student_semester_id: int,
-        modules_data: list[dict],
-    ):
-
-        if not modules_data:
-            logger.info(f"No modules to push for semester {student_semester_id}")
-            return []
-
-        try:
-            logger.info(
-                f"Pushing {len(modules_data)} modules to semester {student_semester_id}"
-            )
-
-            self._browser.fetch(
-                f"{BASE_URL}/r_stdmodulelist.php?showmaster=1&StdSemesterID={student_semester_id}"
-            )
-
-            add_response = self._browser.fetch(f"{BASE_URL}/r_stdmoduleadd1.php")
-            page = BeautifulSoup(add_response.text, "lxml")
-
-            modules_with_amounts = []
-            for module_data in modules_data:
-                semester_module_id = module_data["semester_module_id"]
-                module_status = module_data["module_status"]
-                credits = module_data["credits"]
-                module_string = f"{semester_module_id}-{module_status}-{credits}-1200"
-                modules_with_amounts.append(module_string)
-
-            if not modules_with_amounts:
-                logger.warning("No valid modules to push")
-                return []
-
-            form_data = get_form_payload(page)
-            form_data["Submit"] = "Add+Modules"
-            form_data["take[]"] = modules_with_amounts
-
-            logger.info(
-                f"Posting batch of {len(modules_with_amounts)} modules to semester {student_semester_id}"
-            )
-            self._browser.post(f"{BASE_URL}/r_stdmoduleadd1.php", form_data)
-
-        except Exception as e:
-            logger.error(f"Error adding batch modules to CMS semester: {str(e)}")
-            return []
 
     def check_clearances_for_requests(self, request_ids: list[int]) -> str:
         issues = []

@@ -4,7 +4,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Optional
 
-from sqlalchemy import distinct, or_
+from sqlalchemy import String, distinct, or_
 from sqlalchemy.orm import Session
 
 from base import get_logger
@@ -135,7 +135,7 @@ class EnrollmentRequestRepository:
                 search_term = f"%{search_query}%"
                 base_query = base_query.filter(
                     or_(
-                        Student.std_no.like(search_term),
+                        Student.std_no.cast(String).like(search_term),
                         Student.name.like(search_term),
                         Sponsor.name.like(search_term),
                     )

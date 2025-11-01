@@ -2,6 +2,8 @@ from datetime import datetime
 from typing import Literal
 
 from sqlalchemy import (
+    JSON,
+    BigInteger,
     Boolean,
     DateTime,
     Float,
@@ -32,7 +34,44 @@ UserPosition = Literal[
 Gender = Literal["Male", "Female", "Unknown"]
 MaritalStatus = Literal["Single", "Married", "Divorced", "Windowed", "Other"]
 
-SignupStatus = Literal["pending", "approved", "rejected"]
+StudentStatus = Literal[
+    "Active",
+    "Applied",
+    "Deceased",
+    "Deleted",
+    "Graduated",
+    "Suspended",
+    "Terminated",
+    "Withdrawn",
+]
+
+EducationType = Literal["Primary", "Secondary", "Tertiary"]
+
+EducationLevel = Literal[
+    "PSLE",
+    "BJCE",
+    "LGSE",
+    "COSC",
+    "LGCSE",
+    "IGCSE",
+    "BGCSE",
+    "Certificate",
+    "Diploma",
+    "Degree",
+    "Masters",
+    "Doctorate",
+    "Other",
+]
+
+NextOfKinRelationship = Literal[
+    "Mother",
+    "Father",
+    "Brother",
+    "Sister",
+    "Child",
+    "Spouse",
+    "Other",
+]
 
 StudentProgramStatus = Literal["Active", "Changed", "Completed", "Deleted", "Inactive"]
 SemesterStatus = Literal[
@@ -129,7 +168,6 @@ AssessmentNumber = Literal[
 ]
 AssessmentMarksAuditAction = Literal["create", "update", "delete"]
 AssessmentsAuditAction = Literal["create", "update", "delete"]
-GraduationListStatus = Literal["created", "populated", "archived"]
 PaymentType = Literal["graduation_gown", "graduation_fee"]
 
 FortinetLevel = Literal["nse1", "nse2", "nse3", "nse4", "nse5", "nse6", "nse7", "nse8"]
@@ -139,7 +177,6 @@ TaskPriority = Literal["low", "medium", "high", "urgent"]
 
 
 def utc_now():
-    """Return current UTC time"""
     return datetime.utcnow()
 
 
@@ -216,46 +253,22 @@ class Authenticator(Base):
     transports: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
-class Signup(Base):
-    __tablename__ = "signups"
-
-    user_id: Mapped[str] = mapped_column(
-        String,
-        ForeignKey("users.id", ondelete="CASCADE"),
-        primary_key=True,
-        nullable=False,
-    )
-    name: Mapped[str] = mapped_column(Text, nullable=False)
-    std_no: Mapped[str] = mapped_column(String, nullable=False)
-    status: Mapped[SignupStatus] = mapped_column(
-        String, nullable=False, default="pending"
-    )
-    message: Mapped[str | None] = mapped_column(
-        Text, default="Pending approval", nullable=True
-    )
-    created_at: Mapped[datetime | None] = mapped_column(
-        DateTime, default=utc_now, nullable=True
-    )
-    updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-
-    __table_args__ = (
-        Index("idx_signups_status", "status"),
-        Index("fk_signups_user_id", "user_id"),
-    )
-
-
 class Student(Base):
     __tablename__ = "students"
 
-    std_no: Mapped[int] = mapped_column(Integer, primary_key=True)
+    std_no: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     name: Mapped[str] = mapped_column(Text, nullable=False)
     national_id: Mapped[str] = mapped_column(String, nullable=False)
-    sem: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[StudentStatus] = mapped_column(String, nullable=False)
     date_of_birth: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     phone1: Mapped[str | None] = mapped_column(String, nullable=True)
     phone2: Mapped[str | None] = mapped_column(String, nullable=True)
     gender: Mapped[Gender | None] = mapped_column(String, nullable=True)
     marital_status: Mapped[MaritalStatus | None] = mapped_column(String, nullable=True)
+    country: Mapped[str | None] = mapped_column(Text, nullable=True)
+    race: Mapped[str | None] = mapped_column(Text, nullable=True)
+    nationality: Mapped[str | None] = mapped_column(Text, nullable=True)
+    birth_place: Mapped[str | None] = mapped_column(Text, nullable=True)
     religion: Mapped[str | None] = mapped_column(Text, nullable=True)
     user_id: Mapped[str | None] = mapped_column(
         String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
@@ -267,10 +280,46 @@ class Student(Base):
     __table_args__ = (Index("fk_students_user_id", "user_id"),)
 
 
+class StudentEducation(Base):
+    __tablename__ = "student_education"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    std_no: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
+    )
+    type: Mapped[EducationType] = mapped_column(String, nullable=False)
+    level: Mapped[EducationLevel] = mapped_column(String, nullable=False)
+    start_date: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    end_date: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime, default=utc_now, nullable=True
+    )
+
+    __table_args__ = (Index("fk_student_education_std_no", "std_no"),)
+
+
+class NextOfKin(Base):
+    __tablename__ = "next_of_kins"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    std_no: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    relationship: Mapped[NextOfKinRelationship] = mapped_column(String, nullable=False)
+    phone: Mapped[str | None] = mapped_column(Text, nullable=True)
+    email: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime, default=utc_now, nullable=True
+    )
+
+    __table_args__ = (Index("fk_next_of_kins_std_no", "std_no"),)
+
+
 class School(Base):
     __tablename__ = "schools"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     code: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     name: Mapped[str] = mapped_column(Text, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
@@ -282,7 +331,7 @@ class School(Base):
 class Program(Base):
     __tablename__ = "programs"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     code: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     name: Mapped[str] = mapped_column(Text, nullable=False)
     level: Mapped[ProgramLevel] = mapped_column(String, nullable=False)
@@ -299,7 +348,7 @@ class Program(Base):
 class Structure(Base):
     __tablename__ = "structures"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     code: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     desc: Mapped[str | None] = mapped_column(Text, nullable=True)
     program_id: Mapped[int] = mapped_column(
@@ -315,9 +364,9 @@ class Structure(Base):
 class StudentProgram(Base):
     __tablename__ = "student_programs"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     std_no: Mapped[int] = mapped_column(
-        Integer, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
+        BigInteger, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
     )
     intake_date: Mapped[str | None] = mapped_column(String, nullable=True)
     reg_date: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -344,7 +393,7 @@ class StudentProgram(Base):
 class StructureSemester(Base):
     __tablename__ = "structure_semesters"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     structure_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("structures.id", ondelete="CASCADE"), nullable=False
     )
@@ -359,7 +408,7 @@ class StructureSemester(Base):
 class StudentSemester(Base):
     __tablename__ = "student_semesters"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     term: Mapped[str] = mapped_column(String, nullable=False)
     semester_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
     status: Mapped[SemesterStatus] = mapped_column(String, nullable=False)
@@ -381,7 +430,7 @@ class StudentSemester(Base):
 class Module(Base):
     __tablename__ = "modules"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     code: Mapped[str] = mapped_column(String, nullable=False)
     name: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[ModuleStatus] = mapped_column(
@@ -393,7 +442,7 @@ class Module(Base):
 class SemesterModule(Base):
     __tablename__ = "semester_modules"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     module_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("modules.id"), nullable=False
     )
@@ -418,7 +467,7 @@ class SemesterModule(Base):
 class StudentModule(Base):
     __tablename__ = "student_modules"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     semester_module_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("semester_modules.id", ondelete="CASCADE"), nullable=False
     )
@@ -442,7 +491,7 @@ class StudentModule(Base):
 class ModulePrerequisite(Base):
     __tablename__ = "module_prerequisites"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     semester_module_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("semester_modules.id", ondelete="CASCADE"), nullable=False
     )
@@ -487,7 +536,7 @@ class RegistrationRequest(Base):
         Integer, ForeignKey("sponsors.id", ondelete="CASCADE"), nullable=False
     )
     std_no: Mapped[int] = mapped_column(
-        Integer, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
+        BigInteger, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
     )
     term_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("terms.id", ondelete="CASCADE"), nullable=False
@@ -644,25 +693,6 @@ class GraduationClearance(Base):
     )
 
 
-class GraduationList(Base):
-    __tablename__ = "graduation_lists"
-
-    id: Mapped[str] = mapped_column(String, primary_key=True)
-    name: Mapped[str] = mapped_column(Text, nullable=False, default="Graduation List")
-    spreadsheet_id: Mapped[str | None] = mapped_column(Text, nullable=True)
-    spreadsheet_url: Mapped[str | None] = mapped_column(Text, nullable=True)
-    status: Mapped[GraduationListStatus] = mapped_column(
-        String, nullable=False, default="created"
-    )
-    created_by: Mapped[str | None] = mapped_column(
-        String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
-    )
-    populated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    created_at: Mapped[datetime | None] = mapped_column(
-        DateTime, default=utc_now, nullable=True
-    )
-
-
 class PaymentReceipt(Base):
     __tablename__ = "payment_receipts"
 
@@ -701,7 +731,9 @@ class ClearanceAudit(Base):
     )
     date: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
     message: Mapped[str | None] = mapped_column(Text, nullable=True)
-    modules: Mapped[str | None] = mapped_column(Text, nullable=True)
+    modules: Mapped[list[str] | None] = mapped_column(
+        JSON, nullable=False, default=list
+    )
 
     __table_args__ = (
         Index("fk_clearance_audit_clearance_id", "clearance_id"),
@@ -717,7 +749,7 @@ class SponsoredStudent(Base):
         Integer, ForeignKey("sponsors.id", ondelete="CASCADE"), nullable=False
     )
     std_no: Mapped[int] = mapped_column(
-        Integer, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
+        BigInteger, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
     )
     borrower_no: Mapped[str | None] = mapped_column(Text, nullable=True)
     bank_name: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -838,7 +870,7 @@ class AssessmentMark(Base):
         Integer, ForeignKey("assessments.id", ondelete="CASCADE"), nullable=False
     )
     std_no: Mapped[int] = mapped_column(
-        Integer, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
+        BigInteger, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
     )
     marks: Mapped[float] = mapped_column(Float, nullable=False)
     created_at: Mapped[datetime | None] = mapped_column(
@@ -912,7 +944,7 @@ class ModuleGrade(Base):
         Integer, ForeignKey("modules.id", ondelete="CASCADE"), nullable=False
     )
     std_no: Mapped[int] = mapped_column(
-        Integer, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
+        BigInteger, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
     )
     grade: Mapped[Grade] = mapped_column(String, nullable=False)
     weighted_total: Mapped[float] = mapped_column(Float, nullable=False)
@@ -931,7 +963,7 @@ class StatementOfResultsPrint(Base):
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
     std_no: Mapped[int] = mapped_column(
-        Integer, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
+        BigInteger, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
     )
     printed_by: Mapped[str] = mapped_column(
         String, ForeignKey("users.id", ondelete="SET NULL"), nullable=False
@@ -959,7 +991,7 @@ class TranscriptPrint(Base):
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
     std_no: Mapped[int] = mapped_column(
-        Integer, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
+        BigInteger, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
     )
     printed_by: Mapped[str] = mapped_column(
         String, ForeignKey("users.id", ondelete="SET NULL"), nullable=False
@@ -988,7 +1020,7 @@ class BlockedStudent(Base):
     reason: Mapped[str] = mapped_column(Text, nullable=False)
     by_department: Mapped[DashboardUser] = mapped_column(String, nullable=False)
     std_no: Mapped[int] = mapped_column(
-        Integer, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
+        BigInteger, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
     )
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime, default=utc_now, nullable=True
@@ -1003,7 +1035,7 @@ class StudentCardPrint(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True)
     receipt_no: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     std_no: Mapped[int] = mapped_column(
-        Integer, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
+        BigInteger, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
     )
     printed_by: Mapped[str] = mapped_column(
         String, ForeignKey("users.id", ondelete="SET NULL"), nullable=False
@@ -1025,7 +1057,7 @@ class Document(Base):
     file_name: Mapped[str] = mapped_column(Text, nullable=False)
     type: Mapped[str | None] = mapped_column(Text, nullable=True)
     std_no: Mapped[int] = mapped_column(
-        Integer, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
+        BigInteger, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
     )
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime, default=utc_now, nullable=True
@@ -1039,7 +1071,7 @@ class FortinetRegistration(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     std_no: Mapped[int] = mapped_column(
-        Integer, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
+        BigInteger, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
     )
     school_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("schools.id", ondelete="CASCADE"), nullable=False

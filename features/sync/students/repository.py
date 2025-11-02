@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from base import get_logger
 from database import (
     Module,
+    NextOfKin,
     Program,
     School,
     SemesterModule,
@@ -335,7 +336,7 @@ class StudentRepository:
                     std_no=numeric_student_number,
                     name=data.get("name") or "",
                     national_id=data.get("national_id") or "",
-                    sem=data.get("sem") or 0,
+                    status=data.get("status") or "Active",
                 )
                 session.add(student)
 
@@ -724,5 +725,59 @@ class StudentRepository:
             except Exception as e:
                 session.rollback()
                 error_msg = f"Error upserting student module: {str(e)}"
+                logger.error(error_msg)
+                return False, error_msg
+
+    def upsert_next_of_kin(self, student_number: str, next_of_kin_list: list[dict]) -> tuple[bool, str]:
+        try:
+            numeric_student_number = int(student_number)
+        except (TypeError, ValueError):
+            return False, "Invalid student number"
+
+        with self._session() as session:
+            try:
+                existing_kin = (
+                    session.query(NextOfKin)
+                    .filter(NextOfKin.std_no == numeric_student_number)
+                    .all()
+                )
+
+                existing_map = {
+                    (kin.relationship, kin.name): kin
+                    for kin in existing_kin
+                }
+
+                for kin_data in next_of_kin_list:
+                    name = kin_data.get("name")
+                    relationship = kin_data.get("relationship")
+
+                    if not name or not relationship:
+                        continue
+
+                    key = (relationship, name)
+
+                    if key in existing_map:
+                        existing = existing_map[key]
+                        if kin_data.get("phone"):
+                            existing.phone = kin_data["phone"]
+                        if kin_data.get("email"):
+                            existing.email = kin_data["email"]
+                    else:
+                        new_kin = NextOfKin(
+                            std_no=numeric_student_number,
+                            name=name,
+                            relationship=relationship,
+                            phone=kin_data.get("phone"),
+                            email=kin_data.get("email")
+                        )
+                        session.add(new_kin)
+
+                session.commit()
+                logger.info(f"Updated next of kin records for student {student_number}")
+                return True, "Next of kin records updated"
+
+            except Exception as e:
+                session.rollback()
+                error_msg = f"Error upserting next of kin: {str(e)}"
                 logger.error(error_msg)
                 return False, error_msg

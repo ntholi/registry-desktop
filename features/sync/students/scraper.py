@@ -161,6 +161,7 @@ def scrape_student_personal_view(std_no: str) -> dict:
         return {}
 
     data = {}
+    next_of_kin = []
 
     birthdate_str = get_table_value(table, "Birthdate")
     if birthdate_str:
@@ -177,6 +178,58 @@ def scrape_student_personal_view(std_no: str) -> dict:
     religion = get_table_value(table, "Religion")
     if religion:
         data["religion"] = religion
+
+    race = get_table_value(table, "Race")
+    if race:
+        data["race"] = race
+
+    nationality = get_table_value(table, "Nationality")
+    if nationality:
+        data["nationality"] = nationality
+
+    birth_place = get_table_value(table, "Birth Place")
+    if birth_place:
+        data["birth_place"] = birth_place
+
+    emergency_relation = get_table_value(table, "Emergency Contact Relation")
+    emergency_name = get_table_value(table, "Emergency Contact Name")
+    emergency_phone = get_table_value(table, "Emergency Contact Phone")
+
+    if emergency_name and emergency_relation:
+        relationship = emergency_relation if emergency_relation in ["Mother", "Father", "Brother", "Sister", "Child", "Spouse"] else "Other"
+        next_of_kin.append({
+            "name": emergency_name,
+            "relationship": relationship,
+            "phone": emergency_phone,
+            "email": None
+        })
+
+    father_name = get_table_value(table, "Father Name")
+    father_contact = get_table_value(table, "Father Contact")
+    father_email = get_table_value(table, "Father Email")
+
+    if father_name:
+        next_of_kin.append({
+            "name": father_name,
+            "relationship": "Father",
+            "phone": father_contact,
+            "email": father_email
+        })
+
+    mother_name = get_table_value(table, "Mother Name")
+    mother_contact = get_table_value(table, "Mother Contact")
+    mother_email = get_table_value(table, "Mother Email")
+
+    if mother_name:
+        next_of_kin.append({
+            "name": mother_name,
+            "relationship": "Mother",
+            "phone": mother_contact,
+            "email": mother_email
+        })
+
+    if next_of_kin:
+        data["next_of_kin"] = next_of_kin
 
     logger.info(f"Scraped personal data for student {std_no}")
     return data
@@ -218,6 +271,10 @@ def scrape_student_view(std_no: str) -> dict:
     current_mobile = get_table_value(table, "Current Mobile")
     if current_mobile:
         data["phone2"] = current_mobile
+
+    country = get_table_value(table, "Country")
+    if country:
+        data["country"] = country
 
     logger.info(f"Scraped student data for {std_no}")
     return data

@@ -56,7 +56,12 @@ class StudentSyncService:
         if not scraped_data:
             return False
 
+        next_of_kin_list = scraped_data.pop("next_of_kin", [])
+
         student_updated = self._repository.update_student(student_number, scraped_data)
+
+        if next_of_kin_list:
+            self._repository.upsert_next_of_kin(student_number, next_of_kin_list)
 
         progress_callback(
             f"Fetching program list for {student_number}...", 2, total_steps

@@ -16,8 +16,10 @@ from .scraper import (
     scrape_student_data,
     scrape_student_education_data,
     scrape_student_modules_concurrent,
+    scrape_student_personal_view,
     scrape_student_program_data,
     scrape_student_semester_data,
+    scrape_student_view,
 )
 
 if TYPE_CHECKING:
@@ -47,55 +49,74 @@ class StudentSyncService:
         self,
         student_number: str,
         progress_callback: Callable[[str, int, int], None],
+        import_options: Optional[dict] = None,
     ) -> bool:
+        if import_options is None:
+            import_options = {
+                "student_info": True,
+                "personal_info": True,
+                "education_history": True,
+                "enrollment_data": True,
+            }
+
         total_steps = 3
+        student_updated = False
+        scraped_data = {}
 
-        progress_callback(
-            f"Fetching personal data for {student_number}...", 1, total_steps
-        )
+        if import_options.get("student_info") or import_options.get("personal_info"):
+            progress_callback(
+                f"Fetching student data for {student_number}...", 1, total_steps
+            )
 
-        scraped_data = scrape_student_data(student_number)
-        if not scraped_data:
-            return False
+            if import_options.get("student_info"):
+                student_data = scrape_student_view(student_number)
+                scraped_data.update(student_data)
 
-        next_of_kin_list = scraped_data.pop("next_of_kin", [])
+            if import_options.get("personal_info"):
+                personal_data = scrape_student_personal_view(student_number)
+                next_of_kin_list = personal_data.pop("next_of_kin", [])
+                scraped_data.update(personal_data)
 
-        student_updated = self._repository.update_student(student_number, scraped_data)
+                if next_of_kin_list:
+                    self._repository.upsert_next_of_kin(student_number, next_of_kin_list)
 
-        if next_of_kin_list:
-            self._repository.upsert_next_of_kin(student_number, next_of_kin_list)
+            if scraped_data:
+                student_updated = self._repository.update_student(student_number, scraped_data)
 
-        progress_callback(
-            f"Fetching education records for {student_number}...", 1, total_steps
-        )
-
-        education_ids = extract_student_education_ids(student_number)
         educations_synced = 0
         educations_failed = 0
 
-        for edu_id in education_ids:
-            try:
-                education_data = scrape_student_education_data(edu_id)
-                if education_data and education_data.get("std_no"):
-                    success, msg = self._repository.upsert_student_education(
-                        education_data
-                    )
-                    if success:
-                        educations_synced += 1
-                    else:
-                        logger.warning(
-                            f"Failed to sync education {edu_id}: {msg}"
+        if import_options.get("education_history"):
+            progress_callback(
+                f"Fetching education records for {student_number}...", 1, total_steps
+            )
+
+            education_ids = extract_student_education_ids(student_number)
+
+            for edu_id in education_ids:
+                try:
+                    education_data = scrape_student_education_data(edu_id)
+                    if education_data and education_data.get("std_no"):
+                        success, msg = self._repository.upsert_student_education(
+                            education_data
                         )
-                        educations_failed += 1
-            except Exception as e:
-                logger.error(f"Error syncing education {edu_id}: {str(e)}")
-                educations_failed += 1
+                        if success:
+                            educations_synced += 1
+                        else:
+                            logger.warning(
+                                f"Failed to sync education {edu_id}: {msg}"
+                            )
+                            educations_failed += 1
+                except Exception as e:
+                    logger.error(f"Error syncing education {edu_id}: {str(e)}")
+                    educations_failed += 1
 
-        progress_callback(
-            f"Fetching program list for {student_number}...", 2, total_steps
-        )
-
-        program_ids = extract_student_program_ids(student_number)
+        program_ids = []
+        if import_options.get("enrollment_data"):
+            progress_callback(
+                f"Fetching program list for {student_number}...", 2, total_steps
+            )
+            program_ids = extract_student_program_ids(student_number)
 
         programs_synced = 0
         programs_failed = 0

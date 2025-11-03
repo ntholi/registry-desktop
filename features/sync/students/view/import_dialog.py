@@ -6,7 +6,7 @@ class ImportStudentsDialog(wx.Dialog):
         super().__init__(
             parent,
             title="Import Students",
-            size=wx.Size(500, 500),
+            size=wx.Size(500, 600),
             style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
         )
 
@@ -44,6 +44,61 @@ class ImportStudentsDialog(wx.Dialog):
         range_sizer.Add(self.populate_button, 0)
 
         main_sizer.Add(range_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 15)
+
+        main_sizer.AddSpacer(20)
+
+        options_label = wx.StaticText(self, label="Data to Import")
+        font = options_label.GetFont()
+        font = font.Bold()
+        options_label.SetFont(font)
+        main_sizer.Add(options_label, 0, wx.LEFT | wx.RIGHT, 15)
+
+        main_sizer.AddSpacer(10)
+
+        select_buttons_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        select_all_button = wx.Button(self, label="Select All", size=wx.Size(100, -1))
+        select_all_button.Bind(wx.EVT_BUTTON, self.on_select_all)
+        select_buttons_sizer.Add(select_all_button, 0, wx.RIGHT, 5)
+
+        select_none_button = wx.Button(self, label="Select None", size=wx.Size(100, -1))
+        select_none_button.Bind(wx.EVT_BUTTON, self.on_select_none)
+        select_buttons_sizer.Add(select_none_button, 0)
+
+        main_sizer.Add(select_buttons_sizer, 0, wx.LEFT | wx.RIGHT, 15)
+
+        main_sizer.AddSpacer(10)
+
+        checkbox_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        self.student_info_checkbox = wx.CheckBox(
+            self, label="Student Info (Name, IC/Passport, Phones, Country, Semester)"
+        )
+        self.student_info_checkbox.SetValue(True)
+        self.student_info_checkbox.Bind(wx.EVT_CHECKBOX, self.on_checkbox_changed)
+        checkbox_sizer.Add(self.student_info_checkbox, 0, wx.BOTTOM, 5)
+
+        self.personal_info_checkbox = wx.CheckBox(
+            self, label="Personal Info (Date of Birth, Gender, Marital Status, Religion, Race, Nationality, Next of Kin)"
+        )
+        self.personal_info_checkbox.SetValue(True)
+        self.personal_info_checkbox.Bind(wx.EVT_CHECKBOX, self.on_checkbox_changed)
+        checkbox_sizer.Add(self.personal_info_checkbox, 0, wx.BOTTOM, 5)
+
+        self.education_history_checkbox = wx.CheckBox(
+            self, label="Educational History (Previous schools and qualifications)"
+        )
+        self.education_history_checkbox.SetValue(True)
+        self.education_history_checkbox.Bind(wx.EVT_CHECKBOX, self.on_checkbox_changed)
+        checkbox_sizer.Add(self.education_history_checkbox, 0, wx.BOTTOM, 5)
+
+        self.enrollment_data_checkbox = wx.CheckBox(
+            self, label="Enrollment Data (Programs, Semesters, Modules, Grades)"
+        )
+        self.enrollment_data_checkbox.SetValue(True)
+        self.enrollment_data_checkbox.Bind(wx.EVT_CHECKBOX, self.on_checkbox_changed)
+        checkbox_sizer.Add(self.enrollment_data_checkbox, 0)
+
+        main_sizer.Add(checkbox_sizer, 0, wx.LEFT | wx.RIGHT, 15)
 
         main_sizer.AddSpacer(20)
 
@@ -90,6 +145,7 @@ class ImportStudentsDialog(wx.Dialog):
         main_sizer.Add(button_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 15)
 
         self.SetSizer(main_sizer)
+        self.update_import_button_state()
 
     def on_populate(self, event):
         start_num = self.range_from.GetValue().strip()
@@ -166,6 +222,7 @@ class ImportStudentsDialog(wx.Dialog):
         valid_numbers = self.get_student_numbers()
         count = len(valid_numbers)
         self.status_text.SetLabel(f"{count} Students to import")
+        self.update_import_button_state()
 
     def on_clear(self, event):
         self.student_list.SetValue("")
@@ -184,3 +241,38 @@ class ImportStudentsDialog(wx.Dialog):
             token for token in tokens if token and len(token) == 9 and token.isdigit()
         ]
         return numbers
+
+    def get_import_options(self):
+        return {
+            "student_info": self.student_info_checkbox.GetValue(),
+            "personal_info": self.personal_info_checkbox.GetValue(),
+            "education_history": self.education_history_checkbox.GetValue(),
+            "enrollment_data": self.enrollment_data_checkbox.GetValue(),
+        }
+
+    def on_select_all(self, event):
+        self.student_info_checkbox.SetValue(True)
+        self.personal_info_checkbox.SetValue(True)
+        self.education_history_checkbox.SetValue(True)
+        self.enrollment_data_checkbox.SetValue(True)
+        self.update_import_button_state()
+
+    def on_select_none(self, event):
+        self.student_info_checkbox.SetValue(False)
+        self.personal_info_checkbox.SetValue(False)
+        self.education_history_checkbox.SetValue(False)
+        self.enrollment_data_checkbox.SetValue(False)
+        self.update_import_button_state()
+
+    def on_checkbox_changed(self, event):
+        self.update_import_button_state()
+
+    def update_import_button_state(self):
+        has_students = len(self.get_student_numbers()) > 0
+        has_checkboxes = any([
+            self.student_info_checkbox.GetValue(),
+            self.personal_info_checkbox.GetValue(),
+            self.education_history_checkbox.GetValue(),
+            self.enrollment_data_checkbox.GetValue(),
+        ])
+        self.import_button.Enable(has_students and has_checkboxes)

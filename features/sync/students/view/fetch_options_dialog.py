@@ -6,7 +6,7 @@ class FetchOptionsDialog(wx.Dialog):
         super().__init__(
             parent,
             title="Fetch Options",
-            size=wx.Size(500, 350),
+            size=wx.Size(500, 240),
             style=wx.DEFAULT_DIALOG_STYLE,
         )
 
@@ -18,62 +18,58 @@ class FetchOptionsDialog(wx.Dialog):
 
         main_sizer.AddSpacer(15)
 
-        title_label = wx.StaticText(
-            self, label="Select the data you want to fetch from the CMS:"
-        )
-        main_sizer.Add(title_label, 0, wx.LEFT | wx.RIGHT, 15)
+        header_sizer = wx.BoxSizer(wx.HORIZONTAL)
 
-        main_sizer.AddSpacer(20)
-
-        options_label = wx.StaticText(self, label="Data to Fetch")
-        font = options_label.GetFont()
+        title_label = wx.StaticText(self, label="Data to Fetch")
+        font = title_label.GetFont()
         font = font.Bold()
-        options_label.SetFont(font)
-        main_sizer.Add(options_label, 0, wx.LEFT | wx.RIGHT, 15)
+        title_label.SetFont(font)
+        header_sizer.Add(title_label, 0, wx.ALIGN_CENTER_VERTICAL)
 
-        main_sizer.AddSpacer(10)
+        header_sizer.AddStretchSpacer()
 
-        select_buttons_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        select_all_button = wx.Button(self, label="Select All", size=wx.Size(100, -1))
-        select_all_button.Bind(wx.EVT_BUTTON, self.on_select_all)
-        select_buttons_sizer.Add(select_all_button, 0, wx.RIGHT, 5)
+        self.select_all_checkbox = wx.CheckBox(self, label="Select All", style=wx.CHK_3STATE | wx.CHK_ALLOW_3RD_STATE_FOR_USER)
+        self.select_all_checkbox.Set3StateValue(wx.CHK_CHECKED)
+        self.select_all_checkbox.Bind(wx.EVT_CHECKBOX, self.on_select_all_checkbox)
+        header_sizer.Add(self.select_all_checkbox, 0, wx.ALIGN_CENTER_VERTICAL)
 
-        select_none_button = wx.Button(self, label="Select None", size=wx.Size(100, -1))
-        select_none_button.Bind(wx.EVT_BUTTON, self.on_select_none)
-        select_buttons_sizer.Add(select_none_button, 0)
+        main_sizer.Add(header_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 15)
 
-        main_sizer.Add(select_buttons_sizer, 0, wx.LEFT | wx.RIGHT, 15)
+        main_sizer.AddSpacer(5)
+
+        separator_line = wx.StaticLine(self, style=wx.LI_HORIZONTAL)
+        main_sizer.Add(separator_line, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 15)
 
         main_sizer.AddSpacer(10)
 
         checkbox_sizer = wx.BoxSizer(wx.VERTICAL)
 
         self.student_info_checkbox = wx.CheckBox(
-            self, label="Student Info (Name, IC/Passport, Phones, Country, Semester)"
+            self, label="Student Info (Name, IC/Passport, Phones, Country, etc.)"
         )
         self.student_info_checkbox.SetValue(True)
-        self.student_info_checkbox.Bind(wx.EVT_CHECKBOX, self.on_checkbox_changed)
+        self.student_info_checkbox.Bind(wx.EVT_CHECKBOX, self.on_data_checkbox_changed)
         checkbox_sizer.Add(self.student_info_checkbox, 0, wx.BOTTOM, 5)
 
         self.personal_info_checkbox = wx.CheckBox(
-            self, label="Personal Info (Date of Birth, Gender, Marital Status, Religion, Race, Nationality, Next of Kin)"
+            self, label="Personal Info (DOB, Gender, Marital Status, Religion, etc.)"
         )
         self.personal_info_checkbox.SetValue(True)
-        self.personal_info_checkbox.Bind(wx.EVT_CHECKBOX, self.on_checkbox_changed)
+        self.personal_info_checkbox.Bind(wx.EVT_CHECKBOX, self.on_data_checkbox_changed)
         checkbox_sizer.Add(self.personal_info_checkbox, 0, wx.BOTTOM, 5)
 
         self.education_history_checkbox = wx.CheckBox(
-            self, label="Educational History (Previous schools and qualifications)"
+            self, label="Educational History (Previous schools, qualifications, etc.)"
         )
         self.education_history_checkbox.SetValue(True)
-        self.education_history_checkbox.Bind(wx.EVT_CHECKBOX, self.on_checkbox_changed)
+        self.education_history_checkbox.Bind(wx.EVT_CHECKBOX, self.on_data_checkbox_changed)
         checkbox_sizer.Add(self.education_history_checkbox, 0, wx.BOTTOM, 5)
 
         self.enrollment_data_checkbox = wx.CheckBox(
-            self, label="Enrollment Data (Programs, Semesters, Modules, Grades)"
+            self, label="Enrollment Data (Programs, Semesters, Modules, etc.)"
         )
         self.enrollment_data_checkbox.SetValue(True)
-        self.enrollment_data_checkbox.Bind(wx.EVT_CHECKBOX, self.on_checkbox_changed)
+        self.enrollment_data_checkbox.Bind(wx.EVT_CHECKBOX, self.on_data_checkbox_changed)
         checkbox_sizer.Add(self.enrollment_data_checkbox, 0)
 
         main_sizer.Add(checkbox_sizer, 0, wx.LEFT | wx.RIGHT, 15)
@@ -103,21 +99,35 @@ class FetchOptionsDialog(wx.Dialog):
             "enrollment_data": self.enrollment_data_checkbox.GetValue(),
         }
 
-    def on_select_all(self, event):
-        self.student_info_checkbox.SetValue(True)
-        self.personal_info_checkbox.SetValue(True)
-        self.education_history_checkbox.SetValue(True)
-        self.enrollment_data_checkbox.SetValue(True)
+    def on_select_all_checkbox(self, event):
+        is_checked = self.select_all_checkbox.GetValue()
+        self.student_info_checkbox.SetValue(is_checked)
+        self.personal_info_checkbox.SetValue(is_checked)
+        self.education_history_checkbox.SetValue(is_checked)
+        self.enrollment_data_checkbox.SetValue(is_checked)
         self.update_fetch_button_state()
 
-    def on_select_none(self, event):
-        self.student_info_checkbox.SetValue(False)
-        self.personal_info_checkbox.SetValue(False)
-        self.education_history_checkbox.SetValue(False)
-        self.enrollment_data_checkbox.SetValue(False)
-        self.update_fetch_button_state()
+    def on_data_checkbox_changed(self, event):
+        all_checked = all([
+            self.student_info_checkbox.GetValue(),
+            self.personal_info_checkbox.GetValue(),
+            self.education_history_checkbox.GetValue(),
+            self.enrollment_data_checkbox.GetValue(),
+        ])
+        any_checked = any([
+            self.student_info_checkbox.GetValue(),
+            self.personal_info_checkbox.GetValue(),
+            self.education_history_checkbox.GetValue(),
+            self.enrollment_data_checkbox.GetValue(),
+        ])
 
-    def on_checkbox_changed(self, event):
+        if all_checked:
+            self.select_all_checkbox.Set3StateValue(wx.CHK_CHECKED)
+        elif any_checked:
+            self.select_all_checkbox.Set3StateValue(wx.CHK_UNDETERMINED)
+        else:
+            self.select_all_checkbox.Set3StateValue(wx.CHK_UNCHECKED)
+
         self.update_fetch_button_state()
 
     def update_fetch_button_state(self):

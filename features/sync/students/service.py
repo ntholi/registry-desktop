@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 
 from base import get_logger
 from base.browser import BASE_URL, Browser, get_form_payload
+from features.common.cms_utils import post_cms_form
 
 from .repository import StudentRepository
 from .scraper import (
@@ -323,12 +324,9 @@ class StudentSyncService:
 
             progress_callback(f"Pushing {student_number} to CMS...")
 
-            logger.info(f"Posting update for student {student_number}")
-            post_response = self._browser.post(url, form_data)
+            cms_success, cms_message = post_cms_form(self._browser, url, form_data)
 
-            if "Successful" in post_response.text:
-                logger.info(f"Successfully posted student {student_number} to CMS")
-
+            if cms_success:
                 progress_callback(f"Saving {student_number} to database...")
 
                 update_success = self._repository.update_student(student_number, data)
@@ -337,14 +335,7 @@ class StudentSyncService:
                 else:
                     return False, "CMS update succeeded but database update failed"
             else:
-                logger.error(f"CMS update failed for student {student_number}")
-                print(f"\n---------------- CMS Response from {url} ---------------")
-                print("Payload sent:", form_data)
-                print(f"\nFull HTML response:\n{response.text}")
-                return (
-                    False,
-                    "CMS update failed - response did not contain 'Successful'",
-                )
+                return False, cms_message
 
         except Exception as e:
             logger.error(f"Error pushing student {student_number}: {str(e)}")
@@ -392,12 +383,9 @@ class StudentSyncService:
 
             progress_callback(f"Pushing module {std_module_id} to CMS...")
 
-            logger.info(f"Posting update for module {std_module_id}")
-            post_response = self._browser.post(url, form_data)
+            cms_success, cms_message = post_cms_form(self._browser, url, form_data)
 
-            if "Successful" in post_response.text:
-                logger.info(f"Successfully posted module {std_module_id} to CMS")
-
+            if cms_success:
                 progress_callback(f"Saving module {std_module_id} to database...")
 
                 update_success, msg = self._repository.upsert_student_module(data)
@@ -409,14 +397,7 @@ class StudentSyncService:
                         f"CMS update succeeded but database update failed: {msg}",
                     )
             else:
-                logger.error(f"CMS update failed for module {std_module_id}")
-                print(f"\n---------------- CMS Response from {url} ---------------")
-                print("Payload sent:", form_data)
-                print(f"\nFull HTML response:\n{response.text}")
-                return (
-                    False,
-                    "CMS update failed - response did not contain 'Successful'",
-                )
+                return False, cms_message
 
         except Exception as e:
             logger.error(f"Error pushing module {std_module_id}: {str(e)}")

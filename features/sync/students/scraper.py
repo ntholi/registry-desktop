@@ -483,3 +483,77 @@ def scrape_student_modules_concurrent(
         f"{len(modules_data)}/{len(module_ids)} modules scraped successfully"
     )
     return modules_data
+
+
+def extract_student_education_ids(std_no: str) -> list[str]:
+    browser = Browser()
+    url = f"{BASE_URL}/r_stdeducationlist.php?showmaster=1&StudentID={std_no}"
+    response = browser.fetch(url)
+
+    page = BeautifulSoup(response.text, "lxml")
+    table = page.select_one("table#ewlistmain")
+
+    if not table:
+        logger.warning(f"No education table found for student {std_no}")
+        return []
+
+    education_ids = []
+    rows = table.select("tr.ewTableRow, tr.ewTableAltRow")
+
+    for row in rows:
+        view_link = row.select_one("a[href*='r_stdeducationview.php?StdEducationID=']")
+        if view_link:
+            href = view_link.get("href")
+            if href and isinstance(href, str) and "StdEducationID=" in href:
+                education_id = href.split("StdEducationID=")[1].split("&")[0]
+                education_ids.append(education_id)
+
+    logger.info(f"Found {len(education_ids)} education records for student {std_no}")
+    return education_ids
+
+
+def scrape_student_education_data(std_education_id: str) -> dict:
+    browser = Browser()
+    url = f"{BASE_URL}/r_stdeducationview.php?StdEducationID={std_education_id}"
+    response = browser.fetch(url)
+
+    page = BeautifulSoup(response.text, "lxml")
+    table = page.select_one("table.ewTable")
+
+    if not table:
+        logger.error(f"No data table found for student education {std_education_id}")
+        return {}
+
+    data = {"id": std_education_id}
+
+    student_id_str = get_table_value(table, "Student")
+    if student_id_str:
+        student_id_parts = student_id_str.split()
+        if student_id_parts:
+            try:
+                data["std_no"] = int(student_id_parts[0])
+            except ValueError:
+                logger.warning(f"Could not parse student ID from: {student_id_str}")
+
+    edu_type = get_table_value(table, "Type")
+    if edu_type:
+        data["type"] = edu_type
+
+    standard = get_table_value(table, "Standard")
+    if standard:
+        data["level"] = standard
+
+    school_name = get_table_value(table, "School")
+    if not school_name:
+        school_name = get_table_value(table, "SchoolName")
+    if school_name:
+        data["school_name"] = school_name
+
+    exam_date_str = get_table_value(table, "Exam Date")
+    if exam_date_str:
+        parsed_date = parse_date(exam_date_str)
+        if parsed_date:
+            data["end_date"] = parsed_date
+
+    logger.info(f"Scraped education data for student education {std_education_id}")
+    return data

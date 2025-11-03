@@ -16,6 +16,7 @@ from database import (
     SemesterModule,
     Structure,
     Student,
+    StudentEducation,
     StudentModule,
     StudentProgram,
     StudentSemester,
@@ -779,5 +780,56 @@ class StudentRepository:
             except Exception as e:
                 session.rollback()
                 error_msg = f"Error upserting next of kin: {str(e)}"
+                logger.error(error_msg)
+                return False, error_msg
+
+    def upsert_student_education(self, data: dict) -> tuple[bool, str]:
+        with self._session() as session:
+            try:
+                education_id = int(data["id"])
+                std_no = data.get("std_no")
+
+                if not std_no:
+                    return False, "Missing student number"
+
+                existing = (
+                    session.query(StudentEducation)
+                    .filter(StudentEducation.id == education_id)
+                    .first()
+                )
+
+                if existing:
+                    if "school_name" in data:
+                        existing.school_name = data["school_name"]
+                    if "type" in data:
+                        existing.type = data["type"]
+                    if "level" in data:
+                        existing.level = data["level"]
+                    if "start_date" in data:
+                        existing.start_date = data["start_date"]
+                    if "end_date" in data:
+                        existing.end_date = data["end_date"]
+
+                    session.commit()
+                    logger.info(f"Updated student education {education_id}")
+                    return True, "Student education updated"
+                else:
+                    new_education = StudentEducation(
+                        id=education_id,
+                        std_no=std_no,
+                        school_name=data.get("school_name", ""),
+                        type=data.get("type"),
+                        level=data.get("level"),
+                        start_date=data.get("start_date"),
+                        end_date=data.get("end_date"),
+                    )
+                    session.add(new_education)
+                    session.commit()
+                    logger.info(f"Created student education {education_id}")
+                    return True, "Student education created"
+
+            except Exception as e:
+                session.rollback()
+                error_msg = f"Error upserting student education: {str(e)}"
                 logger.error(error_msg)
                 return False, error_msg

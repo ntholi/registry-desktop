@@ -10,9 +10,11 @@ from base.browser import BASE_URL, Browser, get_form_payload
 
 from .repository import StudentRepository
 from .scraper import (
+    extract_student_education_ids,
     extract_student_program_ids,
     extract_student_semester_ids,
     scrape_student_data,
+    scrape_student_education_data,
     scrape_student_modules_concurrent,
     scrape_student_program_data,
     scrape_student_semester_data,
@@ -62,6 +64,32 @@ class StudentSyncService:
 
         if next_of_kin_list:
             self._repository.upsert_next_of_kin(student_number, next_of_kin_list)
+
+        progress_callback(
+            f"Fetching education records for {student_number}...", 1, total_steps
+        )
+
+        education_ids = extract_student_education_ids(student_number)
+        educations_synced = 0
+        educations_failed = 0
+
+        for edu_id in education_ids:
+            try:
+                education_data = scrape_student_education_data(edu_id)
+                if education_data and education_data.get("std_no"):
+                    success, msg = self._repository.upsert_student_education(
+                        education_data
+                    )
+                    if success:
+                        educations_synced += 1
+                    else:
+                        logger.warning(
+                            f"Failed to sync education {edu_id}: {msg}"
+                        )
+                        educations_failed += 1
+            except Exception as e:
+                logger.error(f"Error syncing education {edu_id}: {str(e)}")
+                educations_failed += 1
 
         progress_callback(
             f"Fetching program list for {student_number}...", 2, total_steps
@@ -177,18 +205,18 @@ class StudentSyncService:
                 programs_failed += 1
 
         progress_callback(
-            f"Completed sync for {student_number}: {programs_synced} programs, "
-            f"{semesters_synced} semesters, {modules_synced} modules synced",
+            f"Completed sync for {student_number}: {educations_synced} education records, "
+            f"{programs_synced} programs, {semesters_synced} semesters, {modules_synced} modules synced",
             total_steps,
             total_steps,
         )
 
         logger.info(
             f"Fetch completed for {student_number}: Student updated={student_updated}, "
-            f"Programs synced={programs_synced}, Semesters synced={semesters_synced}, "
-            f"Modules synced={modules_synced}, "
-            f"Programs failed={programs_failed}, Semesters failed={semesters_failed}, "
-            f"Modules failed={modules_failed}"
+            f"Education records synced={educations_synced}, Programs synced={programs_synced}, "
+            f"Semesters synced={semesters_synced}, Modules synced={modules_synced}, "
+            f"Education records failed={educations_failed}, Programs failed={programs_failed}, "
+            f"Semesters failed={semesters_failed}, Modules failed={modules_failed}"
         )
 
         return student_updated

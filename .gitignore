@@ -17,3 +17,7 @@ local.db
 /session.pkl
 .claude/settings.local.json
 /CLAUDE.md
+
+# Logs
+logs/
+*.log

@@ -1,8 +1,10 @@
 import json
+import logging
 from pathlib import Path
 
 import wx
 
+from base.logging_config import setup_logging
 from base.menu_bar import AppMenuBar
 from base.nav import AccordionNavigation
 from base.splash_screen import SplashScreen
@@ -16,6 +18,8 @@ from features.export.reports.reports_view import ReportsView
 from features.sync.modules.modules_view import ModulesView
 from features.sync.structures.structures_view import StructuresView
 from features.sync.students import StudentsView
+
+logger = logging.getLogger(__name__)
 
 
 class MainWindow(wx.Frame):
@@ -171,6 +175,10 @@ class MainWindow(wx.Frame):
 
 
 def main():
+    setup_logging()
+
+    logger.info("Starting Limkokwing Registry Desktop Application")
+
     app = wx.App()
 
     splash = SplashScreen()
@@ -178,13 +186,17 @@ def main():
 
     wx.Yield()
 
-    window = MainWindow()
+    try:
+        window = MainWindow()
 
-    splash.close()
+        splash.close()
 
-    window.Maximize()
-    window.Show()
-    app.MainLoop()
+        window.Maximize()
+        window.Show()
+        app.MainLoop()
+    except Exception as e:
+        logger.exception(f"Fatal error in application: {e}")
+        raise
 
 
 if __name__ == "__main__":

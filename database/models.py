@@ -2,8 +2,19 @@ from datetime import datetime
 from typing import Literal
 
 import nanoid
-from sqlalchemy import (JSON, BigInteger, Boolean, DateTime, Float, ForeignKey,
-                        Index, Integer, String, Text, UniqueConstraint)
+from sqlalchemy import (
+    JSON,
+    BigInteger,
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import JSON as PostgreSQLJSON
 from sqlalchemy.orm import Mapped, declarative_base, mapped_column
 
@@ -42,7 +53,7 @@ EducationLevel = Literal[
     "PSLE",
     "BJCE",
     "LGSE",
-    "COSC",
+    "Cambridge Oversea School Certificate",
     "LGCSE",
     "IGCSE",
     "BGCSE",
@@ -256,7 +267,9 @@ class Student(Base):
     std_no: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     name: Mapped[str] = mapped_column(Text, nullable=False)
     national_id: Mapped[str] = mapped_column(String, nullable=False)
-    status: Mapped[StudentStatus] = mapped_column(String, nullable=False, default="Active")
+    status: Mapped[StudentStatus] = mapped_column(
+        String, nullable=False, default="Active"
+    )
     date_of_birth: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     phone1: Mapped[str | None] = mapped_column(String, nullable=True)
     phone2: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -275,7 +288,12 @@ class Student(Base):
     )
 
     __table_args__ = (
-        Index("idx_students_name_trgm", "name", postgresql_using="gin", postgresql_ops={"name": "gin_trgm_ops"}),
+        Index(
+            "idx_students_name_trgm",
+            "name",
+            postgresql_using="gin",
+            postgresql_ops={"name": "gin_trgm_ops"},
+        ),
         Index("fk_students_user_id", "user_id"),
     )
 
@@ -292,7 +310,9 @@ class StudentEducation(Base):
     level: Mapped[EducationLevel | None] = mapped_column(String, nullable=True)
     start_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     end_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utc_now, nullable=False
+    )
 
     __table_args__ = (
         Index("fk_student_education_std_no", "std_no"),

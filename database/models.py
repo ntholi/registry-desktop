@@ -1,19 +1,10 @@
 from datetime import datetime
 from typing import Literal
 
-from sqlalchemy import (
-    JSON,
-    BigInteger,
-    Boolean,
-    DateTime,
-    Float,
-    ForeignKey,
-    Index,
-    Integer,
-    String,
-    Text,
-    UniqueConstraint,
-)
+import nanoid
+from sqlalchemy import (JSON, BigInteger, Boolean, DateTime, Float, ForeignKey,
+                        Index, Integer, String, Text, UniqueConstraint)
+from sqlalchemy.dialects.postgresql import JSON as PostgreSQLJSON
 from sqlalchemy.orm import Mapped, declarative_base, mapped_column
 
 DashboardUser = Literal[
@@ -55,6 +46,8 @@ EducationLevel = Literal[
     "LGCSE",
     "IGCSE",
     "BGCSE",
+    "O level",
+    "A level",
     "Certificate",
     "Diploma",
     "Degree",
@@ -180,18 +173,22 @@ def utc_now():
     return datetime.utcnow()
 
 
+def generate_nanoid():
+    return nanoid.generate()
+
+
 Base = declarative_base()
 
 
 class User(Base):
     __tablename__ = "users"
 
-    id: Mapped[str] = mapped_column(String, primary_key=True)
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_nanoid)
     name: Mapped[str | None] = mapped_column(Text, nullable=True)
     role: Mapped[UserRole] = mapped_column(String, nullable=False, default="user")
     position: Mapped[UserPosition | None] = mapped_column(String, nullable=True)
     email: Mapped[str | None] = mapped_column(String, unique=True, nullable=True)
-    email_verified: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    emailVerified: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     image: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
@@ -259,7 +256,7 @@ class Student(Base):
     std_no: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     name: Mapped[str] = mapped_column(Text, nullable=False)
     national_id: Mapped[str] = mapped_column(String, nullable=False)
-    status: Mapped[StudentStatus] = mapped_column(String, nullable=False)
+    status: Mapped[StudentStatus] = mapped_column(String, nullable=False, default="Active")
     date_of_birth: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     phone1: Mapped[str | None] = mapped_column(String, nullable=True)
     phone2: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -277,7 +274,10 @@ class Student(Base):
         DateTime, default=utc_now, nullable=True
     )
 
-    __table_args__ = (Index("fk_students_user_id", "user_id"),)
+    __table_args__ = (
+        Index("idx_students_name_trgm", "name", postgresql_using="gin", postgresql_ops={"name": "gin_trgm_ops"}),
+        Index("fk_students_user_id", "user_id"),
+    )
 
 
 class StudentEducation(Base):
@@ -287,15 +287,17 @@ class StudentEducation(Base):
     std_no: Mapped[int] = mapped_column(
         BigInteger, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
     )
-    type: Mapped[EducationType] = mapped_column(String, nullable=False)
-    level: Mapped[EducationLevel] = mapped_column(String, nullable=False)
-    start_date: Mapped[datetime] = mapped_column(DateTime, nullable=False)
-    end_date: Mapped[datetime] = mapped_column(DateTime, nullable=False)
-    created_at: Mapped[datetime | None] = mapped_column(
-        DateTime, default=utc_now, nullable=True
-    )
+    school_name: Mapped[str] = mapped_column(Text, nullable=False)
+    type: Mapped[EducationType | None] = mapped_column(String, nullable=True)
+    level: Mapped[EducationLevel | None] = mapped_column(String, nullable=True)
+    start_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    end_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
 
-    __table_args__ = (Index("fk_student_education_std_no", "std_no"),)
+    __table_args__ = (
+        Index("fk_student_education_std_no", "std_no"),
+        Index("idx_student_education_school_name", "school_name"),
+    )
 
 
 class NextOfKin(Base):
@@ -731,8 +733,8 @@ class ClearanceAudit(Base):
     )
     date: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
     message: Mapped[str | None] = mapped_column(Text, nullable=True)
-    modules: Mapped[list[str] | None] = mapped_column(
-        JSON, nullable=False, default=list
+    modules: Mapped[list[str]] = mapped_column(
+        PostgreSQLJSON, nullable=False, default=list
     )
 
     __table_args__ = (
@@ -961,7 +963,7 @@ class ModuleGrade(Base):
 class StatementOfResultsPrint(Base):
     __tablename__ = "statement_of_results_prints"
 
-    id: Mapped[str] = mapped_column(String, primary_key=True)
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_nanoid)
     std_no: Mapped[int] = mapped_column(
         BigInteger, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
     )
@@ -989,7 +991,7 @@ class StatementOfResultsPrint(Base):
 class TranscriptPrint(Base):
     __tablename__ = "transcript_prints"
 
-    id: Mapped[str] = mapped_column(String, primary_key=True)
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_nanoid)
     std_no: Mapped[int] = mapped_column(
         BigInteger, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
     )
@@ -1032,7 +1034,7 @@ class BlockedStudent(Base):
 class StudentCardPrint(Base):
     __tablename__ = "student_card_prints"
 
-    id: Mapped[str] = mapped_column(String, primary_key=True)
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_nanoid)
     receipt_no: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     std_no: Mapped[int] = mapped_column(
         BigInteger, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
@@ -1053,7 +1055,7 @@ class StudentCardPrint(Base):
 class Document(Base):
     __tablename__ = "documents"
 
-    id: Mapped[str] = mapped_column(String, primary_key=True)
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_nanoid)
     file_name: Mapped[str] = mapped_column(Text, nullable=False)
     type: Mapped[str | None] = mapped_column(Text, nullable=True)
     std_no: Mapped[int] = mapped_column(
@@ -1097,7 +1099,7 @@ class FortinetRegistration(Base):
 class Task(Base):
     __tablename__ = "tasks"
 
-    id: Mapped[str] = mapped_column(String, primary_key=True)
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_nanoid)
     title: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[TaskStatus] = mapped_column(String, nullable=False, default="active")

@@ -234,11 +234,6 @@ class ImportStructuresDialog(wx.Dialog):
         if result != wx.YES:
             return
 
-        self.import_button.Enable(False)
-        self.school_choice.Enable(False)
-        self.program_choice.Enable(False)
-        self.semesters_checkbox.Enable(False)
-
         self.import_worker = ImportStructuresWorker(
             self.service,
             self.on_import_callback,
@@ -247,6 +242,8 @@ class ImportStructuresDialog(wx.Dialog):
             fetch_semesters,
         )
         self.import_worker.start()
+
+        self.EndModal(wx.ID_OK)
 
     def on_import_callback(self, event_type, *args):
         wx.CallAfter(self._handle_import_event, event_type, *args)
@@ -266,16 +263,9 @@ class ImportStructuresDialog(wx.Dialog):
                 wx.OK | wx.ICON_INFORMATION,
             )
 
-            self.EndModal(wx.ID_OK)
-
         elif event_type == "error":
             error_msg = args[0]
             if self.status_bar:
                 self.status_bar.clear()
-
-            self.import_button.Enable(True)
-            self.school_choice.Enable(True)
-            self.program_choice.Enable(True)
-            self.semesters_checkbox.Enable(True)
 
             wx.MessageBox(f"Import failed: {error_msg}", "Error", wx.OK | wx.ICON_ERROR)

@@ -42,6 +42,13 @@ def normalize_student_module_status(status: str | None) -> str:
     if not candidate:
         return DEFAULT_STUDENT_MODULE_STATUS
 
+    if candidate in VALID_STUDENT_MODULE_STATUSES:
+        return candidate
+
+    upper_candidate = candidate.upper()
+    if upper_candidate in STATUS_ALIASES:
+        return STATUS_ALIASES[upper_candidate]
+
     if candidate.lower().startswith("repeat"):
         suffix = candidate[6:]
         try:
@@ -729,7 +736,9 @@ class StudentRepository:
                 logger.error(error_msg)
                 return False, error_msg
 
-    def upsert_next_of_kin(self, student_number: str, next_of_kin_list: list[dict]) -> tuple[bool, str]:
+    def upsert_next_of_kin(
+        self, student_number: str, next_of_kin_list: list[dict]
+    ) -> tuple[bool, str]:
         try:
             numeric_student_number = int(student_number)
         except (TypeError, ValueError):
@@ -744,8 +753,7 @@ class StudentRepository:
                 )
 
                 existing_map = {
-                    (kin.relationship, kin.name): kin
-                    for kin in existing_kin
+                    (kin.relationship, kin.name): kin for kin in existing_kin
                 }
 
                 for kin_data in next_of_kin_list:
@@ -769,7 +777,7 @@ class StudentRepository:
                             name=name,
                             relationship=relationship,
                             phone=kin_data.get("phone"),
-                            email=kin_data.get("email")
+                            email=kin_data.get("email"),
                         )
                         session.add(new_kin)
 

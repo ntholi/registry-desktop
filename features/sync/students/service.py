@@ -78,10 +78,14 @@ class StudentSyncService:
                 scraped_data.update(personal_data)
 
                 if next_of_kin_list:
-                    self._repository.upsert_next_of_kin(student_number, next_of_kin_list)
+                    self._repository.upsert_next_of_kin(
+                        student_number, next_of_kin_list
+                    )
 
             if scraped_data:
-                student_updated = self._repository.update_student(student_number, scraped_data)
+                student_updated = self._repository.update_student(
+                    student_number, scraped_data
+                )
 
         educations_synced = 0
         educations_failed = 0
@@ -103,9 +107,7 @@ class StudentSyncService:
                         if success:
                             educations_synced += 1
                         else:
-                            logger.warning(
-                                f"Failed to sync education {edu_id}: {msg}"
-                            )
+                            logger.warning(f"Failed to sync education {edu_id}: {msg}")
                             educations_failed += 1
                 except Exception as e:
                     logger.error(f"Error syncing education {edu_id}: {str(e)}")
@@ -336,6 +338,9 @@ class StudentSyncService:
                     return False, "CMS update succeeded but database update failed"
             else:
                 logger.error(f"CMS update failed for student {student_number}")
+                print(f"\n---------------- CMS Response from {url} ---------------")
+                print("Payload sent:", form_data)
+                print(f"\nFull HTML response:\n{response.text}")
                 return (
                     False,
                     "CMS update failed - response did not contain 'Successful'",
@@ -405,6 +410,9 @@ class StudentSyncService:
                     )
             else:
                 logger.error(f"CMS update failed for module {std_module_id}")
+                print(f"\n---------------- CMS Response from {url} ---------------")
+                print("Payload sent:", form_data)
+                print(f"\nFull HTML response:\n{response.text}")
                 return (
                     False,
                     "CMS update failed - response did not contain 'Successful'",

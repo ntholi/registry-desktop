@@ -30,7 +30,9 @@ def fetch_cms_form(
         form = page.select_one(form_selector)
 
         if not form:
-            logger.error(f"Could not find form with selector '{form_selector}' at {url}")
+            logger.error(
+                f"Could not find form with selector '{form_selector}' at {url}"
+            )
             return None, None
 
         return page, form
@@ -52,6 +54,9 @@ def post_cms_form(
             return True, "Operation successful"
         else:
             logger.error(f"CMS form post to {url} failed - no 'Successful' in response")
+            print(f"\n---------------- CMS Response from {url} ---------------")
+            print("Payload sent:", form_data)
+            print(f"\nFull HTML response:\n{response.text}")
             return False, "CMS update failed - response did not contain 'Successful'"
     except Exception as e:
         logger.error(f"Error posting form to {url}: {str(e)}")

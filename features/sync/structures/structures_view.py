@@ -1,6 +1,7 @@
 import wx
 
 from .add_school_dialog import AddSchoolDialog
+from .import_structures_dialog import ImportStructuresDialog
 from .repository import StructureRepository
 from .structure_detail_panel import StructureDetailPanel
 
@@ -65,7 +66,11 @@ class StructuresView(wx.Panel):
 
         self.add_school_button = wx.Button(self, label="Add School")
         self.add_school_button.Bind(wx.EVT_BUTTON, self.on_add_school)
-        filters_sizer.Add(self.add_school_button, 0)
+        filters_sizer.Add(self.add_school_button, 0, wx.RIGHT, 10)
+
+        self.import_button = wx.Button(self, label="Import")
+        self.import_button.Bind(wx.EVT_BUTTON, self.on_import_structures)
+        filters_sizer.Add(self.import_button, 0)
 
         main_sizer.Add(filters_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 40)
 
@@ -284,6 +289,14 @@ class StructuresView(wx.Panel):
 
     def on_add_school(self, event):
         dialog = AddSchoolDialog(self, self.status_bar)
+        if dialog.ShowModal() == wx.ID_OK:
+            self.load_filter_options()
+            self.load_structures()
+
+        dialog.Destroy()
+
+    def on_import_structures(self, event):
+        dialog = ImportStructuresDialog(self, self.status_bar)
         if dialog.ShowModal() == wx.ID_OK:
             self.load_filter_options()
             self.load_structures()

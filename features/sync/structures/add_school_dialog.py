@@ -62,9 +62,9 @@ class ImportSchoolWorker(threading.Thread):
             self.service.import_school_data(
                 self.school_data,
                 self.programs,
+                self._progress_callback,
                 self.fetch_structures,
                 self.fetch_semesters,
-                self._progress_callback,
             )
 
             self.callback("finished")

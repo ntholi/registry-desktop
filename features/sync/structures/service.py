@@ -43,6 +43,106 @@ class SchoolSyncService:
 
         return school_data, programs
 
+    def import_all_schools_structures(
+        self,
+        progress_callback: Callable[[str, int, int], None],
+        fetch_semesters: bool = False,
+    ):
+        schools = self.repository.list_active_schools()
+        total_schools = len(schools)
+
+        logger.info(f"Starting import for {total_schools} schools")
+
+        for idx, school in enumerate(schools, 1):
+            progress_callback(
+                f"Processing school {idx}/{total_schools}: {school.name}...",
+                idx,
+                total_schools,
+            )
+
+            programs = scrape_programs(school.id)
+            logger.info(f"Found {len(programs)} programs for {school.name}")
+
+            if programs:
+                self._import_structures(
+                    programs,
+                    fetch_semesters,
+                    progress_callback,
+                )
+
+        progress_callback(
+            f"Completed import for {total_schools} school(s)",
+            total_schools,
+            total_schools,
+        )
+
+    def import_school_structures(
+        self,
+        school_id: int,
+        progress_callback: Callable[[str, int, int], None],
+        fetch_semesters: bool = False,
+    ):
+        progress_callback("Fetching programs for school...", 1, 2)
+
+        programs = scrape_programs(school_id)
+        logger.info(f"Found {len(programs)} programs for school ID {school_id}")
+
+        if not programs:
+            progress_callback("No programs found for this school", 2, 2)
+            return
+
+        progress_callback(f"Importing structures for {len(programs)} programs...", 2, 2)
+
+        self._import_structures(
+            programs,
+            fetch_semesters,
+            progress_callback,
+        )
+
+        progress_callback(
+            f"Completed import for {len(programs)} program(s)",
+            2,
+            2,
+        )
+
+    def import_program_structures(
+        self,
+        program_id: int,
+        progress_callback: Callable[[str, int, int], None],
+        fetch_semesters: bool = False,
+    ):
+        progress_callback("Fetching structures for program...", 1, 2)
+
+        structures = scrape_structures(program_id)
+        logger.info(f"Found {len(structures)} structures for program ID {program_id}")
+
+        if not structures:
+            progress_callback("No structures found for this program", 2, 2)
+            return
+
+        progress_callback(f"Saving {len(structures)} structure(s)...", 2, 2)
+
+        for structure in structures:
+            self.repository.save_structure(
+                int(structure["id"]),
+                str(structure["code"]),
+                str(structure["desc"]),
+                program_id,
+            )
+
+        if fetch_semesters and structures:
+            logger.info(
+                f"Fetching semesters for {len(structures)} structures of program {program_id}"
+            )
+            program_code = "Program"
+            self._import_semesters(structures, program_code, progress_callback)
+
+        progress_callback(
+            f"Completed import for {len(structures)} structure(s)",
+            2,
+            2,
+        )
+
     def import_school_data(
         self,
         school_data: dict,

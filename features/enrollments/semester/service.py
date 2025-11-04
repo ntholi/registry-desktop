@@ -144,8 +144,8 @@ class SemesterEnrollmentService:
                 "caf_date": data.get("caf_date"),
             }
 
-            if "semester_number" in data and data["semester_number"]:
-                db_data["semester_number"] = data["semester_number"]
+            if "structure_semester_id" in data and data["structure_semester_id"]:
+                db_data["structure_semester_id"] = data["structure_semester_id"]
 
             update_success, msg, _ = self._repository.upsert_student_semester(
                 student_program_id, db_data
@@ -276,8 +276,8 @@ class SemesterEnrollmentService:
                 "status": data.get("status"),
             }
 
-            if "semester_number" in data and data["semester_number"]:
-                db_data["semester_number"] = data["semester_number"]
+            if "structure_semester_id" in data and data["structure_semester_id"]:
+                db_data["structure_semester_id"] = data["structure_semester_id"]
 
             update_success, msg, _ = self._repository.upsert_student_semester(
                 semester_data["student_program_id"], db_data

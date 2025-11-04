@@ -152,6 +152,12 @@ class StudentSyncService:
 
                         semester_ids = extract_student_semester_ids(program_id)
 
+                        structure_id = None
+                        if "structure_code" in program_data:
+                            structure_id = self._repository.get_structure_by_code(
+                                program_data["structure_code"]
+                            )
+
                         for sem_idx, sem_id in enumerate(semester_ids, 1):
                             progress_callback(
                                 f"Syncing semester {sem_idx} of {len(semester_ids)} "
@@ -161,7 +167,7 @@ class StudentSyncService:
                             )
 
                             try:
-                                semester_data = scrape_student_semester_data(sem_id)
+                                semester_data = scrape_student_semester_data(sem_id, structure_id)
                                 if semester_data and semester_data.get("term"):
                                     sem_success, sem_msg, db_semester_id = (
                                         self._repository.upsert_student_semester(

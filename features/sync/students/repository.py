@@ -111,10 +111,15 @@ class StudentRepository:
 
     def list_semesters(self):
         with self._session() as session:
+            from database import StructureSemester
+
             rows = (
-                session.query(distinct(StudentSemester.semester_number))
-                .filter(StudentSemester.semester_number.isnot(None))
-                .order_by(StudentSemester.semester_number)
+                session.query(distinct(StructureSemester.semester_number))
+                .join(
+                    StudentSemester,
+                    StudentSemester.structure_semester_id == StructureSemester.id,
+                )
+                .order_by(StructureSemester.semester_number)
                 .all()
             )
             return [row[0] for row in rows]
@@ -160,16 +165,22 @@ class StudentRepository:
                 query = query.filter(Program.id == program_id)
 
             if term or semester_number:
+                from database import StructureSemester
+
                 query = query.join(
                     StudentSemester,
                     StudentProgram.id == StudentSemester.student_program_id,
                 )
+                if semester_number:
+                    query = query.join(
+                        StructureSemester,
+                        StudentSemester.structure_semester_id == StructureSemester.id,
+                    )
+                    query = query.filter(
+                        StructureSemester.semester_number == semester_number
+                    )
                 if term:
                     query = query.filter(StudentSemester.term == term)
-                if semester_number:
-                    query = query.filter(
-                        StudentSemester.semester_number == semester_number
-                    )
 
             if search_query:
                 search_term = f"%{search_query}%"
@@ -367,28 +378,37 @@ class StudentRepository:
 
     def get_student_semesters(self, student_program_id: int):
         with self._session() as session:
+            from database import StructureSemester
+
             semesters = (
                 session.query(
                     StudentSemester.id,
                     StudentSemester.term,
-                    StudentSemester.semester_number,
+                    StructureSemester.semester_number,
                     StudentSemester.status,
                     StudentSemester.caf_date,
                 )
+                .join(
+                    StructureSemester,
+                    StudentSemester.structure_semester_id == StructureSemester.id,
+                )
                 .filter(StudentSemester.student_program_id == student_program_id)
-                .order_by(StudentSemester.term, StudentSemester.semester_number)
+                .order_by(StudentSemester.term, StructureSemester.semester_number)
                 .all()
             )
             return semesters
 
     def get_student_semester_by_id(self, student_semester_id: int):
         with self._session() as session:
+            from database import StructureSemester
+
             result = (
                 session.query(
                     StudentSemester.id,
                     StudentSemester.student_program_id,
                     StudentSemester.term,
-                    StudentSemester.semester_number,
+                    StudentSemester.structure_semester_id,
+                    StructureSemester.semester_number,
                     StudentSemester.status,
                     StudentSemester.caf_date,
                     StudentProgram.structure_id,
@@ -396,6 +416,10 @@ class StudentRepository:
                 .join(
                     StudentProgram,
                     StudentSemester.student_program_id == StudentProgram.id,
+                )
+                .join(
+                    StructureSemester,
+                    StudentSemester.structure_semester_id == StructureSemester.id,
                 )
                 .filter(StudentSemester.id == student_semester_id)
                 .first()
@@ -405,10 +429,11 @@ class StudentRepository:
                     "id": result[0],
                     "student_program_id": result[1],
                     "term": result[2],
-                    "semester_number": result[3],
-                    "status": result[4],
-                    "caf_date": result[5],
-                    "structure_id": result[6],
+                    "structure_semester_id": result[3],
+                    "semester_number": result[4],
+                    "status": result[5],
+                    "caf_date": result[6],
+                    "structure_id": result[7],
                 }
             return None
 
@@ -583,8 +608,8 @@ class StudentRepository:
                     )
 
                 if existing:
-                    if "semester_number" in data:
-                        existing.semester_number = data["semester_number"]
+                    if "structure_semester_id" in data:
+                        existing.structure_semester_id = data["structure_semester_id"]
                     if "status" in data:
                         existing.status = data["status"]
                     if "semester_status" in data:
@@ -603,11 +628,16 @@ class StudentRepository:
                         logger.error(error_msg)
                         return False, error_msg, None
 
+                    if "structure_semester_id" not in data:
+                        error_msg = "Cannot create student semester without structure_semester_id"
+                        logger.error(error_msg)
+                        return False, error_msg, None
+
                     new_semester = StudentSemester(
                         id=semester_id,
                         student_program_id=std_program_id,
                         term=data.get("term"),
-                        semester_number=data.get("semester_number"),
+                        structure_semester_id=data["structure_semester_id"],
                         status=data.get("status")
                         or data.get("semester_status", "Active"),
                         caf_date=data.get("caf_date"),

@@ -158,7 +158,7 @@ class SemesterFormDialog(wx.Dialog):
             return
 
         semester_data = self.semester_number_combo.GetClientData(semester_idx)
-        structure_semester_id, semester_number = semester_data
+        structure_semester_id, _ = semester_data
 
         if not status:
             wx.MessageBox(
@@ -170,7 +170,6 @@ class SemesterFormDialog(wx.Dialog):
             "student_program_id": self.student_program_id,
             "term": term,
             "structure_semester_id": structure_semester_id,
-            "semester_number": semester_number,
             "status": status,
             "caf_date": caf_date if caf_date else None,
         }

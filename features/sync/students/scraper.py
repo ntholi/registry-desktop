@@ -309,7 +309,7 @@ def extract_student_semester_ids(std_program_id: str) -> list[str]:
     return semester_ids
 
 
-def scrape_student_semester_data(std_semester_id: str) -> dict:
+def scrape_student_semester_data(std_semester_id: str, structure_id: Optional[int] = None) -> dict:
     browser = Browser()
     url = f"{BASE_URL}/r_stdsemesterview.php?StdSemesterID={std_semester_id}"
     response = browser.fetch(url)
@@ -330,8 +330,15 @@ def scrape_student_semester_data(std_semester_id: str) -> dict:
     semester_str = get_table_value(table, "Semester")
     if semester_str:
         semester_number = parse_semester_number(semester_str)
-        if semester_number is not None:
-            data["semester_number"] = semester_number
+        if semester_number is not None and structure_id is not None:
+            structure_semester_id = lookup_structure_semester_id(structure_id, semester_number)
+            if structure_semester_id:
+                data["structure_semester_id"] = structure_semester_id
+            else:
+                logger.warning(
+                    f"Could not find structure_semester_id for structure {structure_id} "
+                    f"and semester_number {semester_number}"
+                )
 
     status = get_table_value(table, "SemStatus")
     if status:
@@ -345,6 +352,21 @@ def scrape_student_semester_data(std_semester_id: str) -> dict:
 
     logger.info(f"Scraped semester data for student semester {std_semester_id}")
     return data
+
+
+def lookup_structure_semester_id(structure_id: int, semester_number: int) -> Optional[int]:
+    from database import StructureSemester, get_engine
+    from sqlalchemy.orm import Session
+
+    engine = get_engine()
+    with Session(engine) as session:
+        result = (
+            session.query(StructureSemester.id)
+            .filter(StructureSemester.structure_id == structure_id)
+            .filter(StructureSemester.semester_number == semester_number)
+            .first()
+        )
+        return result[0] if result else None
 
 
 def scrape_student_data(std_no: str) -> dict:

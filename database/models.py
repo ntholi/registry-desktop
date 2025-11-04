@@ -50,21 +50,21 @@ StudentStatus = Literal[
 EducationType = Literal["Primary", "Secondary", "Tertiary"]
 
 EducationLevel = Literal[
-    "PSLE",
+    "JCE",
     "BJCE",
-    "LGSE",
-    "Cambridge Oversea School Certificate",
+    "BGGSE",
     "LGCSE",
     "IGCSE",
-    "BGCSE",
-    "O level",
-    "A level",
+    "O-Levels",
+    "A-Levels",
+    "Matriculation",
+    "Cambridge Oversea School Certificate",
     "Certificate",
     "Diploma",
     "Degree",
     "Masters",
     "Doctorate",
-    "Other",
+    "Others",
 ]
 
 NextOfKinRelationship = Literal[
@@ -151,6 +151,8 @@ RegistrationRequestStatus = Literal[
 ]
 RequestedModuleStatus = Literal["pending", "registered", "rejected"]
 ClearanceRequestStatus = Literal["pending", "approved", "rejected"]
+PaymentType = Literal["graduation_gown", "graduation_fee"]
+
 BlockedStudentStatus = Literal["blocked", "unblocked"]
 
 AssessmentNumber = Literal[
@@ -172,8 +174,6 @@ AssessmentNumber = Literal[
 ]
 AssessmentMarksAuditAction = Literal["create", "update", "delete"]
 AssessmentsAuditAction = Literal["create", "update", "delete"]
-PaymentType = Literal["graduation_gown", "graduation_fee"]
-
 FortinetLevel = Literal["nse1", "nse2", "nse3", "nse4", "nse5", "nse6", "nse7", "nse8"]
 FortinetRegistrationStatus = Literal["pending", "approved", "rejected", "completed"]
 TaskStatus = Literal["scheduled", "active", "in_progress", "completed", "cancelled"]
@@ -432,7 +432,11 @@ class StudentSemester(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     term: Mapped[str] = mapped_column(String, nullable=False)
-    semester_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    structure_semester_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("structure_semesters.id", ondelete="CASCADE"),
+        nullable=False,
+    )
     status: Mapped[SemesterStatus] = mapped_column(String, nullable=False)
     student_program_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("student_programs.id", ondelete="CASCADE"), nullable=False
@@ -444,6 +448,7 @@ class StudentSemester(Base):
 
     __table_args__ = (
         Index("fk_student_semesters_student_program_id", "student_program_id"),
+        Index("fk_student_semesters_structure_semester_id", "structure_semester_id"),
         Index("idx_student_semesters_term", "term"),
         Index("idx_student_semesters_status", "status"),
     )

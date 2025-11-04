@@ -9,6 +9,8 @@ from base.browser import BASE_URL, Browser
 
 logger = get_logger(__name__)
 
+_structure_semester_cache: dict[tuple[int, int], Optional[int]] = {}
+
 
 def extract_student_program_ids(std_no: str) -> list[str]:
     browser = Browser()
@@ -355,8 +357,20 @@ def scrape_student_semester_data(std_semester_id: str, structure_id: Optional[in
 
 
 def lookup_structure_semester_id(structure_id: int, semester_number: int) -> Optional[int]:
+    cache_key = (structure_id, semester_number)
+
+    if cache_key in _structure_semester_cache:
+        logger.debug(
+            f"Cache hit for structure {structure_id}, semester {semester_number}"
+        )
+        return _structure_semester_cache[cache_key]
+
     from database import StructureSemester, get_engine
     from sqlalchemy.orm import Session
+
+    logger.debug(
+        f"Cache miss for structure {structure_id}, semester {semester_number} - querying database"
+    )
 
     engine = get_engine()
     with Session(engine) as session:
@@ -366,7 +380,43 @@ def lookup_structure_semester_id(structure_id: int, semester_number: int) -> Opt
             .filter(StructureSemester.semester_number == semester_number)
             .first()
         )
-        return result[0] if result else None
+        structure_semester_id = result[0] if result else None
+
+        _structure_semester_cache[cache_key] = structure_semester_id
+
+        return structure_semester_id
+
+
+def clear_structure_semester_cache():
+    global _structure_semester_cache
+    _structure_semester_cache.clear()
+    logger.info("Cleared structure semester cache")
+
+
+def preload_structure_semesters(structure_id: int) -> None:
+    from database import StructureSemester, get_engine
+    from sqlalchemy.orm import Session
+
+    logger.info(f"Preloading structure semesters for structure {structure_id}")
+
+    engine = get_engine()
+    with Session(engine) as session:
+        results = (
+            session.query(
+                StructureSemester.id,
+                StructureSemester.semester_number
+            )
+            .filter(StructureSemester.structure_id == structure_id)
+            .all()
+        )
+
+        for structure_semester_id, semester_number in results:
+            cache_key = (structure_id, semester_number)
+            _structure_semester_cache[cache_key] = structure_semester_id
+
+        logger.info(
+            f"Preloaded {len(results)} semesters for structure {structure_id}"
+        )
 
 
 def scrape_student_data(std_no: str) -> dict:

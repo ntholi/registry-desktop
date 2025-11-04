@@ -14,6 +14,7 @@ from .scraper import (
     extract_student_education_ids,
     extract_student_program_ids,
     extract_student_semester_ids,
+    preload_structure_semesters,
     scrape_student_data,
     scrape_student_education_data,
     scrape_student_modules_concurrent,
@@ -157,6 +158,9 @@ class StudentSyncService:
                             structure_id = self._repository.get_structure_by_code(
                                 program_data["structure_code"]
                             )
+
+                        if structure_id and semester_ids:
+                            preload_structure_semesters(structure_id)
 
                         for sem_idx, sem_id in enumerate(semester_ids, 1):
                             progress_callback(

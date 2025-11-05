@@ -72,7 +72,7 @@ def scrape_semesters(structure_id: int) -> list[dict[str, str | int | float]]:
             href = str(view_link["href"])
             if "SemesterID=" in href:
                 semester_id = href.split("SemesterID=")[1].split("&")[0]
-                semester_number = int(semester_name.split()[0])
+                semester_number = semester_name.split()[0]
                 name_parts = semester_name.split(maxsplit=1)
                 clean_name = name_parts[1] if len(name_parts) > 1 else semester_name
                 semesters.append(

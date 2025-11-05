@@ -33,7 +33,7 @@ class StructureRow:
 @dataclass(frozen=True)
 class SemesterRow:
     id: int
-    semester_number: int
+    semester_number: str
     name: str
     total_credits: float
 
@@ -260,7 +260,7 @@ class StructureRepository:
     def save_semester(
         self,
         semester_id: int,
-        semester_number: int,
+        semester_number: str,
         name: str,
         total_credits: float,
         structure_id: int,

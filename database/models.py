@@ -419,7 +419,7 @@ class StructureSemester(Base):
     structure_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("structures.id", ondelete="CASCADE"), nullable=False
     )
-    semester_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    semester_number: Mapped[str] = mapped_column(String, nullable=False)
     name: Mapped[str] = mapped_column(Text, nullable=False)
     total_credits: Mapped[float] = mapped_column(Float, nullable=False)
     created_at: Mapped[datetime | None] = mapped_column(

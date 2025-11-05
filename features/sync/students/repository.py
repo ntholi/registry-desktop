@@ -130,7 +130,7 @@ class StudentRepository:
         school_id: Optional[int] = None,
         program_id: Optional[int] = None,
         term: Optional[str] = None,
-        semester_number: Optional[int] = None,
+        semester_number: Optional[str] = None,
         search_query: str = "",
         page: int = 1,
         page_size: int = 30,

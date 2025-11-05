@@ -265,7 +265,7 @@ class SchoolSyncService:
             for semester in semesters:
                 self.repository.save_semester(
                     int(semester["id"]),
-                    int(semester["semester_number"]),
+                    str(semester["semester_number"]),
                     str(semester["name"]),
                     float(semester["total_credits"]),
                     structure_id,

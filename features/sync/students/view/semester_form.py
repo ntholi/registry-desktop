@@ -127,7 +127,7 @@ class SemesterFormDialog(wx.Dialog):
 
             semesters = self.repository.get_structure_semesters(self.structure_id)
             for semester in semesters:
-                display_text = f"{semester.semester_number:02d} {semester.name}"
+                display_text = f"{int(semester.semester_number):02d} {semester.name}"
                 self.semester_number_combo.Append(
                     display_text, (semester.id, semester.semester_number)
                 )

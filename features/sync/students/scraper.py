@@ -9,7 +9,7 @@ from base.browser import BASE_URL, Browser
 
 logger = get_logger(__name__)
 
-_structure_semester_cache: dict[tuple[int, int], Optional[int]] = {}
+_structure_semester_cache: dict[tuple[int, str], Optional[int]] = {}
 
 
 def extract_student_program_ids(std_no: str) -> list[str]:
@@ -119,7 +119,7 @@ def parse_date(date_str: Optional[str]) -> Optional[datetime]:
         return None
 
 
-def parse_semester_number(semester_str: str) -> Optional[int]:
+def parse_semester_number(semester_str: str) -> Optional[str]:
     if not semester_str or not semester_str.strip():
         return None
 
@@ -128,7 +128,7 @@ def parse_semester_number(semester_str: str) -> Optional[int]:
 
     if parts:
         try:
-            return int(parts[0])
+            return parts[0]
         except ValueError:
             return None
 
@@ -372,7 +372,7 @@ def scrape_student_semester_data(
 
 
 def lookup_structure_semester_id(
-    structure_id: int, semester_number: int
+    structure_id: int, semester_number: str
 ) -> Optional[int]:
     cache_key = (structure_id, semester_number)
 
@@ -395,7 +395,7 @@ def lookup_structure_semester_id(
         result = (
             session.query(StructureSemester.id)
             .filter(StructureSemester.structure_id == structure_id)
-            .filter(StructureSemester.semester_number == str(semester_number))
+            .filter(StructureSemester.semester_number == semester_number)
             .first()
         )
         structure_semester_id = result[0] if result else None

@@ -576,7 +576,7 @@ class RegistrationRequest(Base):
     semester_status: Mapped[SemesterStatusForRegistration] = mapped_column(
         String, nullable=False
     )
-    semester_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    semester_number: Mapped[str] = mapped_column(String, nullable=False)
     message: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime, default=utc_now, nullable=True

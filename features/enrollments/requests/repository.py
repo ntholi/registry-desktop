@@ -33,7 +33,7 @@ class RegistrationRequestRow:
     student_name: Optional[str]
     sponsor_name: Optional[str]
     term_name: Optional[str]
-    semester_number: int
+    semester_number: str
     semester_status: str
     status: str
     school_name: Optional[str]
@@ -386,7 +386,7 @@ class EnrollmentRequestRepository:
                 "std_no": program.std_no,
             }
 
-    def get_structure_semester_by_number(self, structure_id: int, semester_number: int):
+    def get_structure_semester_by_number(self, structure_id: int, semester_number: str):
         with self._session() as session:
             from database import StructureSemester
 

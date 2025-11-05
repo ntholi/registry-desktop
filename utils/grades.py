@@ -381,7 +381,7 @@ class StructureModuleInfo:
     original_name: str
     type: str
     credits: int
-    semester_number: int
+    semester_number: str
 
 
 @dataclass

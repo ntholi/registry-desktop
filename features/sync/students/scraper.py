@@ -6,6 +6,7 @@ from bs4 import BeautifulSoup, Tag
 
 from base import get_logger
 from base.browser import BASE_URL, Browser
+from utils.grades import normalize_grade_symbol
 
 logger = get_logger(__name__)
 
@@ -523,9 +524,9 @@ def scrape_student_module_data(std_module_id: str, student_semester_id: int) -> 
     grade = get_table_value(table, "Grade")
     alter_grade = get_table_value(table, "[Reg] Alter Grade")
     if alter_grade:
-        data["grade"] = alter_grade
+        data["grade"] = normalize_grade_symbol(alter_grade)
     elif grade:
-        data["grade"] = grade
+        data["grade"] = normalize_grade_symbol(grade)
 
     logger.info(f"Scraped module data for student module {std_module_id}")
     return data

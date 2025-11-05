@@ -136,9 +136,11 @@ class StructureDetailPanel(wx.Panel):
         semesters_container = self.semesters_loader.get_container()
 
         self.semesters_list = wx.ListCtrl(
-            semesters_container, style=wx.LC_REPORT | wx.BORDER_SIMPLE | wx.LC_SINGLE_SEL
+            semesters_container,
+            style=wx.LC_REPORT | wx.BORDER_SIMPLE | wx.LC_SINGLE_SEL,
         )
-        self.semesters_list.AppendColumn("Semester", width=200)
+        self.semesters_list.AppendColumn("No.", width=50)
+        self.semesters_list.AppendColumn("Semester", width=150)
         self.semesters_list.AppendColumn("Credits", width=80)
         self.semesters_list.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_semester_selected)
         self.semesters_loader.set_content_panel(self.semesters_list)
@@ -166,7 +168,9 @@ class StructureDetailPanel(wx.Panel):
         self.modules_loader = LoadableControl(self, self.on_modules_loaded)
         modules_container = self.modules_loader.get_container()
 
-        self.modules_list = wx.ListCtrl(modules_container, style=wx.LC_REPORT | wx.BORDER_SIMPLE)
+        self.modules_list = wx.ListCtrl(
+            modules_container, style=wx.LC_REPORT | wx.BORDER_SIMPLE
+        )
         self.modules_list.AppendColumn("Code", width=100)
         self.modules_list.AppendColumn("Name", width=250)
         self.modules_list.AppendColumn("Type", width=100)
@@ -210,8 +214,9 @@ class StructureDetailPanel(wx.Panel):
         self.semesters_list.DeleteAllItems()
 
         for row, semester in enumerate(semesters):
-            index = self.semesters_list.InsertItem(row, semester.name)
-            self.semesters_list.SetItem(index, 1, f"{semester.total_credits:.1f}")
+            index = self.semesters_list.InsertItem(row, semester.semester_number)
+            self.semesters_list.SetItem(index, 1, semester.name)
+            self.semesters_list.SetItem(index, 2, f"{semester.total_credits:.1f}")
             self.semesters_list.SetItemData(index, semester.id)
 
         self.Layout()

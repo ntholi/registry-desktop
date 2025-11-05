@@ -198,37 +198,48 @@ def scrape_student_personal_view(std_no: str) -> dict:
     emergency_phone = get_table_value(table, "Emergency Contact Phone")
 
     if emergency_name and emergency_relation:
-        relationship = emergency_relation if emergency_relation in ["Mother", "Father", "Brother", "Sister", "Child", "Spouse"] else "Other"
-        next_of_kin.append({
-            "name": emergency_name,
-            "relationship": relationship,
-            "phone": emergency_phone,
-            "email": None
-        })
+        relationship = (
+            emergency_relation
+            if emergency_relation
+            in ["Mother", "Father", "Brother", "Sister", "Child", "Spouse"]
+            else "Other"
+        )
+        next_of_kin.append(
+            {
+                "name": emergency_name,
+                "relationship": relationship,
+                "phone": emergency_phone,
+                "email": None,
+            }
+        )
 
     father_name = get_table_value(table, "Father Name")
     father_contact = get_table_value(table, "Father Contact")
     father_email = get_table_value(table, "Father Email")
 
     if father_name:
-        next_of_kin.append({
-            "name": father_name,
-            "relationship": "Father",
-            "phone": father_contact,
-            "email": father_email
-        })
+        next_of_kin.append(
+            {
+                "name": father_name,
+                "relationship": "Father",
+                "phone": father_contact,
+                "email": father_email,
+            }
+        )
 
     mother_name = get_table_value(table, "Mother Name")
     mother_contact = get_table_value(table, "Mother Contact")
     mother_email = get_table_value(table, "Mother Email")
 
     if mother_name:
-        next_of_kin.append({
-            "name": mother_name,
-            "relationship": "Mother",
-            "phone": mother_contact,
-            "email": mother_email
-        })
+        next_of_kin.append(
+            {
+                "name": mother_name,
+                "relationship": "Mother",
+                "phone": mother_contact,
+                "email": mother_email,
+            }
+        )
 
     if next_of_kin:
         data["next_of_kin"] = next_of_kin
@@ -311,7 +322,9 @@ def extract_student_semester_ids(std_program_id: str) -> list[str]:
     return semester_ids
 
 
-def scrape_student_semester_data(std_semester_id: str, structure_id: Optional[int] = None) -> dict:
+def scrape_student_semester_data(
+    std_semester_id: str, structure_id: Optional[int] = None
+) -> dict:
     browser = Browser()
     url = f"{BASE_URL}/r_stdsemesterview.php?StdSemesterID={std_semester_id}"
     response = browser.fetch(url)
@@ -333,7 +346,9 @@ def scrape_student_semester_data(std_semester_id: str, structure_id: Optional[in
     if semester_str:
         semester_number = parse_semester_number(semester_str)
         if semester_number is not None and structure_id is not None:
-            structure_semester_id = lookup_structure_semester_id(structure_id, semester_number)
+            structure_semester_id = lookup_structure_semester_id(
+                structure_id, semester_number
+            )
             if structure_semester_id:
                 data["structure_semester_id"] = structure_semester_id
             else:
@@ -356,7 +371,9 @@ def scrape_student_semester_data(std_semester_id: str, structure_id: Optional[in
     return data
 
 
-def lookup_structure_semester_id(structure_id: int, semester_number: int) -> Optional[int]:
+def lookup_structure_semester_id(
+    structure_id: int, semester_number: int
+) -> Optional[int]:
     cache_key = (structure_id, semester_number)
 
     if cache_key in _structure_semester_cache:
@@ -365,8 +382,9 @@ def lookup_structure_semester_id(structure_id: int, semester_number: int) -> Opt
         )
         return _structure_semester_cache[cache_key]
 
-    from database import StructureSemester, get_engine
     from sqlalchemy.orm import Session
+
+    from database import StructureSemester, get_engine
 
     logger.debug(
         f"Cache miss for structure {structure_id}, semester {semester_number} - querying database"
@@ -377,7 +395,7 @@ def lookup_structure_semester_id(structure_id: int, semester_number: int) -> Opt
         result = (
             session.query(StructureSemester.id)
             .filter(StructureSemester.structure_id == structure_id)
-            .filter(StructureSemester.semester_number == semester_number)
+            .filter(StructureSemester.semester_number == str(semester_number))
             .first()
         )
         structure_semester_id = result[0] if result else None
@@ -394,18 +412,16 @@ def clear_structure_semester_cache():
 
 
 def preload_structure_semesters(structure_id: int) -> None:
-    from database import StructureSemester, get_engine
     from sqlalchemy.orm import Session
+
+    from database import StructureSemester, get_engine
 
     logger.info(f"Preloading structure semesters for structure {structure_id}")
 
     engine = get_engine()
     with Session(engine) as session:
         results = (
-            session.query(
-                StructureSemester.id,
-                StructureSemester.semester_number
-            )
+            session.query(StructureSemester.id, StructureSemester.semester_number)
             .filter(StructureSemester.structure_id == structure_id)
             .all()
         )
@@ -414,9 +430,7 @@ def preload_structure_semesters(structure_id: int) -> None:
             cache_key = (structure_id, semester_number)
             _structure_semester_cache[cache_key] = structure_semester_id
 
-        logger.info(
-            f"Preloaded {len(results)} semesters for structure {structure_id}"
-        )
+        logger.info(f"Preloaded {len(results)} semesters for structure {structure_id}")
 
 
 def scrape_student_data(std_no: str) -> dict:
@@ -603,7 +617,7 @@ def scrape_student_education_data(std_education_id: str) -> dict:
         student_id_parts = student_id_str.split()
         if student_id_parts:
             try:
-                data["std_no"] = int(student_id_parts[0])
+                data["std_no"] = str(int(student_id_parts[0]))
             except ValueError:
                 logger.warning(f"Could not parse student ID from: {student_id_str}")
 
@@ -625,7 +639,7 @@ def scrape_student_education_data(std_education_id: str) -> dict:
     if exam_date_str:
         parsed_date = parse_date(exam_date_str)
         if parsed_date:
-            data["end_date"] = parsed_date
+            data["end_date"] = parsed_date.strftime("%Y-%m-%d")
 
     logger.info(f"Scraped education data for student education {std_education_id}")
     return data

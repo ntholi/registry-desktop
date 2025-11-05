@@ -148,6 +148,19 @@ response = browser.post(url, form_data)
 - After completing your code changes, always check for and fix any errors or issues in the code.
 - Fix all lint errors and type errors.
 
+## VALIDATION TESTING REQUIRED (MANDATORY)
+
+**DO NOT STOP after making code changes. You MUST validate that fixes work by running the application and testing the specific functionality.**
+
+### Validation Workflow (REQUIRED - NEVER SKIP)
+1. **Verify the fix works**: 
+   - Check that expected behavior occurs (data is scraped, saved, etc.)
+   - Check logs for errors or warnings
+   - Confirm no exceptions or database constraint violations
+2. **Only stop when verified**: Do NOT end your work until you have confirmed the fix is working
+3. **If tests fail**: Debug the issue, make additional fixes, and re-test until working
+4. 1. **You may run the application**: `uv run main.py` so that the user can test the functionality manually, and you track the logs to monitor your changes.
+
 ## Key Files Reference
 
 - `main.py`: App entry point, view orchestration

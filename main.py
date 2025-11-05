@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 from pathlib import Path
 
 import wx
@@ -137,11 +138,11 @@ class MainWindow(wx.Frame):
         """Load view titles/descriptions from menu.json"""
         config_path = Path(__file__).parent / "base" / "nav" / "menu.json"
         titles = {}
-        
+
         try:
             with open(config_path, "r") as f:
                 config = json.load(f)
-            
+
             for item in config["menu_items"]:
                 for submenu in item["submenu"]:
                     action = submenu["action"]
@@ -149,7 +150,7 @@ class MainWindow(wx.Frame):
                     titles[action] = title
         except (FileNotFoundError, json.JSONDecodeError, KeyError) as e:
             print(f"Error loading menu titles: {e}")
-        
+
         return titles
 
     def _show_loading(self, action):
@@ -178,6 +179,14 @@ def main():
     setup_logging()
 
     logger.info("Starting Limkokwing Registry Desktop Application")
+
+    database_env = os.getenv("DATABASE_ENV", "local").strip().lower()
+
+    if database_env == "remote":
+        print("\n" + "=" * 60)
+        print("WARNING: Using REMOTE database!")
+        print("=" * 60 + "\n")
+        input("Press any key to continue...")
 
     app = wx.App()
 

@@ -729,7 +729,7 @@ class StudentRepository:
                         existing.semester_module_id = semester_module_id  # type: ignore
                     if "status" in data:
                         existing.status = normalize_student_module_status(
-                            data["status"]
+                            data["status"]  # type: ignore
                         )
                     if "marks" in data:
                         existing.marks = data["marks"]

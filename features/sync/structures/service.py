@@ -15,6 +15,21 @@ from .scraper import (
 logger = get_logger(__name__)
 
 
+def normalize_module_type(module_type: str) -> str:
+    type_mapping = {
+        "standard": "Core",
+        "core": "Core",
+        "major": "Major",
+        "minor": "Minor",
+        "elective": "Elective",
+        "delete": "Delete",
+    }
+
+    normalized = type_mapping.get(module_type.lower(), "Core")
+    logger.debug(f"Normalized module type '{module_type}' to '{normalized}'")
+    return normalized
+
+
 class SchoolSyncService:
     def __init__(self, repository: StructureRepository):
         self.repository = repository
@@ -310,11 +325,12 @@ class SchoolSyncService:
                     )
 
                     for sem_module in semester_modules:
+                        normalized_type = normalize_module_type(str(sem_module["type"]))
                         self.repository.save_semester_module(
                             int(sem_module["id"]),
                             str(sem_module["module_code"]),
                             str(sem_module["module_name"]),
-                            str(sem_module["type"]),
+                            normalized_type,
                             float(sem_module["credits"]),
                             semester_id,
                             bool(sem_module["hidden"]),

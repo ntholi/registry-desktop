@@ -16,4 +16,6 @@ dependencies = [
     "sqlalchemy>=2.0.44",
     "urllib3>=2.5.0",
     "psycopg2-binary>=2.9.0",
+    "google-auth-oauthlib>=1.2.3",
+    "google-auth-httplib2>=0.2.1",
 ]

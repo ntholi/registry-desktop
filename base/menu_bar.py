@@ -1,6 +1,8 @@
 import wx
 import wx.adv
 
+from base.auth.session_manager import SessionManager
+
 
 class AppMenuBar:
     def __init__(self, parent):
@@ -20,6 +22,9 @@ class AppMenuBar:
 
         file_menu.AppendSeparator()
 
+        logout_item = file_menu.Append(wx.ID_ANY, "Logout\tCtrl+L", "Logout from the application")
+        self.parent.Bind(wx.EVT_MENU, self._on_logout, logout_item)
+
         exit_item = file_menu.Append(wx.ID_EXIT, "Exit", "Exit the application")
         self.parent.Bind(wx.EVT_MENU, self._on_exit, exit_item)
 
@@ -31,6 +36,22 @@ class AppMenuBar:
         info.SetVersion("1.0")
         info.SetDescription("Limkokwing Registry Desktop Application")
         wx.adv.AboutBox(info)
+
+    def _on_logout(self, event):
+        result = wx.MessageBox(
+            "Are you sure you want to logout?",
+            "Confirm Logout",
+            wx.YES_NO | wx.ICON_QUESTION
+        )
+
+        if result == wx.YES:
+            SessionManager.clear_session()
+            wx.MessageBox(
+                "You have been logged out. Please restart the application to login again.",
+                "Logged Out",
+                wx.OK | wx.ICON_INFORMATION
+            )
+            self.parent.Close()
 
     def _on_exit(self, event):
         self.parent.Close()

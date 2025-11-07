@@ -5,12 +5,18 @@ from pathlib import Path
 
 import wx
 
+from base.auth.login_view import LoginWindow
+from base.auth.repository import AuthRepository
+from base.auth.session_manager import SessionManager
 from base.logging_config import setup_logging
 from base.menu_bar import AppMenuBar
 from base.nav import AccordionNavigation
 from base.splash_screen import SplashScreen
 from base.status.status_bar import StatusBar
 from base.widgets.loading_panel import LoadingPanel
+from database.connection import get_engine
+from database.models import User
+from sqlalchemy.orm import Session as DBSession
 from features.enrollments.module.module_view import ModuleView
 from features.enrollments.requests.requests_view import RequestsView
 from features.enrollments.student.student_view import StudentView
@@ -24,8 +30,11 @@ logger = logging.getLogger(__name__)
 
 
 class MainWindow(wx.Frame):
-    def __init__(self):
+    def __init__(self, current_user: User):
         super().__init__(None, title="Limkokwing Registry", size=wx.Size(1100, 750))
+
+        self.current_user = current_user
+        logger.info(f"Main window initialized for user: {current_user.email}")
 
         self.menu_bar = AppMenuBar(self)
 
@@ -175,6 +184,45 @@ class MainWindow(wx.Frame):
         wx.SafeYield()
 
 
+def check_existing_session() -> User | None:
+    session_token = SessionManager.get_session_token()
+    if not session_token:
+        return None
+
+    try:
+        engine = get_engine()
+        with DBSession(engine) as db_session:
+            auth_repo = AuthRepository(db_session)
+            user = auth_repo.get_user_by_session_token(session_token)
+
+            if user:
+                logger.info(f"Valid session found for user: {user.email}")
+                return user
+            else:
+                SessionManager.clear_session()
+                logger.info("Session expired or invalid, cleared local session")
+                return None
+    except Exception as e:
+        logger.exception(f"Error checking existing session: {e}")
+        SessionManager.clear_session()
+        return None
+
+
+def show_main_window(user: User):
+    try:
+        window = MainWindow(user)
+        window.Maximize()
+        window.Show()
+    except Exception as e:
+        logger.exception(f"Fatal error in application: {e}")
+        wx.MessageBox(
+            f"Failed to start application: {str(e)}",
+            "Application Error",
+            wx.OK | wx.ICON_ERROR
+        )
+        raise
+
+
 def main():
     setup_logging()
 
@@ -195,17 +243,17 @@ def main():
 
     wx.Yield()
 
-    try:
-        window = MainWindow()
+    current_user = check_existing_session()
 
-        splash.close()
+    splash.close()
 
-        window.Maximize()
-        window.Show()
-        app.MainLoop()
-    except Exception as e:
-        logger.exception(f"Fatal error in application: {e}")
-        raise
+    if current_user:
+        show_main_window(current_user)
+    else:
+        login_window = LoginWindow(on_login_success=show_main_window)
+        login_window.Show()
+
+    app.MainLoop()
 
 
 if __name__ == "__main__":

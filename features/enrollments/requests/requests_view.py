@@ -44,6 +44,97 @@ class EnrollStudentsWorker(threading.Thread):
             wx.CallAfter(self.callback, "error", str(e))
 
 
+class LoadFilterOptionsWorker(threading.Thread):
+    def __init__(self, repository, callback):
+        super().__init__(daemon=True)
+        self.repository = repository
+        self.callback = callback
+        self.should_stop = False
+
+    def run(self):
+        if self.should_stop:
+            return
+        try:
+            schools = self.repository.list_active_schools()
+            programs = self.repository.list_programs(None)
+            terms = self.repository.list_terms()
+            self.callback("filters_loaded", schools, programs, terms)
+        except Exception as e:
+            self.callback("filters_error", str(e))
+
+    def stop(self):
+        self.should_stop = True
+
+
+class LoadProgramsWorker(threading.Thread):
+    def __init__(self, repository, school_id, callback):
+        super().__init__(daemon=True)
+        self.repository = repository
+        self.school_id = school_id
+        self.callback = callback
+        self.should_stop = False
+
+    def run(self):
+        if self.should_stop:
+            return
+        try:
+            programs = self.repository.list_programs(self.school_id)
+            self.callback("programs_loaded", programs)
+        except Exception as e:
+            self.callback("programs_error", str(e))
+
+    def stop(self):
+        self.should_stop = True
+
+
+class LoadRequestsWorker(threading.Thread):
+    def __init__(self, repository, filters, page, page_size, callback):
+        super().__init__(daemon=True)
+        self.repository = repository
+        self.filters = filters
+        self.page = page
+        self.page_size = page_size
+        self.callback = callback
+        self.should_stop = False
+
+    def run(self):
+        if self.should_stop:
+            return
+        try:
+            requests, total = self.repository.fetch_registration_requests(
+                **self.filters,
+                page=self.page,
+                page_size=self.page_size,
+            )
+            self.callback("requests_loaded", requests, total)
+        except Exception as e:
+            self.callback("requests_error", str(e))
+
+    def stop(self):
+        self.should_stop = True
+
+
+class CheckClearancesWorker(threading.Thread):
+    def __init__(self, service, requests, callback):
+        super().__init__(daemon=True)
+        self.service = service
+        self.requests = requests
+        self.callback = callback
+        self.should_stop = False
+
+    def run(self):
+        if self.should_stop:
+            return
+        try:
+            result = self.service.check_clearances_for_requests(self.requests)
+            self.callback("clearances_checked", result)
+        except Exception as e:
+            self.callback("clearances_error", str(e))
+
+    def stop(self):
+        self.should_stop = True
+
+
 class RequestsView(wx.Panel):
     def __init__(self, parent, status_bar=None):
         super().__init__(parent)
@@ -62,6 +153,12 @@ class RequestsView(wx.Panel):
         self.checked_items = set()
         self.selected_request_item = None
         self.enroll_worker = None
+        self.filter_worker = None
+        self.programs_worker = None
+        self.requests_worker = None
+        self.clearances_worker = None
+        self.pending_load_requests = False
+        self.pending_enrollment_requests = []
         self.detail_loader: LoadableControl | None = None
         self.detail_container: wx.Panel | None = None
         self.active_request_id: int | None = None
@@ -428,42 +525,49 @@ class RequestsView(wx.Panel):
         self.update_selection_state()
 
     def load_filter_options(self):
-        try:
-            schools = self.repository.list_active_schools()
-            for school in schools:
-                self.school_filter.Append(str(school.name), school.id)
+        self.school_filter.Enable(False)
+        self.program_filter.Enable(False)
+        self.term_filter.Enable(False)
 
-            self.load_programs_for_school(None)
+        self.school_filter.SetSelection(0)
+        self.school_filter.SetString(0, "Loading...")
+        self.program_filter.SetSelection(0)
+        self.program_filter.SetString(0, "Loading...")
+        self.term_filter.SetSelection(0)
+        self.term_filter.SetString(0, "Loading...")
 
-            terms = self.repository.list_terms()
-            for term in terms:
-                self.term_filter.Append(str(term.name), term.id)
+        if self.status_bar:
+            self.status_bar.show_message("Loading filters...")
+        self.filter_worker = LoadFilterOptionsWorker(
+            self.repository, self.on_filter_options_callback
+        )
+        self.filter_worker.start()
 
-        except Exception as e:
-            print(f"Error loading filter options: {str(e)}")
+    def load_programs_for_school(self, school_id, trigger_load_requests=False):
+        self.pending_load_requests = trigger_load_requests
 
-    def load_programs_for_school(self, school_id):
-        try:
-            while self.program_filter.GetCount() > 1:
-                self.program_filter.Delete(1)
+        self.program_filter.Enable(False)
+        while self.program_filter.GetCount() > 1:
+            self.program_filter.Delete(1)
+        self.program_filter.SetSelection(0)
+        self.program_filter.SetString(0, "Loading...")
 
-            programs = self.repository.list_programs(school_id)
-
-            for program in programs:
-                self.program_filter.Append(str(program.name), program.id)
-        except Exception as e:
-            print(f"Error loading programs: {str(e)}")
+        if self.status_bar:
+            self.status_bar.show_message("Loading programs...")
+        self.programs_worker = LoadProgramsWorker(
+            self.repository, school_id, self.on_programs_callback
+        )
+        self.programs_worker.start()
 
     def on_school_changed(self, event):
         sel = self.school_filter.GetSelection()
         self.selected_school_id = (
             self.school_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
         )
-        self.load_programs_for_school(self.selected_school_id)
         self.program_filter.SetSelection(0)
         self.selected_program_id = None
         self.current_page = 1
-        self.load_registration_requests()
+        self.load_programs_for_school(self.selected_school_id, trigger_load_requests=True)
 
     def on_filter_changed(self, event):
         sel = self.school_filter.GetSelection()
@@ -508,51 +612,23 @@ class RequestsView(wx.Panel):
         self.load_registration_requests()
 
     def load_registration_requests(self):
-        try:
-            requests, total = self.repository.fetch_registration_requests(
-                school_id=self.selected_school_id,
-                program_id=self.selected_program_id,
-                term_id=self.selected_term_id,
-                status=self.selected_status,
-                search_query=self.search_query,
-                page=self.current_page,
-                page_size=self.page_size,
-            )
-
-            self.total_requests = total
-            self.list_ctrl.DeleteAllItems()
-            self.checked_items.clear()
-
-            for row, request in enumerate(requests):
-                index = self.list_ctrl.InsertItem(row, "")
-                self.list_ctrl.SetItemImage(index, self.unchecked_idx)
-                self.list_ctrl.SetItemData(index, request.id)
-                self.list_ctrl.SetItem(index, 1, request.std_no)
-                self.list_ctrl.SetItem(index, 2, request.student_name or "")
-                self.list_ctrl.SetItem(index, 3, request.sponsor_name or "")
-                self.list_ctrl.SetItem(index, 4, request.term_name or "")
-                self.list_ctrl.SetItem(
-                    index,
-                    5,
-                    f"{request.semester_number} ({request.semester_status})",
-                )
-                self.list_ctrl.SetItem(index, 6, request.school_name or "")
-                self.list_ctrl.SetItem(index, 7, request.program_name or "")
-                self.list_ctrl.SetItem(index, 8, str(request.module_count))
-                self.list_ctrl.SetItem(index, 9, request.status.upper())
-
-            self.update_pagination_controls()
-            self.update_total_label()
-            self.select_all_checkbox.SetValue(False)
-            self.update_selection_state()
-
-        except Exception as e:
-            print(f"Error loading registration requests: {str(e)}")
-            self.list_ctrl.DeleteAllItems()
-            self.checked_items.clear()
-            self.page_label.SetLabel("No data available")
-            self.records_label.SetLabel("")
-            self.update_selection_state()
+        if self.status_bar:
+            self.status_bar.show_message("Loading requests...")
+        filters = {
+            "school_id": self.selected_school_id,
+            "program_id": self.selected_program_id,
+            "term_id": self.selected_term_id,
+            "status": self.selected_status,
+            "search_query": self.search_query,
+        }
+        self.requests_worker = LoadRequestsWorker(
+            self.repository,
+            filters,
+            self.current_page,
+            self.page_size,
+            self.on_requests_callback,
+        )
+        self.requests_worker.start()
 
     def update_total_label(self):
         plural = "s" if self.total_requests != 1 else ""
@@ -625,15 +701,17 @@ class RequestsView(wx.Panel):
             )
             return
 
-        clearance_issues = self.service.check_clearances_for_requests(selected_requests)
-        if clearance_issues:
-            wx.MessageBox(
-                f"Cannot enroll students due to incomplete clearances:\n\n{clearance_issues}",
-                "Clearance Required",
-                wx.OK | wx.ICON_WARNING,
-            )
-            return
+        self.pending_enrollment_requests = selected_requests
+        self.enroll_button.Enable(False)
+        if self.status_bar:
+            self.status_bar.show_message("Checking student clearances...")
+        self.clearances_worker = CheckClearancesWorker(
+            self.service, selected_requests, self.on_clearances_callback
+        )
+        self.clearances_worker.start()
 
+    def _proceed_with_enrollment(self):
+        selected_requests = self.pending_enrollment_requests
         dlg = wx.MessageDialog(
             self,
             f"Enroll {len(selected_requests)} student(s)?\n\nThis will process their registration requests and enroll them in the requested modules.",
@@ -643,10 +721,9 @@ class RequestsView(wx.Panel):
 
         if dlg.ShowModal() != wx.ID_YES:
             dlg.Destroy()
+            self.enroll_button.Enable(True)
             return
         dlg.Destroy()
-
-        self.enroll_button.Enable(False)
 
         self.enroll_worker = EnrollStudentsWorker(
             self.service, selected_requests, self.on_enroll_progress
@@ -689,3 +766,138 @@ class RequestsView(wx.Panel):
             )
 
             self.enroll_button.Enable(True)
+
+    def on_filter_options_callback(self, event_type, *args):
+        wx.CallAfter(self._handle_filter_options_event, event_type, *args)
+
+    def on_programs_callback(self, event_type, *args):
+        wx.CallAfter(self._handle_programs_event, event_type, *args)
+
+    def on_requests_callback(self, event_type, *args):
+        wx.CallAfter(self._handle_requests_event, event_type, *args)
+
+    def on_clearances_callback(self, event_type, *args):
+        wx.CallAfter(self._handle_clearances_event, event_type, *args)
+
+    def _handle_filter_options_event(self, event_type, *args):
+        if event_type == "filters_loaded":
+            schools, programs, terms = args
+
+            self.school_filter.SetString(0, "All Schools")
+            for school in schools:
+                self.school_filter.Append(str(school.name), school.id)
+            self.school_filter.SetSelection(0)
+            self.school_filter.Enable(True)
+
+            self.program_filter.SetString(0, "All Programs")
+            for program in programs:
+                self.program_filter.Append(str(program.name), program.id)
+            self.program_filter.SetSelection(0)
+            self.program_filter.Enable(True)
+
+            self.term_filter.SetString(0, "All Terms")
+            for term in terms:
+                self.term_filter.Append(str(term.name), term.id)
+            self.term_filter.SetSelection(0)
+            self.term_filter.Enable(True)
+        elif event_type == "filters_error":
+            error_msg = args[0]
+            print(f"Error loading filters: {error_msg}")
+            self.school_filter.SetString(0, "All Schools")
+            self.school_filter.Enable(True)
+            self.program_filter.SetString(0, "All Programs")
+            self.program_filter.Enable(True)
+            self.term_filter.SetString(0, "All Terms")
+            self.term_filter.Enable(True)
+
+        if self.status_bar:
+            self.status_bar.clear()
+
+    def _handle_programs_event(self, event_type, *args):
+        if event_type == "programs_loaded":
+            programs = args[0]
+            while self.program_filter.GetCount() > 1:
+                self.program_filter.Delete(1)
+            self.program_filter.SetString(0, "All Programs")
+            for program in programs:
+                self.program_filter.Append(str(program.name), program.id)
+            self.program_filter.SetSelection(0)
+            self.program_filter.Enable(True)
+
+            if self.pending_load_requests:
+                self.pending_load_requests = False
+                self.load_registration_requests()
+        elif event_type == "programs_error":
+            error_msg = args[0]
+            print(f"Error loading programs: {error_msg}")
+            self.program_filter.SetString(0, "All Programs")
+            self.program_filter.Enable(True)
+
+        if self.status_bar:
+            self.status_bar.clear()
+
+    def _handle_requests_event(self, event_type, *args):
+        if event_type == "requests_loaded":
+            requests, total = args
+            self.total_requests = total
+            self.list_ctrl.DeleteAllItems()
+            self.checked_items.clear()
+
+            for row, request in enumerate(requests):
+                index = self.list_ctrl.InsertItem(row, "")
+                self.list_ctrl.SetItemImage(index, self.unchecked_idx)
+                self.list_ctrl.SetItemData(index, request.id)
+                self.list_ctrl.SetItem(index, 1, request.std_no)
+                self.list_ctrl.SetItem(index, 2, request.student_name or "")
+                self.list_ctrl.SetItem(index, 3, request.sponsor_name or "")
+                self.list_ctrl.SetItem(index, 4, request.term_name or "")
+                self.list_ctrl.SetItem(
+                    index,
+                    5,
+                    f"{request.semester_number} ({request.semester_status})",
+                )
+                self.list_ctrl.SetItem(index, 6, request.school_name or "")
+                self.list_ctrl.SetItem(index, 7, request.program_name or "")
+                self.list_ctrl.SetItem(index, 8, str(request.module_count))
+                self.list_ctrl.SetItem(index, 9, request.status.upper())
+
+            self.update_pagination_controls()
+            self.update_total_label()
+            self.select_all_checkbox.SetValue(False)
+            self.update_selection_state()
+        elif event_type == "requests_error":
+            error_msg = args[0]
+            print(f"Error loading registration requests: {error_msg}")
+            self.list_ctrl.DeleteAllItems()
+            self.checked_items.clear()
+            self.page_label.SetLabel("No data available")
+            self.records_label.SetLabel("")
+            self.update_selection_state()
+
+        if self.status_bar:
+            self.status_bar.clear()
+
+    def _handle_clearances_event(self, event_type, *args):
+        if self.status_bar:
+            self.status_bar.clear()
+
+        if event_type == "clearances_checked":
+            clearance_issues = args[0]
+            if clearance_issues:
+                wx.MessageBox(
+                    f"Cannot enroll students due to incomplete clearances:\n\n{clearance_issues}",
+                    "Clearance Required",
+                    wx.OK | wx.ICON_WARNING,
+                )
+                self.enroll_button.Enable(True)
+            else:
+                self._proceed_with_enrollment()
+        elif event_type == "clearances_error":
+            error_msg = args[0]
+            wx.MessageBox(
+                f"Error checking clearances:\n\n{error_msg}",
+                "Error",
+                wx.OK | wx.ICON_ERROR,
+            )
+            self.enroll_button.Enable(True)
+

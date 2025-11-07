@@ -27,6 +27,33 @@ class FetchAllModulesWorker(threading.Thread):
             wx.CallAfter(lambda: self.callback("progress", message, current, total))
 
 
+class LoadModulesWorker(threading.Thread):
+    def __init__(self, repository, search_query, page, page_size, callback):
+        super().__init__(daemon=True)
+        self.repository = repository
+        self.search_query = search_query
+        self.page = page
+        self.page_size = page_size
+        self.callback = callback
+        self.should_stop = False
+
+    def run(self):
+        if self.should_stop:
+            return
+        try:
+            modules, total = self.repository.fetch_modules(
+                search_query=self.search_query,
+                page=self.page,
+                page_size=self.page_size,
+            )
+            self.callback("modules_loaded", modules, total)
+        except Exception as e:
+            self.callback("modules_error", str(e))
+
+    def stop(self):
+        self.should_stop = True
+
+
 class ModulesView(wx.Panel):
     def __init__(self, parent, status_bar=None):
         super().__init__(parent)
@@ -37,6 +64,8 @@ class ModulesView(wx.Panel):
         self.search_query = None
         self.repository = ModuleRepository()
         self.service = ModuleSyncService(self.repository)
+        self.load_worker = None
+        self.search_timer = None
 
         self.init_ui()
         self.load_modules()
@@ -164,34 +193,23 @@ class ModulesView(wx.Panel):
     def on_search_changed(self, event):
         self.search_query = self.search_text.GetValue().strip() or None
         self.current_page = 1
-        self.load_modules()
+
+        if self.search_timer:
+            self.search_timer.Stop()
+
+        self.search_timer = wx.CallLater(300, self.load_modules)
 
     def load_modules(self):
-        try:
-            modules, total = self.repository.fetch_modules(
-                search_query=self.search_query,
-                page=self.current_page,
-                page_size=self.page_size,
-            )
-
-            self.total_modules = total
-            self.list_ctrl.DeleteAllItems()
-
-            for row, module in enumerate(modules):
-                index = self.list_ctrl.InsertItem(row, module.code or "")
-                self.list_ctrl.SetItem(index, 1, module.name or "")
-                self.list_ctrl.SetItem(index, 2, module.status or "")
-                self.list_ctrl.SetItem(index, 3, module.timestamp or "")
-                self.list_ctrl.SetItemData(index, module.id)
-
-            self.update_pagination_controls()
-            self.update_total_label()
-
-        except Exception as e:
-            print(f"Error loading modules: {str(e)}")
-            self.list_ctrl.DeleteAllItems()
-            self.page_label.SetLabel("No data available")
-            self.records_label.SetLabel("")
+        if self.status_bar:
+            self.status_bar.show_message("Loading modules...")
+        self.load_worker = LoadModulesWorker(
+            self.repository,
+            self.search_query,
+            self.current_page,
+            self.page_size,
+            self.on_modules_callback,
+        )
+        self.load_worker.start()
 
     def update_total_label(self):
         plural = "s" if self.total_modules != 1 else ""
@@ -210,13 +228,31 @@ class ModulesView(wx.Panel):
     def previous_page(self, event):
         if self.current_page > 1:
             self.current_page -= 1
-            self.load_modules()
+            if self.status_bar:
+                self.status_bar.show_message("Loading modules...")
+            self.load_worker = LoadModulesWorker(
+                self.repository,
+                self.search_query,
+                self.current_page,
+                self.page_size,
+                self.on_modules_callback,
+            )
+            self.load_worker.start()
 
     def next_page(self, event):
         total_pages = (self.total_modules + self.page_size - 1) // self.page_size
         if self.current_page < total_pages:
             self.current_page += 1
-            self.load_modules()
+            if self.status_bar:
+                self.status_bar.show_message("Loading modules...")
+            self.load_worker = LoadModulesWorker(
+                self.repository,
+                self.search_query,
+                self.current_page,
+                self.page_size,
+                self.on_modules_callback,
+            )
+            self.load_worker.start()
 
     def on_fetch(self, event):
         dialog = FetchModuleDialog(self, self.service, self.status_bar)
@@ -270,3 +306,31 @@ class ModulesView(wx.Panel):
                 "Error",
                 wx.OK | wx.ICON_ERROR,
             )
+
+    def on_modules_callback(self, event_type, *args):
+        wx.CallAfter(self._handle_modules_event, event_type, *args)
+
+    def _handle_modules_event(self, event_type, *args):
+        if event_type == "modules_loaded":
+            modules, total = args
+            self.total_modules = total
+            self.list_ctrl.DeleteAllItems()
+
+            for row, module in enumerate(modules):
+                index = self.list_ctrl.InsertItem(row, module.code or "")
+                self.list_ctrl.SetItem(index, 1, module.name or "")
+                self.list_ctrl.SetItem(index, 2, module.status or "")
+                self.list_ctrl.SetItem(index, 3, module.timestamp or "")
+                self.list_ctrl.SetItemData(index, module.id)
+
+            self.update_pagination_controls()
+            self.update_total_label()
+        elif event_type == "modules_error":
+            error_msg = args[0]
+            print(f"Error loading modules: {error_msg}")
+            self.list_ctrl.DeleteAllItems()
+            self.page_label.SetLabel("No data available")
+            self.records_label.SetLabel("")
+
+        if self.status_bar:
+            self.status_bar.clear()

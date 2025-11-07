@@ -1,9 +1,82 @@
+import threading
+
 import wx
 
 from .add_school_dialog import AddSchoolDialog
 from .import_structures_dialog import ImportStructuresDialog
 from .repository import StructureRepository
 from .structure_detail_panel import StructureDetailPanel
+
+
+class LoadFilterOptionsWorker(threading.Thread):
+    def __init__(self, repository, callback):
+        super().__init__(daemon=True)
+        self.repository = repository
+        self.callback = callback
+        self.should_stop = False
+
+    def run(self):
+        if self.should_stop:
+            return
+        try:
+            schools = self.repository.list_active_schools()
+            programs = self.repository.list_programs(None)
+            self.callback("filters_loaded", schools, programs)
+        except Exception as e:
+            self.callback("filters_error", str(e))
+
+    def stop(self):
+        self.should_stop = True
+
+
+class LoadProgramsWorker(threading.Thread):
+    def __init__(self, repository, school_id, callback):
+        super().__init__(daemon=True)
+        self.repository = repository
+        self.school_id = school_id
+        self.callback = callback
+        self.should_stop = False
+
+    def run(self):
+        if self.should_stop:
+            return
+        try:
+            programs = self.repository.list_programs(self.school_id)
+            self.callback("programs_loaded", programs)
+        except Exception as e:
+            self.callback("programs_error", str(e))
+
+    def stop(self):
+        self.should_stop = True
+
+
+class LoadStructuresWorker(threading.Thread):
+    def __init__(self, repository, school_id, program_id, page, page_size, callback):
+        super().__init__(daemon=True)
+        self.repository = repository
+        self.school_id = school_id
+        self.program_id = program_id
+        self.page = page
+        self.page_size = page_size
+        self.callback = callback
+        self.should_stop = False
+
+    def run(self):
+        if self.should_stop:
+            return
+        try:
+            structures, total = self.repository.fetch_structures(
+                school_id=self.school_id,
+                program_id=self.program_id,
+                page=self.page,
+                page_size=self.page_size,
+            )
+            self.callback("structures_loaded", structures, total)
+        except Exception as e:
+            self.callback("structures_error", str(e))
+
+    def stop(self):
+        self.should_stop = True
 
 
 class StructuresView(wx.Panel):
@@ -17,6 +90,10 @@ class StructuresView(wx.Panel):
         self.selected_program_id = None
         self.repository = StructureRepository()
         self.selected_structure_id = None
+        self.filter_worker = None
+        self.programs_worker = None
+        self.structures_worker = None
+        self.pending_load_structures = False
 
         self.init_ui()
         self.load_filter_options()
@@ -168,40 +245,50 @@ class StructuresView(wx.Panel):
             wx.TheClipboard.Close()
 
     def load_filter_options(self):
-        try:
-            while self.school_filter.GetCount() > 1:
-                self.school_filter.Delete(1)
+        self.school_filter.Enable(False)
+        self.program_filter.Enable(False)
 
-            schools = self.repository.list_active_schools()
-            for school in schools:
-                self.school_filter.Append(str(school.name), school.id)
+        while self.school_filter.GetCount() > 1:
+            self.school_filter.Delete(1)
+        self.school_filter.SetSelection(0)
+        self.school_filter.SetString(0, "Loading...")
 
-            self.load_programs_for_school(None)
+        while self.program_filter.GetCount() > 1:
+            self.program_filter.Delete(1)
+        self.program_filter.SetSelection(0)
+        self.program_filter.SetString(0, "Loading...")
 
-        except Exception as e:
-            print(f"Error loading filter options: {str(e)}")
+        if self.status_bar:
+            self.status_bar.show_message("Loading filters...")
+        self.filter_worker = LoadFilterOptionsWorker(
+            self.repository, self.on_filter_options_callback
+        )
+        self.filter_worker.start()
 
-    def load_programs_for_school(self, school_id):
-        try:
-            while self.program_filter.GetCount() > 1:
-                self.program_filter.Delete(1)
+    def load_programs_for_school(self, school_id, trigger_load_structures=False):
+        self.pending_load_structures = trigger_load_structures
 
-            programs = self.repository.list_programs(school_id)
+        self.program_filter.Enable(False)
+        while self.program_filter.GetCount() > 1:
+            self.program_filter.Delete(1)
+        self.program_filter.SetSelection(0)
+        self.program_filter.SetString(0, "Loading...")
 
-            for program in programs:
-                self.program_filter.Append(str(program.name), program.id)
-        except Exception as e:
-            print(f"Error loading programs: {str(e)}")
+        if self.status_bar:
+            self.status_bar.show_message("Loading programs...")
+        self.programs_worker = LoadProgramsWorker(
+            self.repository, school_id, self.on_programs_callback
+        )
+        self.programs_worker.start()
 
     def on_school_changed(self, event):
         sel = self.school_filter.GetSelection()
         self.selected_school_id = (
             self.school_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
         )
-        self.load_programs_for_school(self.selected_school_id)
         self.selected_program_id = None
         self.current_page = 1
-        self.load_structures()
+        self.load_programs_for_school(self.selected_school_id, trigger_load_structures=True)
 
     def on_filter_changed(self, event):
         sel = self.school_filter.GetSelection()
@@ -215,37 +302,30 @@ class StructuresView(wx.Panel):
         )
 
         self.current_page = 1
-        self.load_structures()
+        if self.status_bar:
+            self.status_bar.show_message("Loading structures...")
+        self.structures_worker = LoadStructuresWorker(
+            self.repository,
+            self.selected_school_id,
+            self.selected_program_id,
+            self.current_page,
+            self.page_size,
+            self.on_structures_callback,
+        )
+        self.structures_worker.start()
 
     def load_structures(self):
-        try:
-            structures, total = self.repository.fetch_structures(
-                school_id=self.selected_school_id,
-                program_id=self.selected_program_id,
-                page=self.current_page,
-                page_size=self.page_size,
-            )
-
-            self.total_structures = total
-            self.list_ctrl.DeleteAllItems()
-
-            for row, structure in enumerate(structures):
-                index = self.list_ctrl.InsertItem(row, structure.code or "")
-                self.list_ctrl.SetItem(index, 1, structure.desc or "")
-                self.list_ctrl.SetItem(index, 2, structure.school_code or "")
-                self.list_ctrl.SetItem(index, 3, structure.program_name or "")
-                self.list_ctrl.SetItemData(index, structure.id)
-
-            self.update_pagination_controls()
-            self.update_total_label()
-            self.clear_detail_panel()
-
-        except Exception as e:
-            print(f"Error loading structures: {str(e)}")
-            self.list_ctrl.DeleteAllItems()
-            self.page_label.SetLabel("No data available")
-            self.records_label.SetLabel("")
-            self.clear_detail_panel()
+        if self.status_bar:
+            self.status_bar.show_message("Loading structures...")
+        self.structures_worker = LoadStructuresWorker(
+            self.repository,
+            self.selected_school_id,
+            self.selected_program_id,
+            self.current_page,
+            self.page_size,
+            self.on_structures_callback,
+        )
+        self.structures_worker.start()
 
     def update_total_label(self):
         plural = "s" if self.total_structures != 1 else ""
@@ -264,13 +344,33 @@ class StructuresView(wx.Panel):
     def previous_page(self, event):
         if self.current_page > 1:
             self.current_page -= 1
-            self.load_structures()
+            if self.status_bar:
+                self.status_bar.show_message("Loading structures...")
+            self.structures_worker = LoadStructuresWorker(
+                self.repository,
+                self.selected_school_id,
+                self.selected_program_id,
+                self.current_page,
+                self.page_size,
+                self.on_structures_callback,
+            )
+            self.structures_worker.start()
 
     def next_page(self, event):
         total_pages = (self.total_structures + self.page_size - 1) // self.page_size
         if self.current_page < total_pages:
             self.current_page += 1
-            self.load_structures()
+            if self.status_bar:
+                self.status_bar.show_message("Loading structures...")
+            self.structures_worker = LoadStructuresWorker(
+                self.repository,
+                self.selected_school_id,
+                self.selected_program_id,
+                self.current_page,
+                self.page_size,
+                self.on_structures_callback,
+            )
+            self.structures_worker.start()
 
     def on_structure_selected(self, event):
         item = event.GetIndex()
@@ -302,3 +402,92 @@ class StructuresView(wx.Panel):
             self.load_structures()
 
         dialog.Destroy()
+
+    def on_filter_options_callback(self, event_type, *args):
+        wx.CallAfter(self._handle_filter_options_event, event_type, *args)
+
+    def on_programs_callback(self, event_type, *args):
+        wx.CallAfter(self._handle_programs_event, event_type, *args)
+
+    def on_structures_callback(self, event_type, *args):
+        wx.CallAfter(self._handle_structures_event, event_type, *args)
+
+    def _handle_filter_options_event(self, event_type, *args):
+        if event_type == "filters_loaded":
+            schools, programs = args
+
+            while self.school_filter.GetCount() > 1:
+                self.school_filter.Delete(1)
+            self.school_filter.SetString(0, "All Schools")
+            for school in schools:
+                self.school_filter.Append(str(school.name), school.id)
+            self.school_filter.SetSelection(0)
+            self.school_filter.Enable(True)
+
+            while self.program_filter.GetCount() > 1:
+                self.program_filter.Delete(1)
+            self.program_filter.SetString(0, "All Programs")
+            for program in programs:
+                self.program_filter.Append(str(program.name), program.id)
+            self.program_filter.SetSelection(0)
+            self.program_filter.Enable(True)
+        elif event_type == "filters_error":
+            error_msg = args[0]
+            print(f"Error loading filters: {error_msg}")
+            self.school_filter.SetString(0, "All Schools")
+            self.school_filter.Enable(True)
+            self.program_filter.SetString(0, "All Programs")
+            self.program_filter.Enable(True)
+
+        if self.status_bar:
+            self.status_bar.clear()
+
+    def _handle_programs_event(self, event_type, *args):
+        if event_type == "programs_loaded":
+            programs = args[0]
+            while self.program_filter.GetCount() > 1:
+                self.program_filter.Delete(1)
+            self.program_filter.SetString(0, "All Programs")
+            for program in programs:
+                self.program_filter.Append(str(program.name), program.id)
+            self.program_filter.SetSelection(0)
+            self.program_filter.Enable(True)
+
+            if self.pending_load_structures:
+                self.pending_load_structures = False
+                self.load_structures()
+        elif event_type == "programs_error":
+            error_msg = args[0]
+            print(f"Error loading programs: {error_msg}")
+            self.program_filter.SetString(0, "All Programs")
+            self.program_filter.Enable(True)
+
+        if self.status_bar:
+            self.status_bar.clear()
+
+    def _handle_structures_event(self, event_type, *args):
+        if event_type == "structures_loaded":
+            structures, total = args
+            self.total_structures = total
+            self.list_ctrl.DeleteAllItems()
+
+            for row, structure in enumerate(structures):
+                index = self.list_ctrl.InsertItem(row, structure.code or "")
+                self.list_ctrl.SetItem(index, 1, structure.desc or "")
+                self.list_ctrl.SetItem(index, 2, structure.school_code or "")
+                self.list_ctrl.SetItem(index, 3, structure.program_name or "")
+                self.list_ctrl.SetItemData(index, structure.id)
+
+            self.update_pagination_controls()
+            self.update_total_label()
+            self.clear_detail_panel()
+        elif event_type == "structures_error":
+            error_msg = args[0]
+            print(f"Error loading structures: {error_msg}")
+            self.list_ctrl.DeleteAllItems()
+            self.page_label.SetLabel("No data available")
+            self.records_label.SetLabel("")
+            self.clear_detail_panel()
+
+        if self.status_bar:
+            self.status_bar.clear()

@@ -119,6 +119,90 @@ class SearchWorker(threading.Thread):
         self.should_stop = True
 
 
+class LoadFilterOptionsWorker(threading.Thread):
+    def __init__(self, repository, callback):
+        super().__init__(daemon=True)
+        self.repository = repository
+        self.callback = callback
+        self.should_stop = False
+
+    def run(self):
+        if self.should_stop:
+            return
+        try:
+            schools = self.repository.list_active_schools()
+            programs = self.repository.list_programs(None)
+            terms = self.repository.list_terms()
+            semesters = self.repository.list_semesters()
+            self.callback("filters_loaded", schools, programs, terms, semesters)
+        except Exception as e:
+            self.callback("filters_error", str(e))
+
+    def stop(self):
+        self.should_stop = True
+
+
+class LoadProgramsWorker(threading.Thread):
+    def __init__(self, repository, school_id, callback):
+        super().__init__(daemon=True)
+        self.repository = repository
+        self.school_id = school_id
+        self.callback = callback
+        self.should_stop = False
+
+    def run(self):
+        if self.should_stop:
+            return
+        try:
+            programs = self.repository.list_programs(self.school_id)
+            self.callback("programs_loaded", programs)
+        except Exception as e:
+            self.callback("programs_error", str(e))
+
+    def stop(self):
+        self.should_stop = True
+
+
+class GetSelectedStudentsWorker(threading.Thread):
+    def __init__(self, repository, student_numbers, callback):
+        super().__init__(daemon=True)
+        self.repository = repository
+        self.student_numbers = student_numbers
+        self.callback = callback
+        self.should_stop = False
+
+    def run(self):
+        if self.should_stop:
+            return
+        try:
+            selected = []
+            for std_no in self.student_numbers:
+                if self.should_stop:
+                    break
+                students, _ = self.repository.fetch_students(
+                    search_query=std_no,
+                    page=1,
+                    page_size=1,
+                )
+                if students:
+                    student = students[0]
+                    selected.append(
+                        {
+                            "std_no": student.std_no,
+                            "name": student.name,
+                            "gender": student.gender,
+                            "date_of_birth": student.date_of_birth,
+                            "phone1": student.phone1,
+                        }
+                    )
+            self.callback("students_data_loaded", selected)
+        except Exception as e:
+            self.callback("students_data_error", str(e))
+
+    def stop(self):
+        self.should_stop = True
+
+
 class StudentsView(wx.Panel):
     def __init__(self, parent, status_bar=None):
         super().__init__(parent)
@@ -134,10 +218,14 @@ class StudentsView(wx.Panel):
         self.fetch_worker = None
         self.update_worker = None
         self.search_worker = None
+        self.filter_worker = None
+        self.programs_worker = None
+        self.selected_students_worker = None
         self.repository = StudentRepository()
         self.sync_service = StudentSyncService(self.repository)
         self.checked_items = set()
         self.selected_student_item = None
+        self.pending_update_callback = None
 
         self.init_ui()
         self.load_filter_options()
@@ -430,49 +518,55 @@ class StudentsView(wx.Panel):
         self.update_selection_state()
 
     def load_filter_options(self):
-        try:
-            schools = self.repository.list_active_schools()
-            for school in schools:
-                self.school_filter.Append(str(school.name), school.id)
+        self.school_filter.Enable(False)
+        self.program_filter.Enable(False)
+        self.term_filter.Enable(False)
+        self.semester_filter.Enable(False)
 
-            self.load_programs_for_school(None)
+        self.school_filter.SetSelection(0)
+        self.school_filter.SetString(0, "Loading...")
+        self.program_filter.SetSelection(0)
+        self.program_filter.SetString(0, "Loading...")
+        self.term_filter.SetSelection(0)
+        self.term_filter.SetString(0, "Loading...")
+        self.semester_filter.SetSelection(0)
+        self.semester_filter.SetString(0, "Loading...")
 
-            terms = self.repository.list_terms()
-            for term in terms:
-                self.term_filter.Append(str(term), term)
+        if self.status_bar:
+            self.status_bar.show_message("Loading filters...")
+        self.filter_worker = LoadFilterOptionsWorker(
+            self.repository, self.on_filter_options_callback
+        )
+        self.filter_worker.start()
 
-            semesters = self.repository.list_semesters()
-            for sem in semesters:
-                self.semester_filter.Append(f"Semester {sem}", sem)
+    def load_programs_for_school(self, school_id, trigger_load_students=False):
+        self.pending_update_callback = trigger_load_students
 
-        except Exception as e:
-            print(f"Error loading filter options: {str(e)}")
+        self.program_filter.Enable(False)
+        while self.program_filter.GetCount() > 1:
+            self.program_filter.Delete(1)
+        self.program_filter.SetSelection(0)
+        self.program_filter.SetString(0, "Loading...")
 
-    def load_programs_for_school(self, school_id):
-        try:
-            while self.program_filter.GetCount() > 1:
-                self.program_filter.Delete(1)
-
-            programs = self.repository.list_programs(school_id)
-
-            for program in programs:
-                self.program_filter.Append(str(program.name), program.id)
-        except Exception as e:
-            print(f"Error loading programs: {str(e)}")
+        if self.status_bar:
+            self.status_bar.show_message("Loading programs...")
+        self.programs_worker = LoadProgramsWorker(
+            self.repository, school_id, self.on_programs_callback
+        )
+        self.programs_worker.start()
 
     def on_school_changed(self, event):
         sel = self.school_filter.GetSelection()
         self.selected_school_id = (
             self.school_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
         )
-        self.load_programs_for_school(self.selected_school_id)
         self.term_filter.SetSelection(0)
         self.semester_filter.SetSelection(0)
         self.selected_program_id = None
         self.selected_term = None
         self.selected_semester_number = None
         self.current_page = 1
-        self.load_students()
+        self.load_programs_for_school(self.selected_school_id, trigger_load_students=True)
 
     def on_filter_changed(self, event):
         sel = self.school_filter.GetSelection()
@@ -496,7 +590,10 @@ class StudentsView(wx.Panel):
         )
 
         self.current_page = 1
-        self.load_students()
+        if self.status_bar:
+            self.status_bar.show_message("Loading students...")
+        self.search_worker = SearchWorker(self, self.on_search_callback)
+        self.search_worker.start()
 
     def clear_search(self, event=None):
         self.search_input.SetValue("")
@@ -518,47 +615,10 @@ class StudentsView(wx.Panel):
         self.search_worker.start()
 
     def load_students(self):
-        try:
-            students, total = self.repository.fetch_students(
-                school_id=self.selected_school_id,
-                program_id=self.selected_program_id,
-                term=self.selected_term,
-                semester_number=self.selected_semester_number,
-                search_query=self.search_query,
-                page=self.current_page,
-                page_size=self.page_size,
-            )
-
-            self.total_students = total
-            self.list_ctrl.DeleteAllItems()
-            self.checked_items.clear()
-
-            for row, student in enumerate(students):
-                index = self.list_ctrl.InsertItem(row, "")
-                self.list_ctrl.SetItemImage(index, self.unchecked_idx)
-                self.list_ctrl.SetItem(index, 1, student.std_no)
-                self.list_ctrl.SetItem(index, 2, student.name or "")
-                self.list_ctrl.SetItem(index, 3, student.gender or "")
-                self.list_ctrl.SetItem(
-                    index, 4, self._calculate_age(student.date_of_birth)
-                )
-                self.list_ctrl.SetItem(index, 5, student.faculty_code or "")
-                self.list_ctrl.SetItem(index, 6, student.program_name or "")
-                self.list_ctrl.SetItem(index, 7, student.phone1 or "")
-                self.list_ctrl.SetItemData(index, row)
-
-            self.update_pagination_controls()
-            self.update_total_label()
-            self.select_all_checkbox.SetValue(False)
-            self.update_selection_state()
-
-        except Exception as e:
-            print(f"Error loading students: {str(e)}")
-            self.list_ctrl.DeleteAllItems()
-            self.checked_items.clear()
-            self.page_label.SetLabel("No data available")
-            self.records_label.SetLabel("")
-            self.update_selection_state()
+        if self.status_bar:
+            self.status_bar.show_message("Loading students...")
+        self.search_worker = SearchWorker(self, self.on_search_callback)
+        self.search_worker.start()
 
     def update_total_label(self):
         plural = "s" if self.total_students != 1 else ""
@@ -577,13 +637,19 @@ class StudentsView(wx.Panel):
     def previous_page(self, event):
         if self.current_page > 1:
             self.current_page -= 1
-            self.load_students()
+            if self.status_bar:
+                self.status_bar.show_message("Loading students...")
+            self.search_worker = SearchWorker(self, self.on_search_callback)
+            self.search_worker.start()
 
     def next_page(self, event):
         total_pages = (self.total_students + self.page_size - 1) // self.page_size
         if self.current_page < total_pages:
             self.current_page += 1
-            self.load_students()
+            if self.status_bar:
+                self.status_bar.show_message("Loading students...")
+            self.search_worker = SearchWorker(self, self.on_search_callback)
+            self.search_worker.start()
 
     def on_select_all_changed(self, event):
         should_select_all = self.select_all_checkbox.GetValue()
@@ -608,30 +674,18 @@ class StudentsView(wx.Panel):
             selected.append(self.list_ctrl.GetItemText(index, 1))
         return selected
 
-    def get_selected_students_data(self):
-        selected = []
+    def get_selected_students_data(self, callback):
+        selected_numbers = []
         for index in sorted(self.checked_items):
             std_no = self.list_ctrl.GetItemText(index, 1)
-            try:
-                students, _ = self.repository.fetch_students(
-                    search_query=std_no,
-                    page=1,
-                    page_size=1,
-                )
-                if students:
-                    student = students[0]
-                    selected.append(
-                        {
-                            "std_no": student.std_no,
-                            "name": student.name,
-                            "gender": student.gender,
-                            "date_of_birth": student.date_of_birth,
-                            "phone1": student.phone1,
-                        }
-                    )
-            except Exception as e:
-                print(f"Error fetching student data for {std_no}: {str(e)}")
-        return selected
+            selected_numbers.append(std_no)
+
+        if self.status_bar:
+            self.status_bar.show_message("Loading student data...")
+        self.selected_students_worker = GetSelectedStudentsWorker(
+            self.repository, selected_numbers, callback
+        )
+        self.selected_students_worker.start()
 
     def _iterate_selected_indices(self):
         for index in sorted(self.checked_items):
@@ -672,37 +726,20 @@ class StudentsView(wx.Panel):
             options_dialog.Destroy()
 
     def update_students(self, event):
-        selected_students = self.get_selected_students_data()
-        if not selected_students:
+        selected_count = self.get_selected_count()
+        if selected_count == 0:
             return
-        if len(selected_students) == 1:
-            student_data = selected_students[0]
-            dialog = StudentFormDialog(student_data, self, self.status_bar)
-            if dialog.ShowModal() == wx.ID_OK:
-                updated_data = dialog.get_updated_data()
-
-                self.fetch_button.Enable(False)
-                self.edit_button.Enable(False)
-
-                self.update_worker = UpdateStudentsWorker(
-                    updated_data["std_no"],
-                    {
-                        "name": updated_data["name"],
-                        "gender": updated_data["gender"],
-                        "date_of_birth": updated_data["date_of_birth"],
-                        "phone1": updated_data["phone1"],
-                    },
-                    self.sync_service,
-                    self.on_worker_callback,
-                )
-                self.update_worker.start()
-            dialog.Destroy()
-        else:
+        elif selected_count > 1:
             wx.MessageBox(
                 "Please select only one student to update.",
                 "Multiple Students",
                 wx.OK | wx.ICON_INFORMATION,
             )
+            return
+
+        self.fetch_button.Enable(False)
+        self.edit_button.Enable(False)
+        self.get_selected_students_data(self.on_selected_students_loaded)
 
     def on_import_students(self, event):
         dialog = ImportStudentsDialog(self)
@@ -757,6 +794,15 @@ class StudentsView(wx.Panel):
 
     def on_search_callback(self, event_type, *args):
         wx.CallAfter(self._handle_search_event, event_type, *args)
+
+    def on_filter_options_callback(self, event_type, *args):
+        wx.CallAfter(self._handle_filter_options_event, event_type, *args)
+
+    def on_programs_callback(self, event_type, *args):
+        wx.CallAfter(self._handle_programs_event, event_type, *args)
+
+    def on_selected_students_loaded(self, event_type, *args):
+        wx.CallAfter(self._handle_selected_students_event, event_type, *args)
 
     def _handle_worker_event(self, event_type, *args):
         if event_type == "progress":
@@ -878,3 +924,117 @@ class StudentsView(wx.Panel):
             self.status_bar.clear()
         self.search_button.SetLabel("Search")
         self.search_button.Enable(True)
+
+    def _handle_filter_options_event(self, event_type, *args):
+        if event_type == "filters_loaded":
+            schools, programs, terms, semesters = args
+
+            self.school_filter.SetString(0, "All Schools")
+            for school in schools:
+                self.school_filter.Append(str(school.name), school.id)
+            self.school_filter.SetSelection(0)
+            self.school_filter.Enable(True)
+
+            self.program_filter.SetString(0, "All Programs")
+            for program in programs:
+                self.program_filter.Append(str(program.name), program.id)
+            self.program_filter.SetSelection(0)
+            self.program_filter.Enable(True)
+
+            self.term_filter.SetString(0, "All Terms")
+            for term in terms:
+                self.term_filter.Append(str(term), term)
+            self.term_filter.SetSelection(0)
+            self.term_filter.Enable(True)
+
+            self.semester_filter.SetString(0, "All Semesters")
+            for sem in semesters:
+                self.semester_filter.Append(f"Semester {sem}", sem)
+            self.semester_filter.SetSelection(0)
+            self.semester_filter.Enable(True)
+        elif event_type == "filters_error":
+            error_msg = args[0]
+            print(f"Error loading filters: {error_msg}")
+
+            self.school_filter.SetString(0, "All Schools")
+            self.school_filter.Enable(True)
+            self.program_filter.SetString(0, "All Programs")
+            self.program_filter.Enable(True)
+            self.term_filter.SetString(0, "All Terms")
+            self.term_filter.Enable(True)
+            self.semester_filter.SetString(0, "All Semesters")
+            self.semester_filter.Enable(True)
+
+        if self.status_bar:
+            self.status_bar.clear()
+
+    def _handle_programs_event(self, event_type, *args):
+        if event_type == "programs_loaded":
+            programs = args[0]
+            while self.program_filter.GetCount() > 1:
+                self.program_filter.Delete(1)
+            self.program_filter.SetString(0, "All Programs")
+            for program in programs:
+                self.program_filter.Append(str(program.name), program.id)
+            self.program_filter.SetSelection(0)
+            self.program_filter.Enable(True)
+
+            if self.pending_update_callback:
+                self.pending_update_callback = False
+                self.load_students()
+        elif event_type == "programs_error":
+            error_msg = args[0]
+            print(f"Error loading programs: {error_msg}")
+            self.program_filter.SetString(0, "All Programs")
+            self.program_filter.Enable(True)
+
+        if self.status_bar:
+            self.status_bar.clear()
+
+    def _handle_selected_students_event(self, event_type, *args):
+        if event_type == "students_data_loaded":
+            selected_students = args[0]
+            if self.status_bar:
+                self.status_bar.clear()
+
+            if not selected_students:
+                self.fetch_button.Enable(True)
+                self.edit_button.Enable(True)
+                return
+
+            if len(selected_students) == 1:
+                student_data = selected_students[0]
+                dialog = StudentFormDialog(student_data, self, self.status_bar)
+                if dialog.ShowModal() == wx.ID_OK:
+                    updated_data = dialog.get_updated_data()
+
+                    self.update_worker = UpdateStudentsWorker(
+                        updated_data["std_no"],
+                        {
+                            "name": updated_data["name"],
+                            "gender": updated_data["gender"],
+                            "date_of_birth": updated_data["date_of_birth"],
+                            "phone1": updated_data["phone1"],
+                        },
+                        self.sync_service,
+                        self.on_worker_callback,
+                    )
+                    self.update_worker.start()
+                else:
+                    self.fetch_button.Enable(True)
+                    self.edit_button.Enable(True)
+                dialog.Destroy()
+            else:
+                self.fetch_button.Enable(True)
+                self.edit_button.Enable(True)
+        elif event_type == "students_data_error":
+            error_msg = args[0]
+            if self.status_bar:
+                self.status_bar.clear()
+            self.fetch_button.Enable(True)
+            self.edit_button.Enable(True)
+            wx.MessageBox(
+                f"Error loading student data: {error_msg}",
+                "Error",
+                wx.OK | wx.ICON_ERROR,
+            )

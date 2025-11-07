@@ -3,20 +3,22 @@ import threading
 from typing import Callable, Optional
 
 import wx
+from sqlalchemy.orm import Session
 
 from base.auth.oauth_service import OAuthService
 from base.auth.repository import AuthRepository
 from base.auth.session_manager import SessionManager
 from database.connection import get_engine
 from database.models import User
-from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
 
 class LoginWindow(wx.Frame):
     def __init__(self, on_login_success: Callable[[User], None]):
-        super().__init__(None, title="Limkokwing Registry - Login", size=wx.Size(400, 300))
+        super().__init__(
+            None, title="Limkokwing Registry - Login", size=wx.Size(500, 300)
+        )
 
         self.on_login_success = on_login_success
         self.oauth_service: Optional[OAuthService] = None
@@ -52,18 +54,18 @@ class LoginWindow(wx.Frame):
 
         self.status_text = wx.StaticText(panel, label="")
         self.status_text.SetForegroundColour(wx.Colour(100, 100, 100))
-        main_sizer.Add(self.status_text, 0, wx.ALIGN_CENTER | wx.TOP, 20)
 
         main_sizer.AddStretchSpacer(1)
 
-        main_sizer.Add(wx.StaticLine(panel, style=wx.LI_HORIZONTAL), 0, wx.EXPAND | wx.ALL, 10)
+        main_sizer.Add(
+            wx.StaticLine(panel, style=wx.LI_HORIZONTAL), 0, wx.EXPAND | wx.ALL, 10
+        )
 
-        footer_label = wx.StaticText(panel, label="Secure authentication powered by Google")
-        footer_font = footer_label.GetFont()
+        footer_font = self.status_text.GetFont()
         footer_font.PointSize -= 1
-        footer_label.SetFont(footer_font)
-        footer_label.SetForegroundColour(wx.Colour(150, 150, 150))
-        main_sizer.Add(footer_label, 0, wx.ALIGN_CENTER | wx.BOTTOM, 10)
+        self.status_text.SetFont(footer_font)
+        self.status_text.SetLabel("Authentication with Google")
+        main_sizer.Add(self.status_text, 0, wx.ALIGN_CENTER | wx.BOTTOM, 10)
 
         panel.SetSizer(main_sizer)
 
@@ -82,7 +84,9 @@ class LoginWindow(wx.Frame):
             credentials, user_info = self.oauth_service.authenticate()
 
             if not credentials or not user_info:
-                wx.CallAfter(self._show_error, "Authentication failed. Please try again.")
+                wx.CallAfter(
+                    self._show_error, "Authentication failed. Please try again."
+                )
                 return
 
             wx.CallAfter(self.status_text.SetLabel, "Verifying user credentials...")
@@ -97,7 +101,10 @@ class LoginWindow(wx.Frame):
                 google_id = user_info.get("id")
 
                 if not email or not google_id:
-                    wx.CallAfter(self._show_error, "Failed to retrieve user information from Google.")
+                    wx.CallAfter(
+                        self._show_error,
+                        "Failed to retrieve user information from Google.",
+                    )
                     return
 
                 user = auth_repo.get_user_by_email(email)
@@ -105,7 +112,7 @@ class LoginWindow(wx.Frame):
                 if not user:
                     wx.CallAfter(
                         self._show_error,
-                        f"No account found for {email}.\n\nPlease contact your administrator to create an account."
+                        f"No account found for {email}.\n\nPlease contact your administrator to create an account.",
                     )
                     return
 
@@ -121,7 +128,11 @@ class LoginWindow(wx.Frame):
                     if credentials.expiry:
                         expires_at = int(credentials.expiry.timestamp())
 
-                    actual_scopes = " ".join(credentials.scopes) if credentials.scopes else " ".join(self.oauth_service.SCOPES)
+                    actual_scopes = (
+                        " ".join(credentials.scopes)
+                        if credentials.scopes
+                        else " ".join(self.oauth_service.SCOPES)
+                    )
 
                     account = auth_repo.create_account(
                         user_id=user.id,
@@ -132,7 +143,11 @@ class LoginWindow(wx.Frame):
                         expires_at=expires_at,
                         token_type="Bearer",
                         scope=actual_scopes,
-                        id_token=credentials.id_token if hasattr(credentials, 'id_token') else None,
+                        id_token=(
+                            credentials.id_token
+                            if hasattr(credentials, "id_token")
+                            else None
+                        ),
                     )
                     if not account:
                         wx.CallAfter(self._show_error, "Failed to link Google account.")
@@ -150,7 +165,9 @@ class LoginWindow(wx.Frame):
                         expires_at=expires_at,
                     )
                     if not account:
-                        wx.CallAfter(self._show_error, "Failed to update Google account tokens.")
+                        wx.CallAfter(
+                            self._show_error, "Failed to update Google account tokens."
+                        )
                         return
 
                 session = auth_repo.create_session(user.id)

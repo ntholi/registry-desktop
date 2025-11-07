@@ -14,7 +14,9 @@ from database import (
     Program,
     School,
     SemesterModule,
+    Sponsor,
     Structure,
+    StructureSemester,
     Student,
     StudentEducation,
     StudentModule,
@@ -26,6 +28,8 @@ from database.models import StudentModuleStatus
 
 logger = get_logger(__name__)
 
+_structure_semester_cache: dict[tuple[int, str], Optional[int]] = {}
+_sponsor_cache: dict[str, Optional[int]] = {}
 
 VALID_STUDENT_MODULE_STATUSES = set(StudentModuleStatus.__args__)
 STATUS_ALIASES: dict[str, str] = {
@@ -874,3 +878,93 @@ class StudentRepository:
                 error_msg = f"Error upserting student education: {str(e)}"
                 logger.error(error_msg)
                 return False, error_msg
+
+    def lookup_structure_semester_id(
+        self, structure_id: int, semester_number: str
+    ) -> Optional[int]:
+        cache_key = (structure_id, semester_number)
+
+        if cache_key in _structure_semester_cache:
+            logger.debug(
+                f"Cache hit for structure {structure_id}, semester {semester_number}"
+            )
+            return _structure_semester_cache[cache_key]
+
+        logger.debug(
+            f"Cache miss for structure {structure_id}, semester {semester_number} - querying database"
+        )
+
+        with self._session() as session:
+            result = (
+                session.query(StructureSemester.id)
+                .filter(StructureSemester.structure_id == structure_id)
+                .filter(StructureSemester.semester_number == semester_number)
+                .first()
+            )
+            structure_semester_id = result[0] if result else None
+
+            _structure_semester_cache[cache_key] = structure_semester_id
+
+            return structure_semester_id
+
+    def lookup_sponsor_by_code(self, sponsor_code: str) -> Optional[int]:
+        if not sponsor_code or not sponsor_code.strip():
+            return None
+
+        sponsor_code = sponsor_code.strip()
+
+        if sponsor_code in _sponsor_cache:
+            logger.debug(f"Cache hit for sponsor code '{sponsor_code}'")
+            return _sponsor_cache[sponsor_code]
+
+        logger.debug(f"Cache miss for sponsor code '{sponsor_code}' - querying database")
+
+        with self._session() as session:
+            result = (
+                session.query(Sponsor.id).filter(Sponsor.code == sponsor_code).first()
+            )
+            sponsor_id = result[0] if result else None
+
+            _sponsor_cache[sponsor_code] = sponsor_id
+
+            return sponsor_id
+
+    def preload_structure_semesters(self, structure_id: int) -> int:
+        logger.info(f"Preloading structure semesters for structure {structure_id}")
+
+        with self._session() as session:
+            results = (
+                session.query(StructureSemester.id, StructureSemester.semester_number)
+                .filter(StructureSemester.structure_id == structure_id)
+                .all()
+            )
+
+            for structure_semester_id, semester_number in results:
+                cache_key = (structure_id, semester_number)
+                _structure_semester_cache[cache_key] = structure_semester_id
+
+            logger.info(f"Preloaded {len(results)} semesters for structure {structure_id}")
+            return len(results)
+
+    def preload_all_sponsors(self) -> int:
+        logger.info("Preloading all sponsors")
+
+        with self._session() as session:
+            results = session.query(Sponsor.id, Sponsor.code).all()
+
+            for sponsor_id, sponsor_code in results:
+                if sponsor_code:
+                    _sponsor_cache[sponsor_code.strip()] = sponsor_id
+
+            logger.info(f"Preloaded {len(results)} sponsors")
+            return len(results)
+
+    def clear_structure_semester_cache(self) -> None:
+        global _structure_semester_cache
+        _structure_semester_cache.clear()
+        logger.info("Cleared structure semester cache")
+
+    def clear_sponsor_cache(self) -> None:
+        global _sponsor_cache
+        _sponsor_cache.clear()
+        logger.info("Cleared sponsor cache")

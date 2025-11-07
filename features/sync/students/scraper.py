@@ -11,9 +11,6 @@ from utils.grades import normalize_grade_symbol
 
 logger = get_logger(__name__)
 
-_structure_semester_cache: dict[tuple[int, str], Optional[int]] = {}
-_sponsor_cache: dict[str, Optional[int]] = {}
-
 
 def extract_code_and_name(module_str: str) -> tuple[Optional[str], Optional[str]]:
     if not module_str or not module_str.strip():
@@ -349,7 +346,9 @@ def extract_student_semester_ids(std_program_id: str) -> list[str]:
 
 
 def scrape_student_semester_data(
-    std_semester_id: str, structure_id: Optional[int] = None
+    std_semester_id: str,
+    structure_id: Optional[int] = None,
+    repository=None,
 ) -> dict:
     browser = Browser()
     url = f"{BASE_URL}/r_stdsemesterview.php?StdSemesterID={std_semester_id}"
@@ -371,8 +370,8 @@ def scrape_student_semester_data(
     semester_str = get_table_value(table, "Semester")
     if semester_str:
         semester_number = parse_semester_number(semester_str)
-        if semester_number is not None and structure_id is not None:
-            structure_semester_id = lookup_structure_semester_id(
+        if semester_number is not None and structure_id is not None and repository:
+            structure_semester_id = repository.lookup_structure_semester_id(
                 structure_id, semester_number
             )
             if structure_semester_id:
@@ -394,8 +393,8 @@ def scrape_student_semester_data(
             data["caf_date"] = parsed_date.strftime("%Y-%m-%d")
 
     assist_provider = get_table_value(table, "Asst-Provider")
-    if assist_provider:
-        sponsor_id = lookup_sponsor_by_code(assist_provider)
+    if assist_provider and repository:
+        sponsor_id = repository.lookup_sponsor_by_code(assist_provider)
         if sponsor_id:
             data["sponsor_id"] = sponsor_id
         else:
@@ -405,100 +404,6 @@ def scrape_student_semester_data(
 
     logger.info(f"Scraped semester data for student semester {std_semester_id}")
     return data
-
-
-def lookup_structure_semester_id(
-    structure_id: int, semester_number: str
-) -> Optional[int]:
-    cache_key = (structure_id, semester_number)
-
-    if cache_key in _structure_semester_cache:
-        logger.debug(
-            f"Cache hit for structure {structure_id}, semester {semester_number}"
-        )
-        return _structure_semester_cache[cache_key]
-
-    from sqlalchemy.orm import Session
-
-    from database import StructureSemester, get_engine
-
-    logger.debug(
-        f"Cache miss for structure {structure_id}, semester {semester_number} - querying database"
-    )
-
-    engine = get_engine()
-    with Session(engine) as session:
-        result = (
-            session.query(StructureSemester.id)
-            .filter(StructureSemester.structure_id == structure_id)
-            .filter(StructureSemester.semester_number == semester_number)
-            .first()
-        )
-        structure_semester_id = result[0] if result else None
-
-        _structure_semester_cache[cache_key] = structure_semester_id
-
-        return structure_semester_id
-
-
-def clear_structure_semester_cache():
-    global _structure_semester_cache
-    _structure_semester_cache.clear()
-    logger.info("Cleared structure semester cache")
-
-
-def lookup_sponsor_by_code(sponsor_code: str) -> Optional[int]:
-    if not sponsor_code or not sponsor_code.strip():
-        return None
-
-    sponsor_code = sponsor_code.strip()
-
-    if sponsor_code in _sponsor_cache:
-        logger.debug(f"Cache hit for sponsor code '{sponsor_code}'")
-        return _sponsor_cache[sponsor_code]
-
-    from sqlalchemy.orm import Session
-
-    from database import Sponsor, get_engine
-
-    logger.debug(f"Cache miss for sponsor code '{sponsor_code}' - querying database")
-
-    engine = get_engine()
-    with Session(engine) as session:
-        result = session.query(Sponsor.id).filter(Sponsor.code == sponsor_code).first()
-        sponsor_id = result[0] if result else None
-
-        _sponsor_cache[sponsor_code] = sponsor_id
-
-        return sponsor_id
-
-
-def clear_sponsor_cache():
-    global _sponsor_cache
-    _sponsor_cache.clear()
-    logger.info("Cleared sponsor cache")
-
-
-def preload_structure_semesters(structure_id: int) -> None:
-    from sqlalchemy.orm import Session
-
-    from database import StructureSemester, get_engine
-
-    logger.info(f"Preloading structure semesters for structure {structure_id}")
-
-    engine = get_engine()
-    with Session(engine) as session:
-        results = (
-            session.query(StructureSemester.id, StructureSemester.semester_number)
-            .filter(StructureSemester.structure_id == structure_id)
-            .all()
-        )
-
-        for structure_semester_id, semester_number in results:
-            cache_key = (structure_id, semester_number)
-            _structure_semester_cache[cache_key] = structure_semester_id
-
-        logger.info(f"Preloaded {len(results)} semesters for structure {structure_id}")
 
 
 def scrape_student_data(std_no: str) -> dict:

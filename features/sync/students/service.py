@@ -14,7 +14,6 @@ from .scraper import (
     extract_student_education_ids,
     extract_student_program_ids,
     extract_student_semester_ids,
-    preload_structure_semesters,
     scrape_student_data,
     scrape_student_education_data,
     scrape_student_modules_concurrent,
@@ -60,6 +59,8 @@ class StudentSyncService:
                 "education_history": True,
                 "enrollment_data": True,
             }
+
+        self._repository.preload_all_sponsors()
 
         total_steps = 3
         student_updated = False
@@ -160,7 +161,7 @@ class StudentSyncService:
                             )
 
                         if structure_id and semester_ids:
-                            preload_structure_semesters(structure_id)
+                            self._repository.preload_structure_semesters(structure_id)
 
                         for sem_idx, sem_id in enumerate(semester_ids, 1):
                             progress_callback(
@@ -171,7 +172,9 @@ class StudentSyncService:
                             )
 
                             try:
-                                semester_data = scrape_student_semester_data(sem_id, structure_id)
+                                semester_data = scrape_student_semester_data(
+                                    sem_id, structure_id, self._repository
+                                )
                                 if semester_data and semester_data.get("term"):
                                     sem_success, sem_msg, db_semester_id = (
                                         self._repository.upsert_student_semester(

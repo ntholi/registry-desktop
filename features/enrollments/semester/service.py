@@ -77,7 +77,7 @@ class SemesterEnrollmentService:
 
             semester_ids = extract_student_semester_ids(str(student_program_id))
             for sem_id in semester_ids:
-                sem_data = scrape_student_semester_data(sem_id)
+                sem_data = scrape_student_semester_data(sem_id, None, None)
                 if sem_data.get("term") == term:
                     logger.info(f"Found created semester ID: {sem_id}")
                     return sem_id

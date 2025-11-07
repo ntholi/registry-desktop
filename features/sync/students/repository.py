@@ -653,7 +653,7 @@ class StudentRepository:
                         return False, error_msg, None
 
                     if "structure_semester_id" not in data:
-                        error_msg = "Cannot create student semester without structure_semester_id"
+                        error_msg = f"Cannot create student semester without structure_semester_id for std_program_id {std_program_id}"
                         logger.error(error_msg)
                         return False, error_msg, None
 

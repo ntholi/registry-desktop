@@ -47,7 +47,46 @@ GRADES = [
 
 
 def normalize_grade_symbol(grade: str) -> str:
-    return grade.strip().upper()
+    if not grade or not grade.strip():
+        return "F"
+
+    normalized = grade.strip()
+
+    normalized = re.sub(r"[.\s]+$", "", normalized)
+    normalized = re.sub(r"^[.\s]+", "", normalized)
+
+    normalized_upper = normalized.upper()
+
+    grade_aliases = {
+        "DFR": "F",
+        "W": "F",
+        "P": "C-",
+        "PASS": "C-",
+        "FAIL": "F",
+        "FAILED": "F",
+        "DEF": "Def",
+    }
+
+    if normalized_upper in grade_aliases:
+        return grade_aliases[normalized_upper]
+
+    if normalized.replace(".", "").isdigit():
+        try:
+            marks = float(normalized)
+            letter_grade = get_letter_grade(marks)
+            return letter_grade
+        except ValueError:
+            pass
+
+    valid_grades = {g.grade for g in GRADES}
+    if normalized_upper in valid_grades:
+        return normalized_upper
+
+    for valid_grade in valid_grades:
+        if valid_grade.upper() == normalized_upper:
+            return valid_grade
+
+    return "F"
 
 
 def normalize_module_name(name: str) -> str:

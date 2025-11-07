@@ -18,6 +18,7 @@ from database import (
     School,
     SemesterModule,
     Sponsor,
+    SponsoredStudent,
     Student,
     Term,
     get_engine,
@@ -110,7 +111,11 @@ class EnrollmentRequestRepository:
                     RegistrationRequest.created_at,
                 )
                 .join(Student, RegistrationRequest.std_no == Student.std_no)
-                .join(Sponsor, RegistrationRequest.sponsor_id == Sponsor.id)
+                .join(
+                    SponsoredStudent,
+                    RegistrationRequest.sponsored_student_id == SponsoredStudent.id,
+                )
+                .join(Sponsor, SponsoredStudent.sponsor_id == Sponsor.id)
                 .join(Term, RegistrationRequest.term_id == Term.id)
                 .outerjoin(
                     StudentProgram,
@@ -256,7 +261,11 @@ class EnrollmentRequestRepository:
                     RegistrationRequest.date_approved,
                 )
                 .join(Student, RegistrationRequest.std_no == Student.std_no)
-                .join(Sponsor, RegistrationRequest.sponsor_id == Sponsor.id)
+                .join(
+                    SponsoredStudent,
+                    RegistrationRequest.sponsored_student_id == SponsoredStudent.id,
+                )
+                .join(Sponsor, SponsoredStudent.sponsor_id == Sponsor.id)
                 .join(Term, RegistrationRequest.term_id == Term.id)
                 .filter(RegistrationRequest.id == registration_request_id)
                 .first()

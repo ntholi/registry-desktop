@@ -19,10 +19,24 @@ from sqlalchemy.dialects.postgresql import JSON as PostgreSQLJSON
 from sqlalchemy.orm import Mapped, declarative_base, mapped_column
 
 DashboardUser = Literal[
-    "finance", "registry", "library", "resource", "academic", "admin"
+    "finance",
+    "registry",
+    "library",
+    "resource",
+    "academic",
+    "student_services",
+    "admin",
 ]
 UserRole = Literal[
-    "user", "student", "finance", "registry", "library", "resource", "academic", "admin"
+    "user",
+    "student",
+    "finance",
+    "registry",
+    "library",
+    "resource",
+    "academic",
+    "student_services",
+    "admin",
 ]
 UserPosition = Literal[
     "manager",
@@ -441,6 +455,9 @@ class StudentSemester(Base):
     student_program_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("student_programs.id", ondelete="CASCADE"), nullable=False
     )
+    sponsor_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("sponsors.id", ondelete="SET NULL"), nullable=True
+    )
     caf_date: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime, default=utc_now, nullable=True
@@ -451,6 +468,7 @@ class StudentSemester(Base):
         Index("fk_student_semesters_structure_semester_id", "structure_semester_id"),
         Index("idx_student_semesters_term", "term"),
         Index("idx_student_semesters_status", "status"),
+        Index("fk_student_semesters_sponsor_id", "sponsor_id"),
     )
 
 
@@ -549,6 +567,7 @@ class Sponsor(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    code: Mapped[str] = mapped_column(String(10), nullable=False, unique=True)
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime, default=utc_now, nullable=True
     )
@@ -559,8 +578,8 @@ class RegistrationRequest(Base):
     __tablename__ = "registration_requests"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    sponsor_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("sponsors.id", ondelete="CASCADE"), nullable=False
+    sponsored_student_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("sponsored_students.id", ondelete="CASCADE"), nullable=False
     )
     std_no: Mapped[int] = mapped_column(
         BigInteger, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
@@ -589,7 +608,7 @@ class RegistrationRequest(Base):
         Index("fk_registration_requests_std_no", "std_no"),
         Index("fk_registration_requests_term_id", "term_id"),
         Index("idx_registration_requests_status", "status"),
-        Index("fk_registration_requests_sponsor_id", "sponsor_id"),
+        Index("fk_registration_requests_sponsored_student_id", "sponsored_student_id"),
     )
 
 

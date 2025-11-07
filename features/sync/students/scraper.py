@@ -8,31 +8,9 @@ from bs4 import BeautifulSoup, Tag
 from base import get_logger
 from base.browser import BASE_URL, Browser
 from utils.grades import normalize_grade_symbol
+from utils.modules import extract_module_code_and_name
 
 logger = get_logger(__name__)
-
-
-def extract_code_and_name(module_str: str) -> tuple[Optional[str], Optional[str]]:
-    if not module_str or not module_str.strip():
-        return None, None
-
-    module_str = module_str.strip()
-
-    pattern = r"^([A-Z]+\s?\d+)\s+(.+)$"
-    match = re.match(pattern, module_str)
-
-    if match:
-        code = match.group(1).strip()
-        name = match.group(2).strip()
-        return code, name
-
-    parts = module_str.split(maxsplit=1)
-    if len(parts) == 2:
-        return parts[0], parts[1]
-    elif len(parts) == 1:
-        return parts[0], None
-
-    return None, None
 
 
 def extract_student_program_ids(std_no: str) -> list[str]:
@@ -465,7 +443,7 @@ def scrape_student_module_data(std_module_id: str, student_semester_id: int) -> 
 
     module_str = get_table_value(table, "Module")
     if module_str:
-        code, name = extract_code_and_name(module_str)
+        code, name = extract_module_code_and_name(module_str)
         if code:
             data["module_code"] = code
         if name:

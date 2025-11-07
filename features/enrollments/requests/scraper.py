@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 
 from base import get_logger
 from base.browser import BASE_URL, Browser
+from utils.modules import extract_module_code_and_name
 
 logger = get_logger(__name__)
 
@@ -79,9 +80,7 @@ def get_cms_semester_modules(student_semester_id: int) -> list[dict]:
                     module_span = cols[0].select_one("span")
                     if module_span:
                         module_text = module_span.get_text(strip=True)
-                        parts = module_text.split(maxsplit=1)
-                        if parts:
-                            module_code = parts[0]
+                        module_code, _ = extract_module_code_and_name(module_text)
 
                 if module_code:
                     modules.append({"id": int(module_id), "module_code": module_code})

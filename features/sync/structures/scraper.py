@@ -2,6 +2,7 @@ from bs4 import BeautifulSoup
 
 from base import get_logger
 from base.browser import BASE_URL, Browser
+from utils.modules import extract_module_code_and_name
 
 logger = get_logger(__name__)
 
@@ -110,12 +111,9 @@ def scrape_semester_modules(
         if not module_text or not module_type:
             continue
 
-        parts = module_text.split(maxsplit=1)
-        if len(parts) < 2:
+        module_code, module_name = extract_module_code_and_name(module_text)
+        if not module_code or not module_name:
             continue
-
-        module_code = parts[0]
-        module_name = parts[1]
 
         try:
             credits = float(credits_text)

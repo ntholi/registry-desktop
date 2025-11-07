@@ -156,8 +156,12 @@ class StudentSyncService:
 
                         structure_id = None
                         if "structure_code" in program_data:
-                            structure_id = self._repository.get_structure_by_code(
-                                program_data["structure_code"]
+                            code = program_data["structure_code"]
+                            structure_id = (
+                                self._repository.get_structure_by_code_or_desc(
+                                    code,
+                                    code,
+                                )
                             )
 
                         if structure_id and semester_ids:

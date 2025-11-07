@@ -371,14 +371,30 @@ class StudentRepository:
             session.commit()
             return True
 
-    def get_structure_by_code(self, structure_code: str) -> Optional[int]:
+    def get_structure_by_code_or_desc(self, code: str, desc: str) -> Optional[int]:
         with self._session() as session:
             structure = (
-                session.query(Structure.id)
-                .filter(Structure.code == structure_code)
-                .first()
+                session.query(Structure.id).filter(Structure.code == code).first()
             )
-            return structure[0] if structure else None
+            if structure:
+                return structure[0]
+
+            structure = (
+                session.query(Structure.id).filter(Structure.desc == desc).first()
+            )
+            if structure:
+                return structure[0]
+
+            if code.isdigit():
+                structure = (
+                    session.query(Structure.id)
+                    .filter(Structure.id == int(code))
+                    .first()
+                )
+                if structure:
+                    return structure[0]
+
+            return None
 
     def get_student_semesters(self, student_program_id: int):
         with self._session() as session:
@@ -522,7 +538,9 @@ class StudentRepository:
 
                 structure_id = None
                 if "structure_code" in data:
-                    structure_id = self.get_structure_by_code(data["structure_code"])
+                    structure_id = self.get_structure_by_code_or_desc(
+                        data["structure_code"], data["structure_code"]
+                    )
                     if not structure_id:
                         logger.warning(
                             f"Structure {data['structure_code']} not found in database"
@@ -554,7 +572,7 @@ class StudentRepository:
                 else:
                     if not structure_id:
                         logger.error(
-                            f"Cannot create student program without valid structure"
+                            f"Cannot create student program without valid structure, std_no={std_no}, student_program_id={student_program_id}"
                         )
                         return False, "Structure not found"
 
@@ -917,7 +935,9 @@ class StudentRepository:
             logger.debug(f"Cache hit for sponsor code '{sponsor_code}'")
             return _sponsor_cache[sponsor_code]
 
-        logger.debug(f"Cache miss for sponsor code '{sponsor_code}' - querying database")
+        logger.debug(
+            f"Cache miss for sponsor code '{sponsor_code}' - querying database"
+        )
 
         with self._session() as session:
             result = (
@@ -943,7 +963,9 @@ class StudentRepository:
                 cache_key = (structure_id, semester_number)
                 _structure_semester_cache[cache_key] = structure_semester_id
 
-            logger.info(f"Preloaded {len(results)} semesters for structure {structure_id}")
+            logger.info(
+                f"Preloaded {len(results)} semesters for structure {structure_id}"
+            )
             return len(results)
 
     def preload_all_sponsors(self) -> int:

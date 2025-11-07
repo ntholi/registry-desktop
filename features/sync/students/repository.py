@@ -616,6 +616,8 @@ class StudentRepository:
                         existing.status = data["semester_status"]
                     if "caf_date" in data:
                         existing.caf_date = data["caf_date"]
+                    if "sponsor_id" in data:
+                        existing.sponsor_id = data["sponsor_id"]
 
                     session.commit()
                     logger.info(
@@ -641,6 +643,7 @@ class StudentRepository:
                         status=data.get("status")
                         or data.get("semester_status", "Active"),
                         caf_date=data.get("caf_date"),
+                        sponsor_id=data.get("sponsor_id"),
                     )
                     session.add(new_semester)
                     session.commit()

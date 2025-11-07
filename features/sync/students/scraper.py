@@ -12,6 +12,7 @@ from utils.grades import normalize_grade_symbol
 logger = get_logger(__name__)
 
 _structure_semester_cache: dict[tuple[int, str], Optional[int]] = {}
+_sponsor_cache: dict[str, Optional[int]] = {}
 
 
 def extract_code_and_name(module_str: str) -> tuple[Optional[str], Optional[str]]:
@@ -392,6 +393,16 @@ def scrape_student_semester_data(
         if parsed_date:
             data["caf_date"] = parsed_date.strftime("%Y-%m-%d")
 
+    assist_provider = get_table_value(table, "Asst-Provider")
+    if assist_provider:
+        sponsor_id = lookup_sponsor_by_code(assist_provider)
+        if sponsor_id:
+            data["sponsor_id"] = sponsor_id
+        else:
+            logger.warning(
+                f"Could not find sponsor with code '{assist_provider}' for semester {std_semester_id}"
+            )
+
     logger.info(f"Scraped semester data for student semester {std_semester_id}")
     return data
 
@@ -434,6 +445,38 @@ def clear_structure_semester_cache():
     global _structure_semester_cache
     _structure_semester_cache.clear()
     logger.info("Cleared structure semester cache")
+
+
+def lookup_sponsor_by_code(sponsor_code: str) -> Optional[int]:
+    if not sponsor_code or not sponsor_code.strip():
+        return None
+
+    sponsor_code = sponsor_code.strip()
+
+    if sponsor_code in _sponsor_cache:
+        logger.debug(f"Cache hit for sponsor code '{sponsor_code}'")
+        return _sponsor_cache[sponsor_code]
+
+    from sqlalchemy.orm import Session
+
+    from database import Sponsor, get_engine
+
+    logger.debug(f"Cache miss for sponsor code '{sponsor_code}' - querying database")
+
+    engine = get_engine()
+    with Session(engine) as session:
+        result = session.query(Sponsor.id).filter(Sponsor.code == sponsor_code).first()
+        sponsor_id = result[0] if result else None
+
+        _sponsor_cache[sponsor_code] = sponsor_id
+
+        return sponsor_id
+
+
+def clear_sponsor_cache():
+    global _sponsor_cache
+    _sponsor_cache.clear()
+    logger.info("Cleared sponsor cache")
 
 
 def preload_structure_semesters(structure_id: int) -> None:

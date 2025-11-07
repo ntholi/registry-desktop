@@ -5,6 +5,7 @@ from pathlib import Path
 
 import wx
 
+from base.auth.access_denied_dialog import AccessDeniedDialog
 from base.auth.login_view import LoginWindow
 from base.auth.repository import AuthRepository
 from base.auth.session_manager import SessionManager
@@ -209,6 +210,13 @@ def check_existing_session() -> User | None:
 
 
 def show_main_window(user: User):
+    if user.role not in ["registry", "admin"]:
+        SessionManager.clear_session()
+        dialog = AccessDeniedDialog(None, user.role)
+        dialog.ShowModal()
+        dialog.Destroy()
+        return
+
     try:
         window = MainWindow(user)
         window.Maximize()
@@ -248,7 +256,15 @@ def main():
     splash.close()
 
     if current_user:
-        show_main_window(current_user)
+        if current_user.role in ["registry", "admin"]:
+            show_main_window(current_user)
+        else:
+            SessionManager.clear_session()
+            dialog = AccessDeniedDialog(None, current_user.role)
+            dialog.ShowModal()
+            dialog.Destroy()
+            login_window = LoginWindow(on_login_success=show_main_window)
+            login_window.Show()
     else:
         login_window = LoginWindow(on_login_success=show_main_window)
         login_window.Show()

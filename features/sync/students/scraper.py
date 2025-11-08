@@ -49,7 +49,10 @@ def scrape_student_program_data(std_program_id: str) -> dict:
     table = page.select_one("table.ewTable")
 
     if not table:
-        logger.error(f"No data table found for student program {std_program_id}")
+        logger.error(
+            f"No data table found for student program - std_program_id={std_program_id}, "
+            f"url={url}, response_length={len(response.text) if response and response.text else 0}"
+        )
         return {}
 
     data = {}
@@ -160,7 +163,10 @@ def scrape_student_personal_view(std_no: str) -> dict:
     table = page.select_one("table.ewTable")
 
     if not table:
-        logger.error(f"No data table found for student {std_no} on personal view page")
+        logger.error(
+            f"No data table found on personal view page - student_number={std_no}, "
+            f"url={url}, response_length={len(response.text) if response and response.text else 0}"
+        )
         return {}
 
     data = {}
@@ -258,7 +264,10 @@ def scrape_student_view(std_no: str) -> dict:
     table = page.select_one("table.ewTable")
 
     if not table:
-        logger.error(f"No data table found for student {std_no} on student view page")
+        logger.error(
+            f"No data table found on student view page - student_number={std_no}, "
+            f"url={url}, response_length={len(response.text) if response and response.text else 0}"
+        )
         return {}
 
     data = {}
@@ -336,7 +345,11 @@ def scrape_student_semester_data(
     table = page.select_one("table.ewTable")
 
     if not table:
-        logger.error(f"No data table found for student semester {std_semester_id}")
+        logger.error(
+            f"No data table found for student semester - semester_id={std_semester_id}, "
+            f"structure_id={structure_id}, url={url}, "
+            f"response_length={len(response.text) if response and response.text else 0}"
+        )
         return {}
 
     data: dict = {"id": std_semester_id}
@@ -367,9 +380,9 @@ def scrape_student_semester_data(
                 data["structure_semester_id"] = structure_semester_id
             else:
                 logger.error(
-                    f"Could not find structure_semester_id for structure {structure_id} "
-                    f"and semester_number {semester_number}, was trying to lookup structure_semester_id "
-                    f"By structure_id={structure_id} and semester_number={semester_number}"
+                    f"Could not find structure_semester_id - semester_id={std_semester_id}, "
+                    f"structure_id={structure_id}, semester_number={semester_number}, "
+                    f"term={data.get('term')}, semester_str={semester_str}"
                 )
 
     status = get_table_value(table, "SemStatus")
@@ -389,7 +402,8 @@ def scrape_student_semester_data(
             data["sponsor_id"] = sponsor_id
         else:
             logger.error(
-                f"Could not find sponsor with code '{assist_provider}' for semester {std_semester_id}"
+                f"Could not find sponsor - semester_id={std_semester_id}, "
+                f"sponsor_code={assist_provider}, term={data.get('term')}"
             )
 
     logger.info(f"Scraped semester data for student semester {std_semester_id}")
@@ -448,7 +462,11 @@ def scrape_student_module_data(std_module_id: str, student_semester_id: int) -> 
     table = page.select_one("table.ewTable")
 
     if not table:
-        logger.error(f"No data table found for student module {std_module_id}")
+        logger.error(
+            f"No data table found for student module - module_id={std_module_id}, "
+            f"student_semester_id={student_semester_id}, url={url}, "
+            f"response_length={len(response.text) if response and response.text else 0}"
+        )
         return {}
 
     data = {"id": std_module_id, "student_semester_id": student_semester_id}
@@ -525,7 +543,12 @@ def scrape_student_modules_concurrent(
                     modules_data.append(data)
                     logger.debug(f"Successfully scraped module {module_id}")
             except Exception as e:
-                logger.error(f"Error scraping module {module_id}: {str(e)}")
+                logger.error(
+                    f"Error scraping module - module_id={module_id}, "
+                    f"semester_id={std_semester_id}, db_semester_id={db_semester_id}, "
+                    f"error={str(e)}",
+                    exc_info=True,
+                )
 
     logger.info(
         f"Completed concurrent scraping for semester {std_semester_id}: "
@@ -570,7 +593,10 @@ def scrape_student_education_data(std_education_id: str) -> dict:
     table = page.select_one("table.ewTable")
 
     if not table:
-        logger.error(f"No data table found for student education {std_education_id}")
+        logger.error(
+            f"No data table found for student education - education_id={std_education_id}, "
+            f"url={url}, response_length={len(response.text) if response and response.text else 0}"
+        )
         return {}
 
     data = {"id": std_education_id}

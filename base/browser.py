@@ -138,7 +138,13 @@ class Browser:
                     response = self.session.get(url, timeout=120)
 
                 if response.status_code != 200:
-                    logger.error(f"Unexpected status code: {response.status_code}")
+                    logger.error(
+                        f"Unexpected status code on fetch - url={url}, "
+                        f"status_code={response.status_code}, "
+                        f"response_length={len(response.text) if response and response.text else 0}, "
+                        f"headers={dict(response.headers)}, "
+                        f"retry_attempt={retry_count + 1}/{self.max_retries}"
+                    )
                     retry_count += 1
                     if retry_count < self.max_retries:
                         logger.info(
@@ -154,13 +160,20 @@ class Browser:
                 retry_count += 1
                 if retry_count < self.max_retries:
                     logger.error(
-                        f"Request failed: {str(e)}. Waiting {wait_time} seconds before retry ({retry_count}/{self.max_retries})"
+                        f"Request failed - url={url}, error={str(e)}, "
+                        f"error_type={type(e).__name__}, "
+                        f"retry_attempt={retry_count}/{self.max_retries}, "
+                        f"waiting {wait_time} seconds before retry",
+                        exc_info=True,
                     )
                     time.sleep(wait_time)
                     wait_time *= 2
                 else:
                     logger.error(
-                        f"Request failed after {self.max_retries} attempts: {str(e)}"
+                        f"Request failed after all retries - url={url}, "
+                        f"error={str(e)}, error_type={type(e).__name__}, "
+                        f"total_attempts={self.max_retries}",
+                        exc_info=True,
                     )
                     raise
 
@@ -181,5 +194,11 @@ class Browser:
             logger.info(f"Logged in, re-posting to {url}")
             response = self.session.post(url, data, timeout=120)
         if response.status_code != 200:
-            logger.error(f"Unexpected status code: {response.status_code}")
+            logger.error(
+                f"Unexpected status code on post - url={url}, "
+                f"status_code={response.status_code}, "
+                f"response_length={len(response.text) if response and response.text else 0}, "
+                f"headers={dict(response.headers)}, "
+                f"payload_preview={str(data)[:200]}"
+            )
         return response

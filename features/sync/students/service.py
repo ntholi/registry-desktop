@@ -110,10 +110,17 @@ class StudentSyncService:
                         if success:
                             educations_synced += 1
                         else:
-                            logger.error(f"Failed to sync education {edu_id}: {msg}")
+                            logger.error(
+                                f"Failed to sync education - student_number={student_number}, "
+                                f"education_id={edu_id}, error={msg}, data={education_data}"
+                            )
                             educations_failed += 1
                 except Exception as e:
-                    logger.error(f"Error syncing education {edu_id}: {str(e)}")
+                    logger.error(
+                        f"Error syncing education - student_number={student_number}, "
+                        f"education_id={edu_id}, error={str(e)}",
+                        exc_info=True,
+                    )
                     educations_failed += 1
 
         program_ids = []
@@ -149,7 +156,10 @@ class StudentSyncService:
                         try:
                             std_program_id = int(program_id)
                         except (TypeError, ValueError):
-                            logger.warning(f"Invalid program ID format: {program_id}")
+                            logger.warning(
+                                f"Invalid program ID format - student_number={student_number}, "
+                                f"program_id={program_id}"
+                            )
                             continue
 
                         semester_ids = extract_student_semester_ids(program_id)
@@ -213,36 +223,63 @@ class StudentSyncService:
                                                         modules_synced += 1
                                                     else:
                                                         logger.warning(
-                                                            f"Failed to sync module {module_data.get('id')}: {mod_msg}"
+                                                            f"Failed to sync module - student_number={student_number}, "
+                                                            f"program_id={program_id}, semester_id={sem_id}, "
+                                                            f"db_semester_id={db_semester_id}, "
+                                                            f"module_id={module_data.get('id')}, "
+                                                            f"module_code={module_data.get('code')}, "
+                                                            f"error={mod_msg}, data={module_data}"
                                                         )
                                                         modules_failed += 1
                                                 except Exception as e:
                                                     logger.error(
-                                                        f"Error syncing module {module_data.get('id')}: {str(e)}"
+                                                        f"Error syncing module - student_number={student_number}, "
+                                                        f"program_id={program_id}, semester_id={sem_id}, "
+                                                        f"db_semester_id={db_semester_id}, "
+                                                        f"module_id={module_data.get('id')}, "
+                                                        f"module_code={module_data.get('code')}, "
+                                                        f"error={str(e)}, data={module_data}",
+                                                        exc_info=True,
                                                     )
                                                     modules_failed += 1
 
                                         except Exception as e:
                                             logger.error(
-                                                f"Error scraping modules for semester {sem_id}: {str(e)}"
+                                                f"Error scraping modules - student_number={student_number}, "
+                                                f"program_id={program_id}, semester_id={sem_id}, "
+                                                f"db_semester_id={db_semester_id}, error={str(e)}",
+                                                exc_info=True,
                                             )
 
                                     else:
                                         logger.error(
-                                            f"Failed to sync semester {sem_id}: {sem_msg}"
+                                            f"Failed to sync semester - student_number={student_number}, "
+                                            f"program_id={program_id}, semester_id={sem_id}, "
+                                            f"structure_id={structure_id}, error={sem_msg}, "
+                                            f"data={semester_data}"
                                         )
                                         semesters_failed += 1
                             except Exception as e:
                                 logger.error(
-                                    f"Error syncing semester {sem_id}: {str(e)}"
+                                    f"Error syncing semester - student_number={student_number}, "
+                                    f"program_id={program_id}, semester_id={sem_id}, "
+                                    f"structure_id={structure_id}, error={str(e)}",
+                                    exc_info=True,
                                 )
                                 semesters_failed += 1
 
                     else:
-                        logger.warning(f"Failed to sync program {program_id}: {msg}")
+                        logger.warning(
+                            f"Failed to sync program - student_number={student_number}, "
+                            f"program_id={program_id}, error={msg}, data={program_data}"
+                        )
                         programs_failed += 1
             except Exception as e:
-                logger.error(f"Error syncing program {program_id}: {str(e)}")
+                logger.error(
+                    f"Error syncing program - student_number={student_number}, "
+                    f"program_id={program_id}, error={str(e)}",
+                    exc_info=True,
+                )
                 programs_failed += 1
 
         progress_callback(
@@ -278,7 +315,10 @@ class StudentSyncService:
             form = page.select_one("form#fr_studentedit")
 
             if not form:
-                logger.error(f"Could not find edit form for student {student_number}")
+                logger.error(
+                    f"Could not find edit form - student_number={student_number}, "
+                    f"url={url}, response_length={len(response.text) if response and response.text else 0}"
+                )
                 return False, "Could not find edit form"
 
             progress_callback(f"Preparing data for {student_number}...")
@@ -355,7 +395,11 @@ class StudentSyncService:
                 return False, cms_message
 
         except Exception as e:
-            logger.error(f"Error pushing student {student_number}: {str(e)}")
+            logger.error(
+                f"Error pushing student - student_number={student_number}, "
+                f"url={url}, data={data}, error={str(e)}",
+                exc_info=True,
+            )
             return False, f"Error: {str(e)}"
 
     def push_module(
@@ -374,7 +418,10 @@ class StudentSyncService:
             form = page.select_one("form#fr_stdmoduleedit")
 
             if not form:
-                logger.error(f"Could not find edit form for module {std_module_id}")
+                logger.error(
+                    f"Could not find edit form - module_id={std_module_id}, "
+                    f"url={url}, response_length={len(response.text) if response and response.text else 0}"
+                )
                 return False, "Could not find edit form"
 
             progress_callback(f"Preparing data for module {std_module_id}...")
@@ -417,7 +464,11 @@ class StudentSyncService:
                 return False, cms_message
 
         except Exception as e:
-            logger.error(f"Error pushing module {std_module_id}: {str(e)}")
+            logger.error(
+                f"Error pushing module - module_id={std_module_id}, "
+                f"url={url}, data={data}, error={str(e)}",
+                exc_info=True,
+            )
             return False, f"Error: {str(e)}"
 
     def push_semester(

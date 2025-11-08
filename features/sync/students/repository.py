@@ -543,7 +543,9 @@ class StudentRepository:
                     )
                     if not structure_id:
                         logger.error(
-                            f"Structure {data['structure_code']} not found in database"
+                            f"Structure not found - std_no={std_no}, "
+                            f"student_program_id={student_program_id}, "
+                            f"structure_code={data['structure_code']}"
                         )
 
                 if existing:
@@ -572,7 +574,9 @@ class StudentRepository:
                 else:
                     if not structure_id:
                         logger.error(
-                            f"Cannot create student program without valid structure, std_no={std_no}, student_program_id={student_program_id}"
+                            f"Cannot create student program without valid structure - "
+                            f"std_no={std_no}, student_program_id={student_program_id}, "
+                            f"structure_code={data.get('structure_code')}, data={data}"
                         )
                         return False, "Structure not found"
 
@@ -598,7 +602,12 @@ class StudentRepository:
             except Exception as e:
                 session.rollback()
                 error_msg = f"Error upserting student program: {str(e)}"
-                logger.error(error_msg)
+                logger.error(
+                    f"Error upserting student program - std_no={std_no}, "
+                    f"student_program_id={student_program_id}, "
+                    f"structure_id={structure_id}, error={str(e)}, data={data}",
+                    exc_info=True,
+                )
                 return False, error_msg
 
     def upsert_student_semester(
@@ -611,7 +620,10 @@ class StudentRepository:
                     try:
                         semester_id = int(data["id"])
                     except (TypeError, ValueError):
-                        logger.error(f"Invalid semester ID: {data.get('id')}")
+                        logger.error(
+                            f"Invalid semester ID - std_program_id={std_program_id}, "
+                            f"semester_id={data.get('id')}, data={data}"
+                        )
 
                 existing = None
                 if semester_id:
@@ -649,12 +661,19 @@ class StudentRepository:
                 else:
                     if not semester_id:
                         error_msg = "Cannot create student semester without ID from CMS"
-                        logger.error(error_msg)
+                        logger.error(
+                            f"Cannot create student semester without ID - "
+                            f"std_program_id={std_program_id}, data={data}"
+                        )
                         return False, error_msg, None
 
                     if "structure_semester_id" not in data:
                         error_msg = f"Cannot create student semester without structure_semester_id for std_program_id {std_program_id}"
-                        logger.error(error_msg)
+                        logger.error(
+                            f"Cannot create student semester without structure_semester_id - "
+                            f"std_program_id={std_program_id}, semester_id={semester_id}, "
+                            f"term={data.get('term')}, data={data}"
+                        )
                         return False, error_msg, None
 
                     new_semester = StudentSemester(
@@ -677,7 +696,13 @@ class StudentRepository:
             except Exception as e:
                 session.rollback()
                 error_msg = f"Error upserting student semester: {str(e)}"
-                logger.error(error_msg)
+                logger.error(
+                    f"Error upserting student semester - std_program_id={std_program_id}, "
+                    f"semester_id={semester_id}, term={data.get('term')}, "
+                    f"structure_semester_id={data.get('structure_semester_id')}, "
+                    f"error={str(e)}, data={data}",
+                    exc_info=True,
+                )
                 return False, error_msg, None
 
     def get_semester_module_by_code(
@@ -746,7 +771,10 @@ class StudentRepository:
 
                             if not semester_module_id:
                                 logger.error(
-                                    f"Semester module not found for code {data['module_code']}"
+                                    f"Semester module not found - module_code={data['module_code']}, "
+                                    f"structure_id={structure_id}, "
+                                    f"student_semester_id={student_semester_id}, "
+                                    f"std_module_id={std_module_id}"
                                 )
 
                 if existing:
@@ -769,7 +797,10 @@ class StudentRepository:
                 else:
                     if not semester_module_id:
                         logger.error(
-                            f"Creating student module {std_module_id} without semester_module_id"
+                            f"Creating student module without semester_module_id - "
+                            f"std_module_id={std_module_id}, "
+                            f"student_semester_id={student_semester_id}, "
+                            f"module_code={data.get('module_code')}, data={data}"
                         )
 
                     new_module = StudentModule(
@@ -788,7 +819,14 @@ class StudentRepository:
             except Exception as e:
                 session.rollback()
                 error_msg = f"Error upserting student module: {str(e)}"
-                logger.error(error_msg)
+                logger.error(
+                    f"Error upserting student module - std_module_id={std_module_id}, "
+                    f"student_semester_id={student_semester_id}, "
+                    f"semester_module_id={semester_module_id}, "
+                    f"module_code={data.get('module_code')}, "
+                    f"error={str(e)}, data={data}",
+                    exc_info=True,
+                )
                 return False, error_msg
 
     def upsert_next_of_kin(
@@ -843,7 +881,12 @@ class StudentRepository:
             except Exception as e:
                 session.rollback()
                 error_msg = f"Error upserting next of kin: {str(e)}"
-                logger.error(error_msg)
+                logger.error(
+                    f"Error upserting next of kin - student_number={student_number}, "
+                    f"num_records={len(next_of_kin_list)}, "
+                    f"error={str(e)}, data={next_of_kin_list}",
+                    exc_info=True,
+                )
                 return False, error_msg
 
     def upsert_student_education(self, data: dict) -> tuple[bool, str]:
@@ -894,7 +937,12 @@ class StudentRepository:
             except Exception as e:
                 session.rollback()
                 error_msg = f"Error upserting student education: {str(e)}"
-                logger.error(error_msg)
+                logger.error(
+                    f"Error upserting student education - education_id={education_id}, "
+                    f"std_no={std_no}, school_name={data.get('school_name')}, "
+                    f"error={str(e)}, data={data}",
+                    exc_info=True,
+                )
                 return False, error_msg
 
     def lookup_structure_semester_id(

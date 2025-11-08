@@ -67,6 +67,7 @@ EducationLevel = Literal[
     "JCE",
     "BJCE",
     "BGGSE",
+    "BGCSE",
     "LGCSE",
     "IGCSE",
     "O-Levels",
@@ -213,7 +214,9 @@ class User(Base):
     role: Mapped[UserRole] = mapped_column(String, nullable=False, default="user")
     position: Mapped[UserPosition | None] = mapped_column(String, nullable=True)
     email: Mapped[str | None] = mapped_column(String, unique=True, nullable=True)
-    emailVerified: Mapped[datetime | None] = mapped_column("email_verified", DateTime, nullable=True)
+    emailVerified: Mapped[datetime | None] = mapped_column(
+        "email_verified", DateTime, nullable=True
+    )
     image: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 

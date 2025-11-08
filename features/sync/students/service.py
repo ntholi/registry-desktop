@@ -110,7 +110,7 @@ class StudentSyncService:
                         if success:
                             educations_synced += 1
                         else:
-                            logger.warning(f"Failed to sync education {edu_id}: {msg}")
+                            logger.error(f"Failed to sync education {edu_id}: {msg}")
                             educations_failed += 1
                 except Exception as e:
                     logger.error(f"Error syncing education {edu_id}: {str(e)}")
@@ -228,7 +228,7 @@ class StudentSyncService:
                                             )
 
                                     else:
-                                        logger.warning(
+                                        logger.error(
                                             f"Failed to sync semester {sem_id}: {sem_msg}"
                                         )
                                         semesters_failed += 1

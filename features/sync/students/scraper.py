@@ -355,9 +355,10 @@ def scrape_student_semester_data(
             if structure_semester_id:
                 data["structure_semester_id"] = structure_semester_id
             else:
-                logger.warning(
+                logger.error(
                     f"Could not find structure_semester_id for structure {structure_id} "
-                    f"and semester_number {semester_number}"
+                    f"and semester_number {semester_number}, was trying to lookup structure_semester_id "
+                    f"By structure_id={structure_id} and semester_number={semester_number}"
                 )
 
     status = get_table_value(table, "SemStatus")
@@ -376,7 +377,7 @@ def scrape_student_semester_data(
         if sponsor_id:
             data["sponsor_id"] = sponsor_id
         else:
-            logger.warning(
+            logger.error(
                 f"Could not find sponsor with code '{assist_provider}' for semester {std_semester_id}"
             )
 

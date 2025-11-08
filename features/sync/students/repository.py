@@ -542,7 +542,7 @@ class StudentRepository:
                         data["structure_code"], data["structure_code"]
                     )
                     if not structure_id:
-                        logger.warning(
+                        logger.error(
                             f"Structure {data['structure_code']} not found in database"
                         )
 
@@ -611,7 +611,7 @@ class StudentRepository:
                     try:
                         semester_id = int(data["id"])
                     except (TypeError, ValueError):
-                        logger.warning(f"Invalid semester ID: {data.get('id')}")
+                        logger.error(f"Invalid semester ID: {data.get('id')}")
 
                 existing = None
                 if semester_id:
@@ -745,7 +745,7 @@ class StudentRepository:
                             )
 
                             if not semester_module_id:
-                                logger.warning(
+                                logger.error(
                                     f"Semester module not found for code {data['module_code']}"
                                 )
 
@@ -768,7 +768,7 @@ class StudentRepository:
                     return True, "Student module updated"
                 else:
                     if not semester_module_id:
-                        logger.warning(
+                        logger.error(
                             f"Creating student module {std_module_id} without semester_module_id"
                         )
 

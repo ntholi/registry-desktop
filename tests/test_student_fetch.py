@@ -32,9 +32,7 @@ def main():
             logger.warning(f"Fetch completed with issues for student {student_number}")
 
     except Exception as e:
-        logger.error(
-            f"Error fetching student {student_number}: {str(e)}", exc_info=True
-        )
+        logger.error(f"Error fetching student {student_number}: {str(e)}")
 
 
 if __name__ == "__main__":

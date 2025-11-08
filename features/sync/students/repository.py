@@ -572,7 +572,6 @@ class StudentRepository:
                     f"Error upserting student program - std_no={std_no}, "
                     f"student_program_id={student_program_id}, "
                     f"structure_id={structure_id}, error={str(e)}, data={data}",
-                    exc_info=True,
                 )
                 return False, error_msg
 
@@ -667,7 +666,6 @@ class StudentRepository:
                     f"semester_id={semester_id}, term={data.get('term')}, "
                     f"structure_semester_id={data.get('structure_semester_id')}, "
                     f"error={str(e)}, data={data}",
-                    exc_info=True,
                 )
                 return False, error_msg, None
 
@@ -791,7 +789,6 @@ class StudentRepository:
                     f"semester_module_id={semester_module_id}, "
                     f"module_code={data.get('module_code')}, "
                     f"error={str(e)}, data={data}",
-                    exc_info=True,
                 )
                 return False, error_msg
 
@@ -851,7 +848,6 @@ class StudentRepository:
                     f"Error upserting next of kin - student_number={student_number}, "
                     f"num_records={len(next_of_kin_list)}, "
                     f"error={str(e)}, data={next_of_kin_list}",
-                    exc_info=True,
                 )
                 return False, error_msg
 
@@ -907,7 +903,6 @@ class StudentRepository:
                     f"Error upserting student education - education_id={education_id}, "
                     f"std_no={std_no}, school_name={data.get('school_name')}, "
                     f"error={str(e)}, data={data}",
-                    exc_info=True,
                 )
                 return False, error_msg
 

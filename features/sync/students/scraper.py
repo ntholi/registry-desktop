@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup, Tag
 
 from base import get_logger
 from base.browser import BASE_URL, Browser
+from utils.modules import extract_module_code_and_name
 from utils.normalizers import (
     normalize_credits,
     normalize_date,
@@ -14,8 +15,8 @@ from utils.normalizers import (
     normalize_education_type,
     normalize_gender,
     normalize_grade_symbol,
-    normalize_marks,
     normalize_marital_status,
+    normalize_marks,
     normalize_module_type,
     normalize_name,
     normalize_next_of_kin_relationship,
@@ -26,7 +27,6 @@ from utils.normalizers import (
     normalize_student_status,
     normalize_text,
 )
-from utils.modules import extract_module_code_and_name
 
 logger = get_logger(__name__)
 
@@ -615,7 +615,6 @@ def scrape_student_modules_concurrent(
                     f"Error scraping module - module_id={module_id}, "
                     f"semester_id={std_semester_id}, db_semester_id={db_semester_id}, "
                     f"error={str(e)}",
-                    exc_info=True,
                 )
 
     logger.info(

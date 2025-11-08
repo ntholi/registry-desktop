@@ -164,7 +164,6 @@ class Browser:
                         f"error_type={type(e).__name__}, "
                         f"retry_attempt={retry_count}/{self.max_retries}, "
                         f"waiting {wait_time} seconds before retry",
-                        exc_info=True,
                     )
                     time.sleep(wait_time)
                     wait_time *= 2
@@ -173,7 +172,6 @@ class Browser:
                         f"Request failed after all retries - url={url}, "
                         f"error={str(e)}, error_type={type(e).__name__}, "
                         f"total_attempts={self.max_retries}",
-                        exc_info=True,
                     )
                     raise
 

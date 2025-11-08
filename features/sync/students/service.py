@@ -119,7 +119,6 @@ class StudentSyncService:
                     logger.error(
                         f"Error syncing education - student_number={student_number}, "
                         f"education_id={edu_id}, error={str(e)}",
-                        exc_info=True,
                     )
                     educations_failed += 1
 
@@ -239,7 +238,6 @@ class StudentSyncService:
                                                         f"module_id={module_data.get('id')}, "
                                                         f"module_code={module_data.get('code')}, "
                                                         f"error={str(e)}, data={module_data}",
-                                                        exc_info=True,
                                                     )
                                                     modules_failed += 1
 
@@ -248,7 +246,6 @@ class StudentSyncService:
                                                 f"Error scraping modules - student_number={student_number}, "
                                                 f"program_id={program_id}, semester_id={sem_id}, "
                                                 f"db_semester_id={db_semester_id}, error={str(e)}",
-                                                exc_info=True,
                                             )
 
                                     else:
@@ -264,7 +261,6 @@ class StudentSyncService:
                                     f"Error syncing semester - student_number={student_number}, "
                                     f"program_id={program_id}, semester_id={sem_id}, "
                                     f"structure_id={structure_id}, error={str(e)}",
-                                    exc_info=True,
                                 )
                                 semesters_failed += 1
 
@@ -278,7 +274,6 @@ class StudentSyncService:
                 logger.error(
                     f"Error syncing program - student_number={student_number}, "
                     f"program_id={program_id}, error={str(e)}",
-                    exc_info=True,
                 )
                 programs_failed += 1
 
@@ -398,7 +393,6 @@ class StudentSyncService:
             logger.error(
                 f"Error pushing student - student_number={student_number}, "
                 f"url={url}, data={data}, error={str(e)}",
-                exc_info=True,
             )
             return False, f"Error: {str(e)}"
 
@@ -467,7 +461,6 @@ class StudentSyncService:
             logger.error(
                 f"Error pushing module - module_id={std_module_id}, "
                 f"url={url}, data={data}, error={str(e)}",
-                exc_info=True,
             )
             return False, f"Error: {str(e)}"
 

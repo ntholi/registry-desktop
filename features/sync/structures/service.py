@@ -12,22 +12,9 @@ from .scraper import (
     scrape_structures,
 )
 
+from utils.normalizers import normalize_module_type
+
 logger = get_logger(__name__)
-
-
-def normalize_module_type(module_type: str) -> str:
-    type_mapping = {
-        "standard": "Core",
-        "core": "Core",
-        "major": "Major",
-        "minor": "Minor",
-        "elective": "Elective",
-        "delete": "Delete",
-    }
-
-    normalized = type_mapping.get(module_type.lower(), "Core")
-    logger.debug(f"Normalized module type '{module_type}' to '{normalized}'")
-    return normalized
 
 
 class SchoolSyncService:

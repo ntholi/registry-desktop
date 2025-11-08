@@ -1,6 +1,7 @@
-import re
 from dataclasses import dataclass
 from typing import Any
+
+from utils.normalizers import normalize_grade_symbol, normalize_module_name
 
 
 @dataclass
@@ -44,72 +45,6 @@ GRADES = [
     GradeDefinition("DNS", 0.0, "Did Not Submit"),
     GradeDefinition("NM", None, "No Mark"),
 ]
-
-
-def normalize_grade_symbol(grade: str) -> str:
-    if not grade or not grade.strip():
-        return "F"
-
-    normalized = grade.strip()
-
-    normalized = re.sub(r"[.\s]+$", "", normalized)
-    normalized = re.sub(r"^[.\s]+", "", normalized)
-
-    normalized_upper = normalized.upper()
-
-    grade_aliases = {
-        "DFR": "F",
-        "W": "F",
-        "P": "C-",
-        "PASS": "C-",
-        "FAIL": "F",
-        "FAILED": "F",
-        "DEF": "Def",
-    }
-
-    if normalized_upper in grade_aliases:
-        return grade_aliases[normalized_upper]
-
-    if normalized.replace(".", "").isdigit():
-        try:
-            marks = float(normalized)
-            letter_grade = get_letter_grade(marks)
-            return letter_grade
-        except ValueError:
-            pass
-
-    valid_grades = {g.grade for g in GRADES}
-    if normalized_upper in valid_grades:
-        return normalized_upper
-
-    for valid_grade in valid_grades:
-        if valid_grade.upper() == normalized_upper:
-            return valid_grade
-
-    return "F"
-
-
-def normalize_module_name(name: str) -> str:
-    roman_to_arabic = {
-        "i": "1",
-        "ii": "2",
-        "iii": "3",
-        "iv": "4",
-        "v": "5",
-        "vi": "6",
-        "vii": "7",
-        "viii": "8",
-        "ix": "9",
-        "x": "10",
-    }
-
-    def replace_roman(match: re.Match[str]) -> str:
-        return roman_to_arabic.get(match.group(0).lower(), match.group(0))
-
-    normalized = name.strip().lower().replace("&", "and")
-    normalized = re.sub(r"\b(i{1,3}|iv|v|vi{0,3}|ix|x)\b", replace_roman, normalized)
-    normalized = re.sub(r"\s+", " ", normalized)
-    return normalized.strip()
 
 
 def get_grade_by_symbol(grade: str) -> GradeDefinition | None:

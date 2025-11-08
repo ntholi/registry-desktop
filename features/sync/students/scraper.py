@@ -7,7 +7,25 @@ from bs4 import BeautifulSoup, Tag
 
 from base import get_logger
 from base.browser import BASE_URL, Browser
-from utils.grades import normalize_grade_symbol
+from utils.normalizers import (
+    normalize_credits,
+    normalize_date,
+    normalize_education_level,
+    normalize_education_type,
+    normalize_gender,
+    normalize_grade_symbol,
+    normalize_marks,
+    normalize_marital_status,
+    normalize_module_type,
+    normalize_name,
+    normalize_next_of_kin_relationship,
+    normalize_phone,
+    normalize_program_status,
+    normalize_semester_status,
+    normalize_student_module_status,
+    normalize_student_status,
+    normalize_text,
+)
 from utils.modules import extract_module_code_and_name
 
 logger = get_logger(__name__)
@@ -74,41 +92,51 @@ def scrape_student_program_data(std_program_id: str) -> dict:
 
     reg_date_str = get_table_value(table, "RegDate")
     if reg_date_str:
-        parsed_date = parse_date(reg_date_str)
-        if parsed_date:
-            data["reg_date"] = parsed_date.strftime("%Y-%m-%d")
+        normalized_date = normalize_date(reg_date_str)
+        if normalized_date:
+            data["reg_date"] = normalized_date
 
     intake_date_str = get_table_value(table, "Intake Date")
     if intake_date_str:
-        parsed_date = parse_date(intake_date_str)
-        if parsed_date:
-            data["intake_date"] = parsed_date.strftime("%Y-%m-%d")
+        normalized_date = normalize_date(intake_date_str)
+        if normalized_date:
+            data["intake_date"] = normalized_date
 
     start_term = get_table_value(table, "StartTerm")
     if start_term:
-        data["start_term"] = start_term
+        normalized_term = normalize_text(start_term)
+        if normalized_term:
+            data["start_term"] = normalized_term
 
     structure = get_table_value(table, "Version")
     if structure:
-        data["structure_code"] = structure
+        normalized_structure = normalize_text(structure)
+        if normalized_structure:
+            data["structure_code"] = normalized_structure
 
     stream = get_table_value(table, "Stream")
     if stream:
-        data["stream"] = stream
+        normalized_stream = normalize_text(stream)
+        if normalized_stream:
+            data["stream"] = normalized_stream
 
     status = get_table_value(table, "Status")
     if status:
-        data["status"] = status
+        normalized_status = normalize_program_status(status)
+        if normalized_status:
+            data["status"] = normalized_status
 
     assist_provider = get_table_value(table, "Asst-Provider")
     if assist_provider:
-        data["assist_provider"] = assist_provider
+        normalized_provider = normalize_text(assist_provider)
+        if normalized_provider:
+            data["assist_provider"] = normalized_provider
 
     grad_date_str = get_table_value(table, "Graduation Date")
     if grad_date_str:
-        parsed_date = parse_date(grad_date_str)
-        if parsed_date:
-            data["graduation_date"] = parsed_date.strftime("%Y-%m-%d")
+        normalized_date = normalize_date(grad_date_str)
+        if normalized_date:
+            data["graduation_date"] = normalized_date
 
     logger.info(f"Scraped program data for student program {std_program_id}")
     return data
@@ -174,79 +202,100 @@ def scrape_student_personal_view(std_no: str) -> dict:
 
     birthdate_str = get_table_value(table, "Birthdate")
     if birthdate_str:
-        data["date_of_birth"] = parse_date(birthdate_str)
+        normalized_date = normalize_date(birthdate_str)
+        if normalized_date:
+            data["date_of_birth"] = normalized_date
 
     sex = get_table_value(table, "Sex")
     if sex:
-        data["gender"] = sex
+        normalized_gender = normalize_gender(sex)
+        if normalized_gender:
+            data["gender"] = normalized_gender
 
     marital = get_table_value(table, "Marital")
     if marital:
-        data["marital_status"] = marital
+        normalized_marital = normalize_marital_status(marital)
+        if normalized_marital:
+            data["marital_status"] = normalized_marital
 
     religion = get_table_value(table, "Religion")
     if religion:
-        data["religion"] = religion
+        normalized_religion = normalize_text(religion)
+        if normalized_religion:
+            data["religion"] = normalized_religion
 
     race = get_table_value(table, "Race")
     if race:
-        data["race"] = race
+        normalized_race = normalize_text(race)
+        if normalized_race:
+            data["race"] = normalized_race
 
     nationality = get_table_value(table, "Nationality")
     if nationality:
-        data["nationality"] = nationality
+        normalized_nationality = normalize_text(nationality)
+        if normalized_nationality:
+            data["nationality"] = normalized_nationality
 
     birth_place = get_table_value(table, "Birth Place")
     if birth_place:
-        data["birth_place"] = birth_place
+        normalized_birth_place = normalize_text(birth_place)
+        if normalized_birth_place:
+            data["birth_place"] = normalized_birth_place
 
     emergency_relation = get_table_value(table, "Emergency Contact Relation")
     emergency_name = get_table_value(table, "Emergency Contact Name")
     emergency_phone = get_table_value(table, "Emergency Contact Phone")
 
     if emergency_name and emergency_relation:
-        relationship = (
-            emergency_relation
-            if emergency_relation
-            in ["Mother", "Father", "Brother", "Sister", "Child", "Spouse"]
-            else "Other"
-        )
-        next_of_kin.append(
-            {
-                "name": emergency_name,
-                "relationship": relationship,
-                "phone": emergency_phone,
-                "email": None,
-            }
-        )
+        normalized_relationship = normalize_next_of_kin_relationship(emergency_relation)
+        normalized_name = normalize_name(emergency_name)
+        normalized_phone = normalize_phone(emergency_phone)
+
+        if normalized_relationship and normalized_name:
+            next_of_kin.append(
+                {
+                    "name": normalized_name,
+                    "relationship": normalized_relationship,
+                    "phone": normalized_phone,
+                    "email": None,
+                }
+            )
 
     father_name = get_table_value(table, "Father Name")
     father_contact = get_table_value(table, "Father Contact")
     father_email = get_table_value(table, "Father Email")
 
     if father_name:
-        next_of_kin.append(
-            {
-                "name": father_name,
-                "relationship": "Father",
-                "phone": father_contact,
-                "email": father_email,
-            }
-        )
+        normalized_father_name = normalize_name(father_name)
+        normalized_father_phone = normalize_phone(father_contact)
+
+        if normalized_father_name:
+            next_of_kin.append(
+                {
+                    "name": normalized_father_name,
+                    "relationship": "Father",
+                    "phone": normalized_father_phone,
+                    "email": father_email,
+                }
+            )
 
     mother_name = get_table_value(table, "Mother Name")
     mother_contact = get_table_value(table, "Mother Contact")
     mother_email = get_table_value(table, "Mother Email")
 
     if mother_name:
-        next_of_kin.append(
-            {
-                "name": mother_name,
-                "relationship": "Mother",
-                "phone": mother_contact,
-                "email": mother_email,
-            }
-        )
+        normalized_mother_name = normalize_name(mother_name)
+        normalized_mother_phone = normalize_phone(mother_contact)
+
+        if normalized_mother_name:
+            next_of_kin.append(
+                {
+                    "name": normalized_mother_name,
+                    "relationship": "Mother",
+                    "phone": normalized_mother_phone,
+                    "email": mother_email,
+                }
+            )
 
     if next_of_kin:
         data["next_of_kin"] = next_of_kin
@@ -274,11 +323,15 @@ def scrape_student_view(std_no: str) -> dict:
 
     name = get_table_value(table, "Name")
     if name:
-        data["name"] = name
+        normalized_name = normalize_name(name)
+        if normalized_name:
+            data["name"] = normalized_name
 
     ic_passport = get_table_value(table, "IC/Passport")
     if ic_passport:
-        data["national_id"] = ic_passport
+        normalized_id = normalize_text(ic_passport)
+        if normalized_id:
+            data["national_id"] = normalized_id
 
     sem = get_table_value(table, "Sem")
     if sem:
@@ -289,15 +342,21 @@ def scrape_student_view(std_no: str) -> dict:
 
     house_phone = get_table_value(table, "House Phone No")
     if house_phone:
-        data["phone1"] = house_phone
+        normalized_phone = normalize_phone(house_phone)
+        if normalized_phone:
+            data["phone1"] = normalized_phone
 
     current_mobile = get_table_value(table, "Current Mobile")
     if current_mobile:
-        data["phone2"] = current_mobile
+        normalized_mobile = normalize_phone(current_mobile)
+        if normalized_mobile:
+            data["phone2"] = normalized_mobile
 
     country = get_table_value(table, "Country")
     if country:
-        data["country"] = country
+        normalized_country = normalize_text(country)
+        if normalized_country:
+            data["country"] = normalized_country
 
     logger.info(f"Scraped student data for {std_no}")
     return data
@@ -387,13 +446,15 @@ def scrape_student_semester_data(
 
     status = get_table_value(table, "SemStatus")
     if status:
-        data["semester_status"] = status
+        normalized_status = normalize_semester_status(status)
+        if normalized_status:
+            data["semester_status"] = normalized_status
 
     caf_date_str = get_table_value(table, "CAF Date")
     if caf_date_str:
-        parsed_date = parse_date(caf_date_str)
-        if parsed_date:
-            data["caf_date"] = parsed_date.strftime("%Y-%m-%d")
+        normalized_date = normalize_date(caf_date_str)
+        if normalized_date:
+            data["caf_date"] = normalized_date
 
     assist_provider = get_table_value(table, "Asst-Provider")
     if assist_provider and repository:
@@ -481,25 +542,32 @@ def scrape_student_module_data(std_module_id: str, student_semester_id: int) -> 
 
     module_status = get_table_value(table, "ModuleStatus")
     if module_status:
-        data["status"] = module_status
+        normalized_status = normalize_student_module_status(module_status)
+        if normalized_status:
+            data["status"] = normalized_status
 
     module_type = get_table_value(table, "Type")
     if module_type:
-        data["type"] = module_type
+        normalized_type = normalize_module_type(module_type)
+        if normalized_type:
+            data["type"] = normalized_type
 
     credits_str = get_table_value(table, "Credits")
     if credits_str:
-        try:
-            data["credits"] = float(credits_str)
-        except ValueError:
-            pass
+        normalized_credits = normalize_credits(credits_str)
+        if normalized_credits is not None:
+            data["credits"] = normalized_credits
 
     marks = get_table_value(table, "Marks")
     alter_mark = get_table_value(table, "[Reg] Alter Mark")
     if alter_mark:
-        data["marks"] = alter_mark
+        normalized_marks = normalize_marks(alter_mark)
+        if normalized_marks is not None:
+            data["marks"] = str(normalized_marks)
     elif marks:
-        data["marks"] = marks
+        normalized_marks = normalize_marks(marks)
+        if normalized_marks is not None:
+            data["marks"] = str(normalized_marks)
 
     grade = get_table_value(table, "Grade")
     alter_grade = get_table_value(table, "[Reg] Alter Grade")
@@ -612,23 +680,29 @@ def scrape_student_education_data(std_education_id: str) -> dict:
 
     edu_type = get_table_value(table, "Type")
     if edu_type:
-        data["type"] = edu_type
+        normalized_type = normalize_education_type(edu_type)
+        if normalized_type:
+            data["type"] = normalized_type
 
     standard = get_table_value(table, "Standard")
     if standard:
-        data["level"] = standard
+        normalized_level = normalize_education_level(standard)
+        if normalized_level:
+            data["level"] = normalized_level
 
     school_name = get_table_value(table, "School")
     if not school_name:
         school_name = get_table_value(table, "SchoolName")
     if school_name:
-        data["school_name"] = school_name
+        normalized_school_name = normalize_text(school_name)
+        if normalized_school_name:
+            data["school_name"] = normalized_school_name
 
     exam_date_str = get_table_value(table, "Exam Date")
     if exam_date_str:
-        parsed_date = parse_date(exam_date_str)
-        if parsed_date:
-            data["end_date"] = parsed_date.strftime("%Y-%m-%d")
+        normalized_date = normalize_date(exam_date_str)
+        if normalized_date:
+            data["end_date"] = normalized_date
 
     logger.info(f"Scraped education data for student education {std_education_id}")
     return data

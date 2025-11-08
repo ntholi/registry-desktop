@@ -25,46 +25,12 @@ from database import (
     get_engine,
 )
 from database.models import StudentModuleStatus
+from utils.normalizers import normalize_student_module_status
 
 logger = get_logger(__name__)
 
 _structure_semester_cache: dict[tuple[int, str], Optional[int]] = {}
 _sponsor_cache: dict[str, Optional[int]] = {}
-
-VALID_STUDENT_MODULE_STATUSES = set(StudentModuleStatus.__args__)
-STATUS_ALIASES: dict[str, str] = {
-    "ACTIVE": "Compulsory",
-}
-DEFAULT_STUDENT_MODULE_STATUS = "Compulsory"
-
-
-def normalize_student_module_status(status: str | None) -> str:
-    if not status:
-        return DEFAULT_STUDENT_MODULE_STATUS
-
-    candidate = status.strip()
-    if not candidate:
-        return DEFAULT_STUDENT_MODULE_STATUS
-
-    if candidate in VALID_STUDENT_MODULE_STATUSES:
-        return candidate
-
-    upper_candidate = candidate.upper()
-    if upper_candidate in STATUS_ALIASES:
-        return STATUS_ALIASES[upper_candidate]
-
-    if candidate.lower().startswith("repeat"):
-        suffix = candidate[6:]
-        try:
-            repeat_number = int(suffix)
-        except ValueError:
-            repeat_number = None
-
-        if repeat_number is not None and 1 <= repeat_number <= 7:
-            return f"Repeat{repeat_number}"
-        return "Repeat1"
-
-    return DEFAULT_STUDENT_MODULE_STATUS
 
 
 @dataclass(frozen=True)

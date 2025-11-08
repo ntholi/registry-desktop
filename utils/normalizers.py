@@ -1,9 +1,25 @@
 import re
 from datetime import datetime
-from typing import Optional
+from typing import Optional, get_args
+
+from database.models import (
+    EducationLevel,
+    EducationType,
+    Gender,
+    Grade,
+    MaritalStatus,
+    ModuleType,
+    NextOfKinRelationship,
+    SemesterStatus,
+    StudentModuleStatus,
+    StudentProgramStatus,
+    StudentStatus,
+)
+
+VALID_GRADES = set(get_args(Grade))
 
 
-def normalize_grade_symbol(grade: str) -> str:
+def normalize_grade_symbol(grade: str) -> Grade:
     if not grade or not grade.strip():
         return "F"
 
@@ -15,17 +31,17 @@ def normalize_grade_symbol(grade: str) -> str:
     normalized_upper = normalized.upper()
 
     grade_aliases = {
-        "DFR": "F",
         "W": "F",
         "P": "C-",
         "PASS": "C-",
         "FAIL": "F",
         "FAILED": "F",
-        "DEF": "Def",
-        "DEFER": "Def",
-        "DEFERRED": "Def",
-        "DEFFERED": "Def",
-        "DEFERED": "Def",
+        "DFR": "DEF",
+        "Def": "DEF",
+        "DEFER": "DEF",
+        "DEFERRED": "DEF",
+        "DEFFERED": "DEF",
+        "DEFERED": "DEF",
         "EXEMPTED": "EXP",
         "EXEMPT": "EXP",
         "EXEMPTION": "EXP",
@@ -65,7 +81,8 @@ def normalize_grade_symbol(grade: str) -> str:
     }
 
     if normalized_upper in grade_aliases:
-        return grade_aliases[normalized_upper]
+        result = grade_aliases[normalized_upper]
+        return result  # type: ignore
 
     if normalized.replace(".", "").replace("-", "").isdigit():
         try:
@@ -95,19 +112,12 @@ def normalize_grade_symbol(grade: str) -> str:
         except ValueError:
             pass
 
-    valid_grades = {
-        "A+", "A", "A-", "B+", "B", "B-", "C+", "C", "C-",
-        "F", "PC", "PX", "AP", "X", "DEF", "GNS", "ANN",
-        "FIN", "FX", "DNC", "DNA", "PP", "DNS", "EXP", "NM"
-    }
+    if normalized_upper in VALID_GRADES:
+        return normalized_upper  # type: ignore
 
-    if normalized_upper in valid_grades:
-        found_grade = next((g for g in valid_grades if g == normalized_upper), None)
-        return found_grade if found_grade else normalized_upper
-
-    for valid_grade in valid_grades:
+    for valid_grade in VALID_GRADES:
         if valid_grade.upper() == normalized_upper:
-            return valid_grade
+            return valid_grade  # type: ignore
 
     return "F"
 
@@ -135,8 +145,12 @@ def normalize_module_name(name: str) -> str:
     return normalized.strip()
 
 
-def normalize_student_module_status(status: str | None) -> str:
-    STATUS_ALIASES: dict[str, str] = {
+VALID_STUDENT_MODULE_STATUSES = set(get_args(StudentModuleStatus))
+DEFAULT_STUDENT_MODULE_STATUS: StudentModuleStatus = "Compulsory"
+
+
+def normalize_student_module_status(status: str | None) -> StudentModuleStatus:
+    STATUS_ALIASES: dict[str, StudentModuleStatus] = {
         "ACTIVE": "Compulsory",
         "COMP": "Compulsory",
         "COMPULSARY": "Compulsory",
@@ -149,12 +163,6 @@ def normalize_student_module_status(status: str | None) -> str:
         "EXEMPT": "Exempted",
         "EXEMPTION": "Exempted",
     }
-    DEFAULT_STUDENT_MODULE_STATUS = "Compulsory"
-    VALID_STUDENT_MODULE_STATUSES = {
-        "Add", "Compulsory", "Delete", "Drop", "Exempted", "Ineligible",
-        "Repeat1", "Repeat2", "Repeat3", "Repeat4", "Repeat5", "Repeat6", "Repeat7",
-        "Resit1", "Resit2", "Resit3", "Resit4", "Supplementary"
-    }
 
     if not status:
         return DEFAULT_STUDENT_MODULE_STATUS
@@ -164,7 +172,7 @@ def normalize_student_module_status(status: str | None) -> str:
         return DEFAULT_STUDENT_MODULE_STATUS
 
     if candidate in VALID_STUDENT_MODULE_STATUSES:
-        return candidate
+        return candidate  # type: ignore
 
     upper_candidate = candidate.upper()
     if upper_candidate in STATUS_ALIASES:
@@ -178,7 +186,7 @@ def normalize_student_module_status(status: str | None) -> str:
             repeat_number = None
 
         if repeat_number is not None and 1 <= repeat_number <= 7:
-            return f"Repeat{repeat_number}"
+            return f"Repeat{repeat_number}"  # type: ignore
 
     if candidate.lower().startswith("resit"):
         suffix = candidate[5:].strip()
@@ -188,13 +196,13 @@ def normalize_student_module_status(status: str | None) -> str:
             resit_number = None
 
         if resit_number is not None and 1 <= resit_number <= 4:
-            return f"Resit{resit_number}"
+            return f"Resit{resit_number}"  # type: ignore
 
     return DEFAULT_STUDENT_MODULE_STATUS
 
 
-def normalize_module_type(module_type: str) -> str:
-    type_mapping = {
+def normalize_module_type(module_type: str) -> ModuleType:
+    type_mapping: dict[str, ModuleType] = {
         "standard": "Core",
         "core": "Core",
         "compulsory": "Core",
@@ -211,11 +219,11 @@ def normalize_module_type(module_type: str) -> str:
     return type_mapping.get(module_type.lower().strip(), "Core")
 
 
-def normalize_gender(gender: str | None) -> str | None:
+def normalize_gender(gender: str | None) -> Gender | None:
     if not gender:
         return None
 
-    gender_mapping = {
+    gender_mapping: dict[str, Gender] = {
         "m": "Male",
         "male": "Male",
         "man": "Male",
@@ -237,11 +245,11 @@ def normalize_gender(gender: str | None) -> str | None:
     return gender_mapping.get(normalized, "Unknown")
 
 
-def normalize_marital_status(status: str | None) -> str | None:
+def normalize_marital_status(status: str | None) -> MaritalStatus | None:
     if not status:
         return None
 
-    status_mapping = {
+    status_mapping: dict[str, MaritalStatus] = {
         "s": "Single",
         "single": "Single",
         "unmarried": "Single",
@@ -266,11 +274,11 @@ def normalize_marital_status(status: str | None) -> str | None:
     return status_mapping.get(normalized, "Other")
 
 
-def normalize_student_status(status: str | None) -> str:
+def normalize_student_status(status: str | None) -> StudentStatus:
     if not status:
         return "Active"
 
-    status_mapping = {
+    status_mapping: dict[str, StudentStatus] = {
         "active": "Active",
         "enrolled": "Active",
         "current": "Active",
@@ -298,11 +306,11 @@ def normalize_student_status(status: str | None) -> str:
     return status_mapping.get(normalized, "Active")
 
 
-def normalize_semester_status(status: str | None) -> str:
+def normalize_semester_status(status: str | None) -> SemesterStatus:
     if not status:
         return "Active"
 
-    status_mapping = {
+    status_mapping: dict[str, SemesterStatus] = {
         "active": "Active",
         "current": "Active",
         "enrolled": "Enrolled",
@@ -328,11 +336,11 @@ def normalize_semester_status(status: str | None) -> str:
     return status_mapping.get(normalized, "Active")
 
 
-def normalize_program_status(status: str | None) -> str:
+def normalize_program_status(status: str | None) -> StudentProgramStatus:
     if not status:
         return "Active"
 
-    status_mapping = {
+    status_mapping: dict[str, StudentProgramStatus] = {
         "active": "Active",
         "current": "Active",
         "changed": "Changed",
@@ -349,11 +357,11 @@ def normalize_program_status(status: str | None) -> str:
     return status_mapping.get(normalized, "Active")
 
 
-def normalize_education_type(edu_type: str | None) -> str | None:
+def normalize_education_type(edu_type: str | None) -> EducationType | None:
     if not edu_type:
         return None
 
-    type_mapping = {
+    type_mapping: dict[str, EducationType] = {
         "primary": "Primary",
         "elementary": "Primary",
         "secondary": "Secondary",
@@ -366,14 +374,15 @@ def normalize_education_type(edu_type: str | None) -> str | None:
     }
 
     normalized = edu_type.strip().lower()
-    return type_mapping.get(normalized, edu_type.strip())
+    result = type_mapping.get(normalized)
+    return result if result else None
 
 
-def normalize_education_level(level: str | None) -> str | None:
+def normalize_education_level(level: str | None) -> EducationLevel | None:
     if not level:
         return None
 
-    level_mapping = {
+    level_mapping: dict[str, EducationLevel] = {
         "jce": "JCE",
         "j.c.e": "JCE",
         "j.c.e.": "JCE",
@@ -433,14 +442,17 @@ def normalize_education_level(level: str | None) -> str | None:
     }
 
     normalized = level.strip().lower()
-    return level_mapping.get(normalized, level.strip())
+    result = level_mapping.get(normalized)
+    return result if result else None
 
 
-def normalize_next_of_kin_relationship(relationship: str | None) -> str | None:
+def normalize_next_of_kin_relationship(
+    relationship: str | None,
+) -> NextOfKinRelationship | None:
     if not relationship:
         return None
 
-    relationship_mapping = {
+    relationship_mapping: dict[str, NextOfKinRelationship] = {
         "mother": "Mother",
         "mom": "Mother",
         "mum": "Mother",

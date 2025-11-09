@@ -89,6 +89,11 @@ NextOfKinRelationship = Literal[
     "Sister",
     "Child",
     "Spouse",
+    "Guardian",
+    "Husband",
+    "Wife",
+    "Permanent",
+    "Self",
     "Other",
 ]
 

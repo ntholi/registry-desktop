@@ -463,11 +463,13 @@ class StudentsView(wx.Panel):
             self.selected_student_item = item
             student_no = self.list_ctrl.GetItemText(item, 1)
             self.show_student_detail(student_no)
+            self.update_selection_state()
 
     def on_list_item_deselected(self, event):
         if self.detail_panel.IsShown():
             return
         self.selected_student_item = None
+        self.update_selection_state()
 
     def show_student_detail(self, student_no):
         self.detail_panel.load_student_programs(student_no)
@@ -673,12 +675,20 @@ class StudentsView(wx.Panel):
         selected = []
         for index in sorted(self.checked_items):
             selected.append(self.list_ctrl.GetItemText(index, 1))
+
+        if not selected and self.selected_student_item is not None:
+            selected.append(self.list_ctrl.GetItemText(self.selected_student_item, 1))
+
         return selected
 
     def get_selected_students_data(self, callback):
         selected_numbers = []
         for index in sorted(self.checked_items):
             std_no = self.list_ctrl.GetItemText(index, 1)
+            selected_numbers.append(std_no)
+
+        if not selected_numbers and self.selected_student_item is not None:
+            std_no = self.list_ctrl.GetItemText(self.selected_student_item, 1)
             selected_numbers.append(std_no)
 
         if self.status_bar:
@@ -699,8 +709,12 @@ class StudentsView(wx.Panel):
     def update_selection_state(self):
         selected_count = self.get_selected_count()
         self.selection_label.SetLabel(f"{selected_count} selected")
-        self.fetch_button.Enable(selected_count > 0)
-        self.edit_button.Enable(selected_count == 1)
+
+        has_row_selection = self.selected_student_item is not None
+
+        self.fetch_button.Enable(selected_count > 0 or has_row_selection)
+        self.edit_button.Enable(selected_count == 1 or (selected_count == 0 and has_row_selection))
+
         total_items = self.list_ctrl.GetItemCount()
         should_check_all = total_items > 0 and selected_count == total_items
         if self.select_all_checkbox.GetValue() != should_check_all:
@@ -728,7 +742,9 @@ class StudentsView(wx.Panel):
 
     def update_students(self, event):
         selected_count = self.get_selected_count()
-        if selected_count == 0:
+        has_row_selection = self.selected_student_item is not None
+
+        if selected_count == 0 and not has_row_selection:
             return
         elif selected_count > 1:
             wx.MessageBox(

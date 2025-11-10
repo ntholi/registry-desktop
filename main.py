@@ -239,11 +239,11 @@ def main():
 
     database_env = os.getenv("DATABASE_ENV", "local").strip().lower()
 
-    if database_env == "remote":
-        print("\n" + "=" * 60)
-        print("WARNING: Using REMOTE database!")
-        print("=" * 60 + "\n")
-        input("Press any key to continue...")
+    # if database_env == "remote":
+    #     print("\n" + "=" * 60)
+    #     print("WARNING: Using REMOTE database!")
+    #     print("=" * 60 + "\n")
+    #     input("Press any key to continue...")
 
     app = wx.App()
 

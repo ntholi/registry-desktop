@@ -24,7 +24,6 @@ from database import (
     StudentSemester,
     get_engine,
 )
-from database.models import StudentModuleStatus
 from utils.normalizers import normalize_student_module_status
 
 logger = get_logger(__name__)

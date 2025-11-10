@@ -3,10 +3,10 @@ from typing import Literal
 
 import nanoid
 from sqlalchemy import (
-    JSON,
     BigInteger,
     Boolean,
     DateTime,
+    Enum,
     Float,
     ForeignKey,
     Index,
@@ -96,6 +96,23 @@ NextOfKinRelationship = Literal[
     "Self",
     "Other",
 ]
+
+NextOfKinRelationshipEnum = Enum(
+    "Mother",
+    "Father",
+    "Brother",
+    "Sister",
+    "Child",
+    "Spouse",
+    "Guardian",
+    "Husband",
+    "Wife",
+    "Permanent",
+    "Self",
+    "Other",
+    name="next_of_kin_relationship",
+    create_constraint=True,
+)
 
 StudentProgramStatus = Literal["Active", "Changed", "Completed", "Deleted", "Inactive"]
 SemesterStatus = Literal[
@@ -350,7 +367,9 @@ class NextOfKin(Base):
         BigInteger, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
     )
     name: Mapped[str] = mapped_column(Text, nullable=False)
-    relationship: Mapped[NextOfKinRelationship] = mapped_column(String, nullable=False)
+    relationship: Mapped[NextOfKinRelationship] = mapped_column(
+        NextOfKinRelationshipEnum, nullable=False
+    )
     phone: Mapped[str | None] = mapped_column(Text, nullable=True)
     email: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime | None] = mapped_column(

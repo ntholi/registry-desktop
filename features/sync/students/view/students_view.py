@@ -7,7 +7,7 @@ import wx.dataview as dv
 from ..repository import StudentRepository
 from ..service import StudentSyncService
 from .fetch_options_dialog import FetchOptionsDialog
-from .import_dialog import ImportStudentsDialog
+from .importer import ImporterDialog
 from .student_detail_panel import StudentDetailPanel
 from .student_form import StudentFormDialog
 
@@ -742,49 +742,10 @@ class StudentsView(wx.Panel):
         self.get_selected_students_data(self.on_selected_students_loaded)
 
     def on_import_students(self, event):
-        dialog = ImportStudentsDialog(self)
-        if dialog.ShowModal() == wx.ID_OK:
-            student_numbers = dialog.get_student_numbers()
-            import_options = dialog.get_import_options()
-
-            if not student_numbers:
-                wx.MessageBox(
-                    "No student numbers to import.",
-                    "Empty List",
-                    wx.OK | wx.ICON_WARNING,
-                )
-                dialog.Destroy()
-                return
-
-            if not any(import_options.values()):
-                wx.MessageBox(
-                    "Please select at least one data type to import.",
-                    "No Data Selected",
-                    wx.OK | wx.ICON_WARNING,
-                )
-                dialog.Destroy()
-                return
-
-            dlg = wx.MessageDialog(
-                self,
-                f"Import {len(student_numbers)} student(s) from the CMS?\n\nThis will fetch data from the CMS and save it to the portal database.",
-                "Confirm Import",
-                wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION,
-            )
-
-            if dlg.ShowModal() == wx.ID_YES:
-                self.fetch_button.Enable(False)
-                self.edit_button.Enable(False)
-                self.import_button.Enable(False)
-
-                self.fetch_worker = FetchStudentsWorker(
-                    student_numbers, self.sync_service, self.on_import_callback, import_options
-                )
-                self.fetch_worker.start()
-
-            dlg.Destroy()
-
+        dialog = ImporterDialog(self, self.sync_service, self.status_bar)
+        dialog.ShowModal()
         dialog.Destroy()
+        self.load_students()
 
     def on_worker_callback(self, event_type, *args):
         wx.CallAfter(self._handle_worker_event, event_type, *args)

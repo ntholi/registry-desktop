@@ -43,23 +43,6 @@ class ImporterDialog(wx.Dialog):
         self.Bind(wx.EVT_CLOSE, self.on_close)
 
     def on_close(self, event):
-        if (
-            self.worker
-            and self.worker.is_alive()
-            and self.project
-            and self.project.status == "running"
-        ):
-            dlg = wx.MessageDialog(
-                self,
-                "Import is currently running.\n\n"
-                "The import will continue in the background if you close this dialog.\n"
-                "Click 'Import' again to view progress or control the import.",
-                "Import Running",
-                wx.OK | wx.ICON_INFORMATION,
-            )
-            dlg.ShowModal()
-            dlg.Destroy()
-
         if event.CanVeto():
             self.Hide()
             event.Veto()
@@ -528,17 +511,6 @@ class ImporterDialog(wx.Dialog):
         self.clear_setup_fields()
 
     def on_hide(self, event):
-        if self.worker and self.worker.is_alive() and self.project and self.project.status == "running":
-            dlg = wx.MessageDialog(
-                self,
-                "The import will continue in the background.\n\n"
-                "Click the 'Import' button again to view progress or control the import.",
-                "Import Continues",
-                wx.OK | wx.ICON_INFORMATION,
-            )
-            dlg.ShowModal()
-            dlg.Destroy()
-
         self.EndModal(wx.ID_OK)
 
     def clear_setup_fields(self):

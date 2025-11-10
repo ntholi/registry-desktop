@@ -5,6 +5,7 @@ from pathlib import Path
 
 import wx
 
+from base.__version__ import __version__
 from base.auth.access_denied_dialog import AccessDeniedDialog
 from base.auth.login_view import LoginWindow
 from base.auth.repository import AuthRepository
@@ -32,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 class MainWindow(wx.Frame):
     def __init__(self, current_user: User):
-        super().__init__(None, title="Limkokwing Registry", size=wx.Size(1100, 750))
+        super().__init__(None, title=f"Limkokwing Registry v{__version__}", size=wx.Size(1100, 750))
 
         self.current_user = current_user
         logger.info(f"Main window initialized for user: {current_user.email}")

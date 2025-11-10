@@ -1,6 +1,6 @@
 # Registry Desktop
 
-Registry Desktop is a wxPython-based desktop application for syncing and managing student data between a local database and a legacy web CMS used by Limkokwing University.
+Registry Desktop is a wxPython-based desktop application for syncing data between [Registry Portal](https://github.com/ntholi/registry-web) and a legacy web CMS used by Limkokwing University.
 
 ## Key points
 

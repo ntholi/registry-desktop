@@ -2,17 +2,20 @@ import wx
 import wx.adv
 
 from base.auth.session_manager import SessionManager
+from base.auth.user_details_dialog import UserDetailsDialog
 
 
 class AppMenuBar:
-    def __init__(self, parent):
+    def __init__(self, parent, current_user):
         self.parent = parent
+        self.current_user = current_user
         self.menu_bar = wx.MenuBar()
         self._create_menus()
         parent.SetMenuBar(self.menu_bar)
 
     def _create_menus(self):
         self._create_file_menu()
+        self._create_account_menu()
 
     def _create_file_menu(self):
         file_menu = wx.Menu()
@@ -22,13 +25,26 @@ class AppMenuBar:
 
         file_menu.AppendSeparator()
 
-        logout_item = file_menu.Append(wx.ID_ANY, "Logout\tCtrl+L", "Logout from the application")
-        self.parent.Bind(wx.EVT_MENU, self._on_logout, logout_item)
-
         exit_item = file_menu.Append(wx.ID_EXIT, "Exit", "Exit the application")
         self.parent.Bind(wx.EVT_MENU, self._on_exit, exit_item)
 
         self.menu_bar.Append(file_menu, "File")
+
+    def _create_account_menu(self):
+        account_menu = wx.Menu()
+
+        user_name_item = account_menu.Append(wx.ID_ANY, self.current_user.name, "Current user")
+        user_name_item.Enable(False)
+
+        account_menu.AppendSeparator()
+
+        details_item = account_menu.Append(wx.ID_ANY, "Details", "View account details")
+        self.parent.Bind(wx.EVT_MENU, self._on_details, details_item)
+
+        logout_item = account_menu.Append(wx.ID_ANY, "Logout\tCtrl+L", "Logout from the application")
+        self.parent.Bind(wx.EVT_MENU, self._on_logout, logout_item)
+
+        self.menu_bar.Append(account_menu, "Account")
 
     def _show_about(self, event):
         info = wx.adv.AboutDialogInfo()
@@ -36,6 +52,11 @@ class AppMenuBar:
         info.SetVersion("1.0")
         info.SetDescription("Limkokwing Registry Desktop Application")
         wx.adv.AboutBox(info)
+
+    def _on_details(self, event):
+        dialog = UserDetailsDialog(self.parent, self.current_user)
+        dialog.ShowModal()
+        dialog.Destroy()
 
     def _on_logout(self, event):
         result = wx.MessageBox(

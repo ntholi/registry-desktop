@@ -37,7 +37,7 @@ class MainWindow(wx.Frame):
         self.current_user = current_user
         logger.info(f"Main window initialized for user: {current_user.email}")
 
-        self.menu_bar = AppMenuBar(self)
+        self.menu_bar = AppMenuBar(self, current_user)
 
         panel = wx.Panel(self)
         root_sizer = wx.BoxSizer(wx.VERTICAL)

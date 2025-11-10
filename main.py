@@ -5,6 +5,7 @@ import threading
 from pathlib import Path
 
 import wx
+from sqlalchemy.orm import Session as DBSession
 
 from base.__version__ import __version__
 from base.auth.access_denied_dialog import AccessDeniedDialog
@@ -19,9 +20,8 @@ from base.splash_screen import SplashScreen
 from base.status.status_bar import StatusBar
 from base.widgets.loading_panel import LoadingPanel
 from base.widgets.update_dialog import UpdateDialog
-from database.connection import get_engine, DATABASE_ENV
+from database.connection import DATABASE_ENV, get_engine
 from database.models import User
-from sqlalchemy.orm import Session as DBSession
 from features.enrollments.module.module_view import ModuleView
 from features.enrollments.requests.requests_view import RequestsView
 from features.enrollments.student.student_view import StudentView
@@ -36,7 +36,11 @@ logger = logging.getLogger(__name__)
 
 class MainWindow(wx.Frame):
     def __init__(self, current_user: User):
-        super().__init__(None, title=f"Limkokwing Registry v{__version__} ({DATABASE_ENV})", size=wx.Size(1100, 750))
+        super().__init__(
+            None,
+            title=f"Limkokwing Registry v{__version__} ({DATABASE_ENV})",
+            size=wx.Size(1100, 750),
+        )
 
         self.current_user = current_user
         logger.info(f"Main window initialized for user: {current_user.email}")
@@ -232,7 +236,7 @@ def show_main_window(user: User):
         wx.MessageBox(
             f"Failed to start application: {str(e)}",
             "Application Error",
-            wx.OK | wx.ICON_ERROR
+            wx.OK | wx.ICON_ERROR,
         )
         raise
 
@@ -276,7 +280,7 @@ def check_for_updates_manual(parent):
                 wx.MessageBox,
                 f"You are running the latest version ({updater.current_version}).",
                 "No Updates Available",
-                wx.OK | wx.ICON_INFORMATION
+                wx.OK | wx.ICON_INFORMATION,
             )
 
     update_thread = threading.Thread(target=check_updates, daemon=True)
@@ -292,9 +296,9 @@ def main():
     logger.info("Starting Limkokwing Registry Desktop Application")
 
     database_env = os.getenv("DATABASE_ENV", "local").strip().lower()
-    env = os.getenv("ENV", "prod").strip().lower()
+    desktop_env = os.getenv("DESKTOP_ENV ", "prod").strip().lower()
 
-    if database_env == "remote" and env == "dev":
+    if database_env == "remote" and desktop_env == "dev":
         print("\n" + "=" * 60)
         print("WARNING: Using REMOTE database!")
         print("=" * 60 + "\n")

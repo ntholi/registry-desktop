@@ -30,7 +30,7 @@ class LazyFileHandler(logging.Handler):
         super().close()
 
 
-def setup_logging(log_dir: Path = None, level: int = logging.INFO) -> None:
+def setup_logging(log_dir: Path | None = None, level: int = logging.INFO) -> None:
     if log_dir is None:
         log_dir = Path(__file__).parent.parent / "logs"
 

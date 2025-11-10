@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import threading
 from pathlib import Path
 
 import wx
@@ -10,12 +11,14 @@ from base.auth.access_denied_dialog import AccessDeniedDialog
 from base.auth.login_view import LoginWindow
 from base.auth.repository import AuthRepository
 from base.auth.session_manager import SessionManager
+from base.auto_update import AutoUpdater
 from base.logging_config import setup_logging
 from base.menu_bar import AppMenuBar
 from base.nav import AccordionNavigation
 from base.splash_screen import SplashScreen
 from base.status.status_bar import StatusBar
 from base.widgets.loading_panel import LoadingPanel
+from base.widgets.update_dialog import UpdateDialog
 from database.connection import get_engine, DATABASE_ENV
 from database.models import User
 from sqlalchemy.orm import Session as DBSession
@@ -222,6 +225,8 @@ def show_main_window(user: User):
         window = MainWindow(user)
         window.Maximize()
         window.Show()
+
+        check_for_updates_async(window)
     except Exception as e:
         logger.exception(f"Fatal error in application: {e}")
         wx.MessageBox(
@@ -230,6 +235,55 @@ def show_main_window(user: User):
             wx.OK | wx.ICON_ERROR
         )
         raise
+
+
+def check_for_updates_async(parent_window):
+    def check_updates():
+        updater = AutoUpdater()
+        has_update = updater.check_for_updates()
+
+        if has_update:
+            wx.CallAfter(show_update_dialog, parent_window, updater)
+
+    update_thread = threading.Thread(target=check_updates, daemon=True)
+    update_thread.start()
+
+
+def show_update_dialog(parent, updater: AutoUpdater):
+    dialog = UpdateDialog(parent, updater)
+    result = dialog.ShowModal()
+    dialog.Destroy()
+
+    if result == wx.ID_IGNORE:
+        logger.info(f"User skipped version {updater.get_latest_version()}")
+
+
+def check_for_updates_manual(parent):
+    from base.widgets.update_dialog import UpdateCheckDialog
+
+    checking_dialog = UpdateCheckDialog(parent)
+
+    def check_updates():
+        updater = AutoUpdater()
+        has_update = updater.check_for_updates()
+
+        wx.CallAfter(checking_dialog.close_dialog)
+
+        if has_update:
+            wx.CallAfter(show_update_dialog, parent, updater)
+        else:
+            wx.CallAfter(
+                wx.MessageBox,
+                f"You are running the latest version ({updater.current_version}).",
+                "No Updates Available",
+                wx.OK | wx.ICON_INFORMATION
+            )
+
+    update_thread = threading.Thread(target=check_updates, daemon=True)
+    update_thread.start()
+
+    checking_dialog.ShowModal()
+    checking_dialog.Destroy()
 
 
 def main():

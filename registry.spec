@@ -15,6 +15,7 @@ a = Analysis(
     datas=[
         ('base/nav/menu.json', 'base/nav'),
         ('pyproject.toml', '.'),
+        ('images', 'images'),
     ],
     hiddenimports=[
         'wx',

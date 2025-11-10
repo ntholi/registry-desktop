@@ -1,4 +1,5 @@
 import os
+import sys
 
 import wx
 import wx.adv
@@ -46,7 +47,10 @@ class SplashScreen(wx.adv.SplashScreen):
         self.Bind(wx.EVT_CLOSE, self.on_close)
 
     def _get_image_path(self):
-        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if getattr(sys, 'frozen', False):
+            base_dir = sys._MEIPASS  # type: ignore
+        else:
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         return os.path.join(base_dir, "images", "fly400x400.jpeg")
 
     def on_close(self, event):

@@ -41,8 +41,11 @@ class ImporterWorker(threading.Thread):
         for idx, std_no in enumerate(remaining_students):
             if self.is_stopped():
                 logger.info(
-                    f"Importer worker stopped at student {std_no}, processed {idx} students"
+                    f"Importer worker stopped before starting student {std_no}, "
+                    f"processed {idx} students"
                 )
+                self.project.status = "paused"
+                ImporterProjectManager.save_project(self.project)
                 self.callback("stopped", self.project)
                 return
 
@@ -53,31 +56,20 @@ class ImporterWorker(threading.Thread):
                 total_students - len(remaining_students) + idx + 1
             )
 
+            student_started = True
+
             try:
 
                 def progress_callback(message, current, total):
-                    if self.is_stopped():
-                        return
-
                     overall_progress = (current_overall - 1) * 3 + current
                     overall_total = total_students * 3
                     self.callback(
                         "progress", message, overall_progress, overall_total, self.project
                     )
 
-                if self.is_stopped():
-                    logger.info(f"Importer worker stopped before fetching {std_no}")
-                    self.callback("stopped", self.project)
-                    return
-
                 was_updated = self.sync_service.fetch_student(
                     std_no, progress_callback, self.project.import_options
                 )
-
-                if self.is_stopped():
-                    logger.info(f"Importer worker stopped after fetching {std_no}")
-                    self.callback("stopped", self.project)
-                    return
 
                 if was_updated:
                     self.project.success_count += 1
@@ -86,6 +78,8 @@ class ImporterWorker(threading.Thread):
                     self.project.failed_students.append(std_no)
 
                 ImporterProjectManager.save_project(self.project)
+
+                student_started = False
 
             except Exception as e:
                 logger.error(
@@ -96,10 +90,31 @@ class ImporterWorker(threading.Thread):
                 self.project.failed_students.append(std_no)
                 ImporterProjectManager.save_project(self.project)
 
-                if self.is_stopped():
-                    logger.info(f"Importer worker stopped after error on {std_no}")
-                    self.callback("stopped", self.project)
-                    return
+                student_started = False
+
+            if self.is_stopped():
+                if student_started:
+                    logger.info(
+                        f"Importer worker stopped after completing student {std_no}. "
+                        f"This student will be re-imported on resume."
+                    )
+                else:
+                    next_index = idx + 1
+                    if next_index < len(remaining_students):
+                        self.project.current_student = remaining_students[next_index]
+                        logger.info(
+                            f"Importer worker stopped. Next student to import: "
+                            f"{remaining_students[next_index]}"
+                        )
+                    else:
+                        logger.info(
+                            f"Importer worker stopped after completing student {std_no}"
+                        )
+
+                self.project.status = "paused"
+                ImporterProjectManager.save_project(self.project)
+                self.callback("stopped", self.project)
+                return
 
         if not self.is_stopped():
             self.project.status = "completed"

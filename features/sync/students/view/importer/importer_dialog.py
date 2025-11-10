@@ -467,10 +467,14 @@ class ImporterDialog(wx.Dialog):
 
     def pause_worker(self):
         if self.worker and self.worker.is_alive():
-            logger.info("Pausing import worker")
+            logger.info("Pausing import worker - completing current student...")
             self.worker.stop()
             self.pause_resume_button.Enable(False)
             self.pause_resume_button.SetLabel("Pausing...")
+            self.stop_button.Enable(False)
+
+            if self.status_bar:
+                self.status_bar.show_message("Pausing import - completing current student...")
 
     def resume_worker(self):
         logger.info("Resuming import")
@@ -485,7 +489,8 @@ class ImporterDialog(wx.Dialog):
         dlg = wx.MessageDialog(
             self,
             "Are you sure you want to stop the import?\n\n"
-            "This will permanently delete the import project and you will need to start over.",
+            "This will permanently delete the import project and you will need to start over.\n"
+            "The current student being imported will complete before stopping.",
             "Confirm Stop",
             wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION,
         )
@@ -497,9 +502,27 @@ class ImporterDialog(wx.Dialog):
         dlg.Destroy()
 
         if self.worker and self.worker.is_alive():
-            logger.info("Stopping and deleting import project")
+            logger.info("Stopping and deleting import project - completing current student...")
             self.worker.stop()
+            self.stop_button.Enable(False)
+            self.stop_button.SetLabel("Stopping...")
+            self.pause_resume_button.Enable(False)
+            self.hide_button.Enable(False)
 
+            if self.status_bar:
+                self.status_bar.show_message("Stopping import - completing current student...")
+
+            wx.CallLater(100, self._wait_for_stop_completion)
+        else:
+            self._complete_stop()
+
+    def _wait_for_stop_completion(self):
+        if self.worker and self.worker.is_alive():
+            wx.CallLater(100, self._wait_for_stop_completion)
+        else:
+            self._complete_stop()
+
+    def _complete_stop(self):
         ImporterProjectManager.delete_project()
         self.project = None
         self.worker = None
@@ -509,6 +532,10 @@ class ImporterDialog(wx.Dialog):
 
         self.show_setup_panel()
         self.clear_setup_fields()
+        self.stop_button.SetLabel("Stop")
+        self.stop_button.Enable(True)
+        self.pause_resume_button.Enable(True)
+        self.hide_button.Enable(True)
 
     def on_hide(self, event):
         self.EndModal(wx.ID_OK)
@@ -609,6 +636,14 @@ class ImporterDialog(wx.Dialog):
                 self.update_progress_display()
                 self.pause_resume_button.SetLabel("Resume")
                 self.pause_resume_button.Enable(True)
+                self.stop_button.Enable(True)
+                self.stop_button.SetLabel("Stop")
+                self.hide_button.Enable(False)
+
+            logger.info(
+                f"Import paused at student {project.current_student}. "
+                f"Success: {project.success_count}, Failed: {project.failed_count}"
+            )
 
         elif event_type == "error":
             error_msg = args[0]

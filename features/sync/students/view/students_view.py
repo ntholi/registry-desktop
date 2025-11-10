@@ -226,6 +226,7 @@ class StudentsView(wx.Panel):
         self.checked_items = set()
         self.selected_student_item = None
         self.pending_update_callback = None
+        self.import_dialog = None
 
         self.init_ui()
         self.load_filter_options()
@@ -742,9 +743,12 @@ class StudentsView(wx.Panel):
         self.get_selected_students_data(self.on_selected_students_loaded)
 
     def on_import_students(self, event):
-        dialog = ImporterDialog(self, self.sync_service, self.status_bar)
-        dialog.ShowModal()
-        dialog.Destroy()
+        if self.import_dialog is None:
+            self.import_dialog = ImporterDialog(self, self.sync_service, self.status_bar)
+        else:
+            self.import_dialog.load_project_state()
+
+        self.import_dialog.ShowModal()
         self.load_students()
 
     def on_worker_callback(self, event_type, *args):

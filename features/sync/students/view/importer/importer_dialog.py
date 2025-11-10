@@ -53,14 +53,18 @@ class ImporterDialog(wx.Dialog):
                 self,
                 "Import is currently running.\n\n"
                 "The import will continue in the background if you close this dialog.\n"
-                "Use Stop to cancel the import or Hide to minimize.",
+                "Click 'Import' again to view progress or control the import.",
                 "Import Running",
                 wx.OK | wx.ICON_INFORMATION,
             )
             dlg.ShowModal()
             dlg.Destroy()
 
-        event.Skip()
+        if event.CanVeto():
+            self.Hide()
+            event.Veto()
+        else:
+            event.Skip()
 
     def create_setup_panel(self):
         panel = wx.Panel(self)
@@ -307,13 +311,24 @@ class ImporterDialog(wx.Dialog):
         self.project = ImporterProjectManager.load_project()
 
         if self.project and self.project.status in ["running", "paused"]:
-            if self.project.status == "running":
-                self.project.status = "paused"
-                ImporterProjectManager.save_project(self.project)
-
             self.show_progress_panel()
             self.update_progress_display()
-            self.pause_resume_button.SetLabel("Resume")
+
+            if self.project.status == "running":
+                if self.worker and self.worker.is_alive():
+                    self.pause_resume_button.SetLabel("Pause")
+                    self.stop_button.Enable(True)
+                    self.hide_button.Enable(True)
+                else:
+                    self.project.status = "paused"
+                    ImporterProjectManager.save_project(self.project)
+                    self.pause_resume_button.SetLabel("Resume")
+                    self.stop_button.Enable(True)
+                    self.hide_button.Enable(False)
+            else:
+                self.pause_resume_button.SetLabel("Resume")
+                self.stop_button.Enable(True)
+                self.hide_button.Enable(False)
         else:
             self.show_setup_panel()
 
@@ -504,6 +519,7 @@ class ImporterDialog(wx.Dialog):
 
         ImporterProjectManager.delete_project()
         self.project = None
+        self.worker = None
 
         if self.status_bar:
             self.status_bar.clear()
@@ -512,7 +528,7 @@ class ImporterDialog(wx.Dialog):
         self.clear_setup_fields()
 
     def on_hide(self, event):
-        if self.project and self.project.status == "running":
+        if self.worker and self.worker.is_alive() and self.project and self.project.status == "running":
             dlg = wx.MessageDialog(
                 self,
                 "The import will continue in the background.\n\n"
@@ -523,7 +539,7 @@ class ImporterDialog(wx.Dialog):
             dlg.ShowModal()
             dlg.Destroy()
 
-        self.Hide()
+        self.EndModal(wx.ID_OK)
 
     def clear_setup_fields(self):
         self.start_student_input.SetValue("")
@@ -586,23 +602,25 @@ class ImporterDialog(wx.Dialog):
             if self.status_bar:
                 self.status_bar.clear()
 
-            self.update_progress_display()
+            if self.IsShown():
+                self.update_progress_display()
 
-            message = (
-                f"Import completed successfully!\n\n"
-                f"Successfully imported: {project.success_count}\n"
-                f"Failed: {project.failed_count}"
-            )
+                message = (
+                    f"Import completed successfully!\n\n"
+                    f"Successfully imported: {project.success_count}\n"
+                    f"Failed: {project.failed_count}"
+                )
 
-            if project.failed_count > 0:
-                message += f"\n\nFailed students: {', '.join(project.failed_students[:10])}"
-                if len(project.failed_students) > 10:
-                    message += f"\n... and {len(project.failed_students) - 10} more"
+                if project.failed_count > 0:
+                    message += f"\n\nFailed students: {', '.join(project.failed_students[:10])}"
+                    if len(project.failed_students) > 10:
+                        message += f"\n... and {len(project.failed_students) - 10} more"
 
-            wx.MessageBox(message, "Import Complete", wx.OK | wx.ICON_INFORMATION)
+                wx.MessageBox(message, "Import Complete", wx.OK | wx.ICON_INFORMATION)
 
             ImporterProjectManager.delete_project()
             self.project = None
+            self.worker = None
             self.show_setup_panel()
             self.clear_setup_fields()
 

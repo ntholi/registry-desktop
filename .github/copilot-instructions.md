@@ -22,9 +22,10 @@ wxPython-based desktop application for Limkokwing University Registry management
 
 ### Database Connection
 
-- Local: Uses `../registry-web/local.db` (sibling project)
-- Production: Turso database via `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` env vars
-- Connection configured in `database/connection.py` with `get_engine(use_local=bool)`
+- Local: PostgreSQL database at `localhost:5432/registry` via `DATABASE_LOCAL_URL` env var
+- Production: Neon PostgreSQL database via `DATABASE_REMOTE_URL` env var
+- Connection controlled by `DATABASE_ENV` (local/remote) and `DESKTOP_ENV` (dev/prod) env vars
+- Connection configured in `database/connection.py` with `get_engine()` and `is_remote_database()`
 
 ### Web Scraping Authentication
 

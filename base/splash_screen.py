@@ -6,7 +6,7 @@ import wx.adv
 
 
 class SplashScreen(wx.adv.SplashScreen):
-    def __init__(self):
+    def __init__(self, version="", database_env=""):
         image_path = self._get_image_path()
         img = wx.Image(image_path, wx.BITMAP_TYPE_ANY)
         if img.IsOk():
@@ -20,7 +20,6 @@ class SplashScreen(wx.adv.SplashScreen):
             dc = wx.MemoryDC()
             dc.SelectObject(bitmap)
             try:
-
                 loading = "Loading..."
                 load_font = wx.Font(
                     10, wx.FONTFAMILY_SWISS, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL
@@ -33,6 +32,19 @@ class SplashScreen(wx.adv.SplashScreen):
                 dc.DrawText(loading, lx + 1, ly + 1)
                 dc.SetTextForeground(wx.Colour(240, 240, 240))
                 dc.DrawText(loading, lx, ly)
+
+                version_text = f"Limkokwing Registry v{version} ({database_env})"
+                version_font = wx.Font(
+                    9, wx.FONTFAMILY_SWISS, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL
+                )
+                dc.SetFont(version_font)
+                vw, vh = dc.GetTextExtent(version_text)
+                vx = (bitmap.GetWidth() - vw) // 2
+                vy = bitmap.GetHeight() - vh - 30
+                dc.SetTextForeground(wx.Colour(0, 0, 0))
+                dc.DrawText(version_text, vx + 1, vy + 1)
+                dc.SetTextForeground(wx.Colour(200, 200, 200))
+                dc.DrawText(version_text, vx, vy)
             finally:
                 dc.SelectObject(wx.NullBitmap)
 

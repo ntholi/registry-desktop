@@ -16,7 +16,7 @@ from base.nav import AccordionNavigation
 from base.splash_screen import SplashScreen
 from base.status.status_bar import StatusBar
 from base.widgets.loading_panel import LoadingPanel
-from database.connection import get_engine
+from database.connection import get_engine, DATABASE_ENV
 from database.models import User
 from sqlalchemy.orm import Session as DBSession
 from features.enrollments.module.module_view import ModuleView
@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 class MainWindow(wx.Frame):
     def __init__(self, current_user: User):
-        super().__init__(None, title=f"Limkokwing Registry v{__version__}", size=wx.Size(1100, 750))
+        super().__init__(None, title=f"Limkokwing Registry v{__version__} ({DATABASE_ENV})", size=wx.Size(1100, 750))
 
         self.current_user = current_user
         logger.info(f"Main window initialized for user: {current_user.email}")
@@ -247,7 +247,7 @@ def main():
 
     app = wx.App()
 
-    splash = SplashScreen()
+    splash = SplashScreen(__version__, database_env)
     splash.Show()
 
     wx.Yield()

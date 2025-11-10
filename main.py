@@ -238,12 +238,13 @@ def main():
     logger.info("Starting Limkokwing Registry Desktop Application")
 
     database_env = os.getenv("DATABASE_ENV", "local").strip().lower()
+    env = os.getenv("ENV", "prod").strip().lower()
 
-    # if database_env == "remote":
-    #     print("\n" + "=" * 60)
-    #     print("WARNING: Using REMOTE database!")
-    #     print("=" * 60 + "\n")
-    #     input("Press any key to continue...")
+    if database_env == "remote" and env == "dev":
+        print("\n" + "=" * 60)
+        print("WARNING: Using REMOTE database!")
+        print("=" * 60 + "\n")
+        input("Press any key to continue...")
 
     app = wx.App()
 

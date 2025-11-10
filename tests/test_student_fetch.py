@@ -1,21 +1,21 @@
-from base import get_logger
-from features.sync.students.service import StudentSyncService
+import sys
+from pathlib import Path
 
-logger = get_logger(__name__)
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from features.sync.students.service import StudentSyncService
 
 
 def progress_callback(message: str, current: int, total: int):
-    logger.info(f"Progress ({current}/{total}): {message}")
+    print(f"Progress ({current}/{total}): {message}")
 
 
 def main():
-    student_number = "901000022"
+    student_number = "901007412"
     service = StudentSyncService()
 
-    logger.info(f"Starting fetch for student {student_number}")
-
     try:
-        success = service.fetch_student(
+        service.fetch_student(
             student_number,
             progress_callback=progress_callback,
             import_options={
@@ -26,13 +26,8 @@ def main():
             },
         )
 
-        if success:
-            logger.info(f"Successfully fetched student {student_number}")
-        else:
-            logger.warning(f"Fetch completed with issues for student {student_number}")
-
     except Exception as e:
-        logger.error(f"Error fetching student {student_number}: {str(e)}")
+        print(f"Error fetching student {student_number}: {str(e)}")
 
 
 if __name__ == "__main__":

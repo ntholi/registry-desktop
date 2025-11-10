@@ -1,13 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-import tomllib
-from pathlib import Path
-
-pyproject_path = Path('pyproject.toml')
-with open(pyproject_path, 'rb') as f:
-    pyproject = tomllib.load(f)
-    version = pyproject.get('project', {}).get('version', 'unknown')
-
 a = Analysis(
     ['main.py'],
     pathex=[],
@@ -43,7 +35,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name=f'registry-desktop-{version}',
+    name='registry-desktop',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -63,5 +55,5 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name=f'registry-desktop-{version}',
+    name='registry-desktop',
 )

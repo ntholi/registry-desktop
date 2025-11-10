@@ -1,5 +1,5 @@
-import subprocess
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -8,6 +8,7 @@ def get_version() -> str:
     pyproject_path = Path("pyproject.toml")
     try:
         import tomllib
+
         with open(pyproject_path, "rb") as f:
             pyproject = tomllib.load(f)
             return pyproject.get("project", {}).get("version", "unknown")
@@ -47,7 +48,9 @@ def main():
             try:
                 shutil.rmtree(dir_path)
             except PermissionError:
-                print(f"Warning: Could not delete {dir_name}. Please close the application and try again.")
+                print(
+                    f"Warning: Could not delete {dir_name}. Please close the application and try again."
+                )
                 sys.exit(1)
 
     auto_spec = Path("Limkokwing Registry.spec")
@@ -57,8 +60,17 @@ def main():
     print("Building executable with PyInstaller...")
     print()
     result = subprocess.run(
-        ["uv", "run", "pyinstaller", spec_file, "--distpath", "dist", "--workpath", "build"],
-        capture_output=False
+        [
+            "uv",
+            "run",
+            "pyinstaller",
+            spec_file,
+            "--distpath",
+            "dist",
+            "--workpath",
+            "build",
+        ],
+        capture_output=False,
     )
 
     if result.returncode != 0:
@@ -68,7 +80,7 @@ def main():
         print("=" * 50)
         sys.exit(1)
 
-    exe_name = f"registry-desktop-{version}"
+    exe_name = "registry-desktop"
     print()
     print("=" * 50)
     print("  Build completed successfully!")

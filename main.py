@@ -20,7 +20,7 @@ from base.splash_screen import SplashScreen
 from base.status.status_bar import StatusBar
 from base.widgets.loading_panel import LoadingPanel
 from base.widgets.update_dialog import UpdateDialog
-from database.connection import DATABASE_ENV, get_engine
+from database.connection import get_database_env_label, get_engine
 from database.models import User
 from features.enrollments.module.module_view import ModuleView
 from features.enrollments.requests.requests_view import RequestsView
@@ -38,7 +38,7 @@ class MainWindow(wx.Frame):
     def __init__(self, current_user: User):
         super().__init__(
             None,
-            title=f"Limkokwing Registry v{__version__} ({DATABASE_ENV})",
+            title=f"Limkokwing Registry v{__version__} ({get_database_env_label()})",
             size=wx.Size(1100, 750),
         )
 
@@ -296,9 +296,9 @@ def main():
     logger.info("Starting Limkokwing Registry Desktop Application")
 
     database_env = os.getenv("DATABASE_ENV", "local").strip().lower()
-    desktop_env = os.getenv("DESKTOP_ENV ", "prod").strip().lower()
+    desktop_env = os.getenv("DESKTOP_ENV", "prod").strip().lower()
 
-    if database_env == "remote" and desktop_env == "dev":
+    if (database_env == "remote" or desktop_env == "prod") and desktop_env == "dev":
         print("\n" + "=" * 60)
         print("WARNING: Using REMOTE database!")
         print("=" * 60 + "\n")
@@ -306,7 +306,7 @@ def main():
 
     app = wx.App()
 
-    splash = SplashScreen(__version__, database_env)
+    splash = SplashScreen(__version__)
     splash.Show()
 
     wx.Yield()

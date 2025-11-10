@@ -6,7 +6,7 @@ import wx.adv
 
 
 class SplashScreen(wx.adv.SplashScreen):
-    def __init__(self, version="", database_env=""):
+    def __init__(self, version=""):
         image_path = self._get_image_path()
         img = wx.Image(image_path, wx.BITMAP_TYPE_ANY)
         if img.IsOk():
@@ -33,7 +33,7 @@ class SplashScreen(wx.adv.SplashScreen):
                 dc.SetTextForeground(wx.Colour(240, 240, 240))
                 dc.DrawText(loading, lx, ly)
 
-                version_text = f"Limkokwing Registry v{version} ({database_env})"
+                version_text = f"Limkokwing Registry v{version}"
                 version_font = wx.Font(
                     9, wx.FONTFAMILY_SWISS, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL
                 )
@@ -59,7 +59,7 @@ class SplashScreen(wx.adv.SplashScreen):
         self.Bind(wx.EVT_CLOSE, self.on_close)
 
     def _get_image_path(self):
-        if getattr(sys, 'frozen', False):
+        if getattr(sys, "frozen", False):
             base_dir = sys._MEIPASS  # type: ignore
         else:
             base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

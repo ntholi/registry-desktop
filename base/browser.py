@@ -88,7 +88,7 @@ class Browser:
 
     def login(self):
         logger.info("Logging in...")
-        driver = webdriver.Firefox()
+        driver = webdriver.Chrome()
         url = f"{BASE_URL}/login.php"
         logger.info(f"Fetching {url}")
         driver.get(url)

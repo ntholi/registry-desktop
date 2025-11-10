@@ -24,6 +24,7 @@ class SessionManager:
                     "name": user.name,
                     "image": user.image,
                     "role": user.role,
+                    "position": user.position,
                 }
             }
 

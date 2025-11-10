@@ -6,6 +6,7 @@ from database.models import Grade, StudentModuleStatus
 from features.sync.students.repository import StudentRepository
 from utils.formatters import format_semester
 from utils.grades import get_letter_grade
+from utils.permissions import can_edit_grades
 
 
 class ModuleFormDialog(wx.Dialog):
@@ -124,6 +125,10 @@ class ModuleFormDialog(wx.Dialog):
         if current_grade in Grade.__args__:
             self.grade_input.SetStringSelection(current_grade)
         form_sizer.Add(self.grade_input, 0, wx.EXPAND)
+
+        if not can_edit_grades():
+            self.marks_input.Enable(False)
+            self.grade_input.Enable(False)
 
         sizer.Add(form_sizer, 0, wx.ALL | wx.EXPAND, 20)
 
@@ -338,9 +343,14 @@ class ModuleFormDialog(wx.Dialog):
             "module_name": self.module_data.get("module_name"),
             "status": self.status_combobox.GetValue().strip(),
             "credits": credits_value if credits_value else None,
-            "marks": self.marks_input.GetValue().strip(),
-            "grade": self.grade_input.GetValue().strip(),
         }
+
+        if can_edit_grades():
+            data["marks"] = self.marks_input.GetValue().strip()
+            data["grade"] = self.grade_input.GetValue().strip()
+        else:
+            data["marks"] = self.module_data.get("marks", "")
+            data["grade"] = self.module_data.get("grade", "")
 
         if self.semester_module_changed and self.selected_semester_module_id:
             data["semester_module_id"] = self.selected_semester_module_id

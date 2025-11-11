@@ -1,5 +1,6 @@
-import wx
 import time
+
+import wx
 
 
 class StatusBar(wx.Panel):
@@ -73,10 +74,14 @@ class StatusBar(wx.Panel):
             minutes = int(seconds / 60)
             secs = int(seconds % 60)
             return f"{minutes}m {secs}s"
-        else:
+        elif seconds < 86400:
             hours = int(seconds / 3600)
             minutes = int((seconds % 3600) / 60)
             return f"{hours}h {minutes}m"
+        else:
+            days = int(seconds / 86400)
+            hours = int((seconds % 86400) / 3600)
+            return f"{days}d {hours}h"
 
     def show_message(self, message: str):
         wx.CallAfter(self._show_message_impl, message)

@@ -118,8 +118,9 @@ class EnrollmentService:
                 f"Getting structure semester for student {std_no}...", 30, 100
             )
 
+            normalized_semester_number = str(semester_number).strip().zfill(2)
             structure_semester_id = self._repository.get_structure_semester_by_number(
-                structure_id, str(semester_number).zfill(2)
+                structure_id, normalized_semester_number
             )
             if not structure_semester_id:
                 logger.error(
@@ -156,7 +157,7 @@ class EnrollmentService:
                 {
                     "id": student_semester_id,
                     "term": term_name,
-                    "semester_number": semester_number,
+                    "semester_number": normalized_semester_number,
                     "status": semester_status,
                     "caf_date": today(),
                 },

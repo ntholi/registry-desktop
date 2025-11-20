@@ -119,7 +119,7 @@ class EnrollmentService:
             )
 
             structure_semester_id = self._repository.get_structure_semester_by_number(
-                structure_id, semester_number
+                structure_id, str(semester_number).zfill(2)
             )
             if not structure_semester_id:
                 logger.error(
@@ -203,7 +203,9 @@ class EnrollmentService:
                 f"({modules_skipped} already exist)"
             )
 
-            self._semester_service.add_modules_batch(student_semester_id, modules_to_push)
+            self._semester_service.add_modules_batch(
+                student_semester_id, modules_to_push
+            )
 
             progress_callback(
                 f"Syncing {len(modules_to_push)} modules to database...",

@@ -86,7 +86,8 @@ class LoadModulesWorker(threading.Thread):
         try:
             modules = self.repository.list_structure_modules(self.structure_id)
             semesters = self.repository.list_semester_numbers(self.structure_id)
-            self.callback("modules_loaded", modules, semesters)
+            terms = self.repository.list_terms(self.structure_id)
+            self.callback("modules_loaded", modules, semesters, terms)
         except Exception as e:
             self.callback("modules_error", str(e))
 
@@ -96,13 +97,14 @@ class LoadModulesWorker(threading.Thread):
 
 class LoadStudentsWorker(threading.Thread):
     def __init__(
-        self, repository, semester_module_id, structure_id, semester_number, callback
+        self, repository, semester_module_id, structure_id, semester_number, term, callback
     ):
         super().__init__(daemon=True)
         self.repository = repository
         self.semester_module_id = semester_module_id
         self.structure_id = structure_id
         self.semester_number = semester_number
+        self.term = term
         self.callback = callback
         self.should_stop = False
 
@@ -114,6 +116,7 @@ class LoadStudentsWorker(threading.Thread):
                 self.semester_module_id,
                 self.structure_id,
                 self.semester_number,
+                self.term,
             )
             self.callback("students_loaded", students)
         except Exception as e:
@@ -225,6 +228,7 @@ class StudentModulesView(wx.Panel):
         self.selected_structure_id = None
         self.selected_module_id = None
         self.selected_semester_number = None
+        self.selected_term = None
 
         self.current_students = []
         self.checked_items = set()
@@ -292,7 +296,7 @@ class StudentModulesView(wx.Panel):
 
         main_sizer.AddSpacer(10)
 
-        # Second row: Module, Semester Number, Add Students button
+        # Second row: Module, Semester Number, Term, Add Students button
         filters_sizer2 = wx.BoxSizer(wx.HORIZONTAL)
 
         self.module_filter = wx.Choice(self)
@@ -308,6 +312,13 @@ class StudentModulesView(wx.Panel):
         self.semester_filter.Enable(False)
         self.semester_filter.Bind(wx.EVT_CHOICE, self.on_semester_changed)
         filters_sizer2.Add(self.semester_filter, 0, wx.RIGHT, 10)
+
+        self.term_filter = wx.Choice(self)
+        self.term_filter.Append("All Terms", None)
+        self.term_filter.SetSelection(0)
+        self.term_filter.Enable(False)
+        self.term_filter.Bind(wx.EVT_CHOICE, self.on_term_changed)
+        filters_sizer2.Add(self.term_filter, 0, wx.RIGHT, 10)
 
         filters_sizer2.AddStretchSpacer()
 
@@ -448,6 +459,11 @@ class StudentModulesView(wx.Panel):
         self.semester_filter.SetSelection(0)
         self.semester_filter.Enable(False)
 
+        self.term_filter.Clear()
+        self.term_filter.Append("All Terms", None)
+        self.term_filter.SetSelection(0)
+        self.term_filter.Enable(False)
+
         self.add_students_button.Enable(False)
         self.clear_students()
 
@@ -455,6 +471,7 @@ class StudentModulesView(wx.Panel):
         self.selected_structure_id = None
         self.selected_module_id = None
         self.selected_semester_number = None
+        self.selected_term = None
 
         if self.selected_school_id:
             self.load_programs(self.selected_school_id)
@@ -509,12 +526,18 @@ class StudentModulesView(wx.Panel):
         self.semester_filter.SetSelection(0)
         self.semester_filter.Enable(False)
 
+        self.term_filter.Clear()
+        self.term_filter.Append("All Terms", None)
+        self.term_filter.SetSelection(0)
+        self.term_filter.Enable(False)
+
         self.add_students_button.Enable(False)
         self.clear_students()
 
         self.selected_structure_id = None
         self.selected_module_id = None
         self.selected_semester_number = None
+        self.selected_term = None
 
         if self.selected_program_id:
             self.load_structures(self.selected_program_id)
@@ -567,11 +590,17 @@ class StudentModulesView(wx.Panel):
         self.semester_filter.SetSelection(0)
         self.semester_filter.Enable(False)
 
+        self.term_filter.Clear()
+        self.term_filter.Append("All Terms", None)
+        self.term_filter.SetSelection(0)
+        self.term_filter.Enable(False)
+
         self.add_students_button.Enable(False)
         self.clear_students()
 
         self.selected_module_id = None
         self.selected_semester_number = None
+        self.selected_term = None
 
         if self.selected_structure_id:
             self.load_modules(self.selected_structure_id)
@@ -590,7 +619,7 @@ class StudentModulesView(wx.Panel):
 
     def _handle_modules_event(self, event_type, *args):
         if event_type == "modules_loaded":
-            modules, semesters = args
+            modules, semesters, terms = args
             self.module_filter.Clear()
             self.module_filter.Append("Select Module", None)
             for module in modules:
@@ -600,13 +629,19 @@ class StudentModulesView(wx.Panel):
             self.module_filter.SetSelection(0)
             self.module_filter.Enable(True)
 
-            # Populate semester filter
             self.semester_filter.Clear()
             self.semester_filter.Append("All Semesters", None)
             for sem in semesters:
                 self.semester_filter.Append(format_semester(sem, type="full"), sem)
             self.semester_filter.SetSelection(0)
             self.semester_filter.Enable(True)
+
+            self.term_filter.Clear()
+            self.term_filter.Append("All Terms", None)
+            for term in terms:
+                self.term_filter.Append(term, term)
+            self.term_filter.SetSelection(0)
+            self.term_filter.Enable(True)
         elif event_type == "modules_error":
             self.module_filter.SetString(0, "Select Module")
             self.module_filter.Enable(True)
@@ -629,6 +664,12 @@ class StudentModulesView(wx.Panel):
             self.semester_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
         )
 
+    def on_term_changed(self, event):
+        sel = self.term_filter.GetSelection()
+        self.selected_term = (
+            self.term_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
+        )
+
     def on_add_students(self, event):
         if not self.selected_module_id or not self.selected_structure_id:
             wx.MessageBox(
@@ -647,6 +688,7 @@ class StudentModulesView(wx.Panel):
             self.selected_module_id,
             self.selected_structure_id,
             self.selected_semester_number,
+            self.selected_term,
             self.on_students_callback,
         )
         self.students_worker.start()

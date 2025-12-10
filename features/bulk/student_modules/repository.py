@@ -106,11 +106,28 @@ class BulkStudentModulesRepository:
             )
             return [r[0] for r in results]
 
+    def list_terms(self, structure_id: int):
+        """List all unique terms for students enrolled in a structure."""
+        with self._session() as session:
+            results = (
+                session.query(StudentSemester.term)
+                .join(
+                    StudentProgram,
+                    StudentSemester.student_program_id == StudentProgram.id,
+                )
+                .filter(StudentProgram.structure_id == structure_id)
+                .distinct()
+                .order_by(StudentSemester.term.desc())
+                .all()
+            )
+            return [r[0] for r in results]
+
     def fetch_students_with_module(
         self,
         semester_module_id: int,
         structure_id: int,
         semester_number: Optional[str] = None,
+        term: Optional[str] = None,
     ) -> list[StudentModuleRow]:
         """Fetch all students who have a specific module in their enrollment."""
         with self._session() as session:
@@ -160,6 +177,9 @@ class BulkStudentModulesRepository:
                 query = query.filter(
                     StructureSemester.semester_number == semester_number
                 )
+
+            if term:
+                query = query.filter(StudentSemester.term == term)
 
             query = query.order_by(Student.std_no.desc())
             results = query.all()

@@ -758,11 +758,13 @@ class StudentModulesView(wx.Panel):
             )
             return
 
-        # Get module info for the dialog
+        # Get module info for the dialog (use first selected student's values as defaults)
         first_student = selected_students[0]
         module_info = {
             "module_code": first_student.module_code,
             "module_name": first_student.module_name,
+            "status": first_student.status,
+            "credits": first_student.credits,
         }
 
         dialog = BulkModuleFormDialog(

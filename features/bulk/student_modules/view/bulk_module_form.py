@@ -22,6 +22,11 @@ class BulkModuleFormDialog(wx.Dialog):
         self.repository = StudentRepository()
         self.selected_semester_module_id = None
         self.semester_module_changed = False
+        # Store original values to detect changes
+        self.original_status = module_info.get("status", "")
+        self.original_credits = (
+            str(module_info.get("credits", "")) if module_info.get("credits") else ""
+        )
         self.SetSize(wx.Size(650, 500))
         self.CenterOnScreen()
         self.init_ui()
@@ -60,7 +65,7 @@ class BulkModuleFormDialog(wx.Dialog):
         info_label = wx.StaticText(
             panel,
             label="Changes made here will be applied to ALL selected students.\n"
-            "Leave fields unchanged to keep existing values.",
+            "Values shown are from the first selected student.",
         )
         font = info_label.GetFont()
         font.PointSize = 9
@@ -94,44 +99,39 @@ class BulkModuleFormDialog(wx.Dialog):
         )
         form_sizer.Add(module_name_text, 0, wx.EXPAND)
 
-        # Status - with "No Change" option
+        # Status - pre-selected with existing value
         form_sizer.Add(
             wx.StaticText(panel, label="Status:"),
             0,
             wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL,
         )
-        status_choices = ["-- No Change --"] + list(StudentModuleStatus.__args__)
         self.status_combobox = wx.ComboBox(
-            panel, style=wx.CB_READONLY, choices=status_choices
+            panel, style=wx.CB_READONLY, choices=list(StudentModuleStatus.__args__)
         )
-        self.status_combobox.SetSelection(0)
+        # Set to existing value if valid
+        current_status = self.module_info.get("status", "")
+        if current_status in StudentModuleStatus.__args__:
+            self.status_combobox.SetStringSelection(current_status)
         form_sizer.Add(self.status_combobox, 0, wx.EXPAND)
 
-        # Credits - with "No Change" option
+        # Credits - pre-filled with existing value
         form_sizer.Add(
             wx.StaticText(panel, label="Credits:"),
             0,
             wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL,
         )
-        credits_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.credits_no_change = wx.CheckBox(panel, label="No Change")
-        self.credits_no_change.SetValue(True)
-        self.credits_no_change.Bind(wx.EVT_CHECKBOX, self.on_credits_checkbox)
-        credits_sizer.Add(self.credits_no_change, 0, wx.RIGHT, 10)
-        self.credits_input = wx.TextCtrl(panel, value="")
-        self.credits_input.Enable(False)
-        credits_sizer.Add(self.credits_input, 1, wx.EXPAND)
-        form_sizer.Add(credits_sizer, 0, wx.EXPAND)
+        current_credits = (
+            str(self.module_info.get("credits", ""))
+            if self.module_info.get("credits")
+            else ""
+        )
+        self.credits_input = wx.TextCtrl(panel, value=current_credits)
+        form_sizer.Add(self.credits_input, 0, wx.EXPAND)
 
         sizer.Add(form_sizer, 0, wx.ALL | wx.EXPAND, 20)
 
         panel.SetSizer(sizer)
         return panel
-
-    def on_credits_checkbox(self, event):
-        self.credits_input.Enable(not self.credits_no_change.GetValue())
-        if self.credits_no_change.GetValue():
-            self.credits_input.SetValue("")
 
     def create_advanced_panel(self, parent):
         panel = wx.Panel(parent)
@@ -288,7 +288,7 @@ class BulkModuleFormDialog(wx.Dialog):
         status = self.status_combobox.GetValue().strip()
         credits = self.credits_input.GetValue().strip()
 
-        if credits and not self.credits_no_change.GetValue():
+        if credits:
             try:
                 float(credits)
             except ValueError:
@@ -299,9 +299,9 @@ class BulkModuleFormDialog(wx.Dialog):
                 )
                 return
 
-        # Check if any changes were made
-        has_status_change = status != "-- No Change --"
-        has_credits_change = not self.credits_no_change.GetValue() and credits
+        # Check if any changes were made compared to original values
+        has_status_change = status != self.original_status
+        has_credits_change = credits != self.original_credits
         has_module_change = self.semester_module_changed
 
         if not has_status_change and not has_credits_change and not has_module_change:
@@ -329,17 +329,16 @@ class BulkModuleFormDialog(wx.Dialog):
         event.Skip()
 
     def get_updated_data(self):
-        """Return only the fields that should be updated."""
+        """Return only the fields that have changed from original values."""
         data = {}
 
         status = self.status_combobox.GetValue().strip()
-        if status != "-- No Change --":
+        if status and status != self.original_status:
             data["status"] = status
 
-        if not self.credits_no_change.GetValue():
-            credits_value = self.credits_input.GetValue().strip()
-            if credits_value:
-                data["credits"] = credits_value
+        credits_value = self.credits_input.GetValue().strip()
+        if credits_value != self.original_credits:
+            data["credits"] = credits_value
 
         if self.semester_module_changed and self.selected_semester_module_id:
             data["semester_module_id"] = self.selected_semester_module_id

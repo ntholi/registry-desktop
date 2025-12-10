@@ -123,19 +123,19 @@ def summarize_modules(modules: list[Any]) -> ModuleSummary:
         if normalized_grade and normalized_grade != "NM":
             grade_points = get_grade_points(m.grade)
             if grade_points > 0:
-                credits_completed += m.semester_module.credits
+                credits_completed += m.credits
 
     for m in relevant:
         normalized_grade = normalize_grade_symbol(m.grade or "")
         grade_points = get_grade_points(m.grade or "")
         grade_definition = get_grade_by_symbol(m.grade or "")
 
-        credits_attempted += m.semester_module.credits
+        credits_attempted += m.credits
 
         if normalized_grade and normalized_grade != "NM":
-            credits_for_gpa += m.semester_module.credits
+            credits_for_gpa += m.credits
             if grade_definition and grade_definition.points is not None:
-                points += grade_points * m.semester_module.credits
+                points += grade_points * m.credits
 
     gpa = calculate_gpa(points, credits_for_gpa)
 
@@ -194,7 +194,7 @@ def get_academic_remarks(programs: list[Any]) -> FacultyRemarksResult:
         cumulative_points += semester_summary.points
 
         semester_credits_for_gpa = sum(
-            sm.semester_module.credits
+            sm.credits
             for sm in semester.student_modules
             if sm.status not in ["Delete", "Drop"] and sm.grade and sm.grade != "NM"
         )

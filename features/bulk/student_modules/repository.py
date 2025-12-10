@@ -139,7 +139,7 @@ class BulkStudentModulesRepository:
                     Module.code.label("module_code"),
                     Module.name.label("module_name"),
                     StudentModule.status,
-                    SemesterModule.credits,
+                    StudentModule.credits,
                     StudentModule.marks,
                     StudentModule.grade,
                     StudentModule.student_semester_id,

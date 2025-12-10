@@ -544,6 +544,7 @@ class StudentModule(Base):
         Integer, ForeignKey("semester_modules.id", ondelete="CASCADE"), nullable=False
     )
     status: Mapped[StudentModuleStatus] = mapped_column(String, nullable=False)
+    credits: Mapped[float] = mapped_column(Float, nullable=False)
     marks: Mapped[str] = mapped_column(String, nullable=False)
     grade: Mapped[Grade] = mapped_column(String, nullable=False)
     student_semester_id: Mapped[int] = mapped_column(

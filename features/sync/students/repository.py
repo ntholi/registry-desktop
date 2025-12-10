@@ -432,7 +432,7 @@ class StudentRepository:
                     StudentModule.status,
                     StudentModule.marks,
                     StudentModule.grade,
-                    SemesterModule.credits,
+                    StudentModule.credits,
                 )
                 .join(
                     SemesterModule,
@@ -747,6 +747,8 @@ class StudentRepository:
                         existing.status = normalize_student_module_status(
                             data["status"]  # type: ignore
                         )
+                    if "credits" in data:
+                        existing.credits = float(data["credits"])  # type: ignore
                     if "marks" in data:
                         existing.marks = data["marks"]
                     if "grade" in data:
@@ -770,6 +772,7 @@ class StudentRepository:
                         id=std_module_id,
                         semester_module_id=semester_module_id or 0,
                         status=normalize_student_module_status(data.get("status")),
+                        credits=float(data.get("credits", 0)),
                         marks=data.get("marks", "NM"),
                         grade=data.get("grade", "NM"),
                         student_semester_id=student_semester_id,

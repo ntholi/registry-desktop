@@ -778,19 +778,41 @@ class StudentModulesView(wx.Panel):
                 dialog.Destroy()
                 return
 
-            # Confirm bulk update
+            # Compare update_data against database values to find actual changes
+            db_status = first_student.status or ""
+            db_credits = str(first_student.credits) if first_student.credits else ""
+
+            actual_changes = {}
+            if "status" in update_data and update_data["status"] != db_status:
+                actual_changes["status"] = update_data["status"]
+            if "credits" in update_data and update_data["credits"] != db_credits:
+                actual_changes["credits"] = update_data["credits"]
+            if "semester_module_id" in update_data:
+                # semester_module_id change is always considered a real change
+                actual_changes["semester_module_id"] = update_data["semester_module_id"]
+
+            if not actual_changes:
+                wx.MessageBox(
+                    "No changes detected. The values are the same as in the database.",
+                    "No Changes",
+                    wx.OK | wx.ICON_INFORMATION,
+                )
+                dialog.Destroy()
+                return
+
+            # Confirm bulk update with actual changes
             count = len(selected_students)
             message = (
                 f"You are about to update {count} student module(s).\n\n"
                 f"Changes to apply:\n"
             )
-            if "status" in update_data:
-                message += f"  - Status: {update_data['status']}\n"
-            if "credits" in update_data:
-                message += f"  - Credits: {update_data['credits']}\n"
-            if "semester_module_id" in update_data:
+            if "status" in actual_changes:
+                message += f"  - Status: {db_status} → {actual_changes['status']}\n"
+            if "credits" in actual_changes:
+                message += f"  - Credits: {db_credits} → {actual_changes['credits']}\n"
+            if "semester_module_id" in actual_changes:
                 message += (
-                    f"  - Semester Module ID: {update_data['semester_module_id']}\n"
+                    f"  - Semester Module ID: {actual_changes['semester_module_id']}\n"
                 )
             message += "\nDo you want to proceed?"
 

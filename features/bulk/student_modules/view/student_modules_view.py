@@ -292,7 +292,7 @@ class StudentModulesView(wx.Panel):
 
         main_sizer.AddSpacer(10)
 
-        # Second row: Module, Term, Add Students button
+        # Second row: Module, Term, Filter Students button
         filters_sizer2 = wx.BoxSizer(wx.HORIZONTAL)
 
         self.module_filter = wx.Choice(self)
@@ -309,12 +309,12 @@ class StudentModulesView(wx.Panel):
         self.term_filter.Bind(wx.EVT_CHOICE, self.on_term_changed)
         filters_sizer2.Add(self.term_filter, 0, wx.RIGHT, 10)
 
-        filters_sizer2.AddStretchSpacer()
-
-        self.add_students_button = wx.Button(self, label="Add Students")
+        self.add_students_button = wx.Button(self, label="Filter Students")
         self.add_students_button.Bind(wx.EVT_BUTTON, self.on_add_students)
         self.add_students_button.Enable(False)
         filters_sizer2.Add(self.add_students_button, 0, wx.RIGHT, 10)
+
+        filters_sizer2.AddStretchSpacer()
 
         self.update_button = wx.Button(self, label="Update Module")
         self.update_button.Bind(wx.EVT_BUTTON, self.on_update_module)
@@ -360,6 +360,7 @@ class StudentModulesView(wx.Panel):
         self.list_ctrl.AppendColumn("Grade", width=70)
 
         self.list_ctrl.Bind(wx.EVT_LEFT_DOWN, self.on_list_left_down)
+        self.list_ctrl.Bind(wx.EVT_RIGHT_UP, self.on_list_right_click)
 
         main_sizer.Add(self.list_ctrl, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 40)
 
@@ -710,6 +711,33 @@ class StudentModulesView(wx.Panel):
             self.toggle_item_check(item)
         else:
             event.Skip()
+
+    def on_list_right_click(self, event):
+        item, flags, col = self.list_ctrl.HitTestSubItem(event.GetPosition())
+
+        if item == wx.NOT_FOUND:
+            return
+
+        cell_value = self.list_ctrl.GetItemText(item, col)
+        if not cell_value:
+            return
+
+        menu = wx.Menu()
+        copy_item = menu.Append(
+            wx.ID_ANY,
+            f"Copy '{cell_value[:30]}{'...' if len(cell_value) > 30 else ''}'",
+        )
+        self.Bind(
+            wx.EVT_MENU, lambda evt: self._copy_to_clipboard(cell_value), copy_item
+        )
+
+        self.PopupMenu(menu)
+        menu.Destroy()
+
+    def _copy_to_clipboard(self, text):
+        if wx.TheClipboard.Open():
+            wx.TheClipboard.SetData(wx.TextDataObject(text))
+            wx.TheClipboard.Close()
 
     def toggle_item_check(self, item):
         if item in self.checked_items:

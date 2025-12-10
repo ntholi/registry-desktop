@@ -22,6 +22,7 @@ from base.widgets.loading_panel import LoadingPanel
 from base.widgets.update_dialog import UpdateDialog
 from database.connection import get_database_env_label, get_engine
 from database.models import User
+from features.bulk.student_modules import StudentModulesView
 from features.enrollments.module.module_view import ModuleView
 from features.enrollments.requests.requests_view import RequestsView
 from features.enrollments.student.student_view import StudentView
@@ -68,6 +69,7 @@ class MainWindow(wx.Frame):
             "sync_students": StudentsView,
             "sync_structures": StructuresView,
             "sync_modules": ModulesView,
+            "bulk_student_modules": StudentModulesView,
             "enrollment_requests": RequestsView,
             "enrollments_module": ModuleView,
             "enrollments_student": StudentView,

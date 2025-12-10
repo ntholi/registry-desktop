@@ -20,6 +20,17 @@
       ]
     },
     {
+      "title": "Bulk",
+      "description": "Bulk operations for student data",
+      "icon": null,
+      "submenu": [
+        {
+          "title": "Student Modules",
+          "action": "bulk_student_modules"
+        }
+      ]
+    },
+    {
       "title": "Enrollments",
       "description": "Enroll students and modules",
       "icon": null,

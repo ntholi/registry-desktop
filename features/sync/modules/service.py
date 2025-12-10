@@ -135,6 +135,9 @@ class ModuleSyncService:
             if "status" in data and data["status"]:
                 form_data["x_ModuleStatCode"] = data["status"]
 
+            if "date_stamp" in data and data["date_stamp"]:
+                form_data["x_DateStamp"] = data["date_stamp"]
+
             progress_callback(f"Pushing module {module_id} to CMS...")
 
             cms_success, cms_message = post_cms_form(self._browser, url, form_data)

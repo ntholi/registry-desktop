@@ -378,12 +378,14 @@ class ModulesView(wx.Panel):
         module_code = self.list_ctrl.GetItemText(self.selected_module_item, 0)
         module_name = self.list_ctrl.GetItemText(self.selected_module_item, 1)
         module_status = self.list_ctrl.GetItemText(self.selected_module_item, 2)
+        module_timestamp = self.list_ctrl.GetItemText(self.selected_module_item, 3)
 
         module_data = {
             "id": module_id,
             "code": module_code,
             "name": module_name,
             "status": module_status,
+            "timestamp": module_timestamp,
         }
 
         dialog = ModuleFormDialog(module_data, self, self.status_bar)
@@ -400,6 +402,7 @@ class ModulesView(wx.Panel):
                     "code": updated_data["code"],
                     "name": updated_data["name"],
                     "status": updated_data["status"],
+                    "date_stamp": updated_data["date_stamp"],
                 },
                 self.service,
                 self.on_update_callback,

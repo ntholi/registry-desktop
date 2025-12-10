@@ -10,14 +10,14 @@ class ModuleFormDialog(wx.Dialog):
         )
         self.module_data = module_data
         self.status_bar = status_bar
-        self.SetSize(wx.Size(500, 280))
+        self.SetSize(wx.Size(500, 320))
         self.init_ui()
 
     def init_ui(self):
         panel = wx.Panel(self)
         main_sizer = wx.BoxSizer(wx.VERTICAL)
 
-        form_sizer = wx.FlexGridSizer(rows=4, cols=2, vgap=10, hgap=10)
+        form_sizer = wx.FlexGridSizer(rows=5, cols=2, vgap=10, hgap=10)
         form_sizer.AddGrowableCol(1)
 
         # Module ID (read-only)
@@ -71,6 +71,17 @@ class ModuleFormDialog(wx.Dialog):
             self.status_choice.SetSelection(0)
         form_sizer.Add(self.status_choice, 0, wx.EXPAND)
 
+        # Date Stamp
+        form_sizer.Add(
+            wx.StaticText(panel, label="Date Stamp:"),
+            0,
+            wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL,
+        )
+        self.date_stamp_input = wx.TextCtrl(
+            panel, value=self.module_data.get("timestamp", "") or ""
+        )
+        form_sizer.Add(self.date_stamp_input, 0, wx.EXPAND)
+
         main_sizer.Add(form_sizer, 0, wx.ALL | wx.EXPAND, 20)
 
         # Buttons
@@ -114,4 +125,5 @@ class ModuleFormDialog(wx.Dialog):
             "code": self.code_input.GetValue().strip(),
             "name": self.name_input.GetValue().strip(),
             "status": status,
+            "date_stamp": self.date_stamp_input.GetValue().strip(),
         }

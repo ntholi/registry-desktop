@@ -150,7 +150,7 @@ class ModuleSyncService:
                     code=data.get("code", ""),
                     name=data.get("name", ""),
                     status=data.get("status", ""),
-                    timestamp=None,
+                    timestamp=data.get("date_stamp"),
                 )
                 return True, "Module updated successfully"
             else:

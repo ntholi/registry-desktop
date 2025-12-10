@@ -329,15 +329,17 @@ class BulkModuleFormDialog(wx.Dialog):
         event.Skip()
 
     def get_updated_data(self):
-        """Return only the fields that have changed from original values."""
+        """Return all field values - CMS requires all fields to be sent."""
         data = {}
 
+        # Always include status - CMS requires it
         status = self.status_combobox.GetValue().strip()
-        if status and status != self.original_status:
+        if status:
             data["status"] = status
 
+        # Always include credits - CMS requires it
         credits_value = self.credits_input.GetValue().strip()
-        if credits_value != self.original_credits:
+        if credits_value:
             data["credits"] = credits_value
 
         if self.semester_module_changed and self.selected_semester_module_id:

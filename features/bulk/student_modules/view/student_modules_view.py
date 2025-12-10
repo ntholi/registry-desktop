@@ -151,7 +151,17 @@ class BulkUpdateWorker(threading.Thread):
                         total,
                     )
 
+                # Validate required fields
+                if not student_module.student_semester_id:
+                    self.callback(
+                        "error",
+                        f"Skipping student {student_module.std_no}: Missing student_semester_id",
+                    )
+                    failed_count += 1
+                    continue
+
                 # Build module_data matching the pattern from student_detail_panel.py
+                # Note: 'id' must be the student_module_id for upsert_student_module
                 module_data = {
                     "id": student_module.student_module_id,
                     "student_semester_id": student_module.student_semester_id,
@@ -164,10 +174,15 @@ class BulkUpdateWorker(threading.Thread):
                 if "credits" in self.update_data:
                     module_data["credits"] = self.update_data["credits"]
 
+                # Use updated semester_module_id if provided, otherwise keep existing
                 if "semester_module_id" in self.update_data:
                     module_data["semester_module_id"] = self.update_data[
                         "semester_module_id"
                     ]
+                else:
+                    module_data["semester_module_id"] = (
+                        student_module.semester_module_id
+                    )
 
                 success, message = self.service.push_module(
                     student_module.student_module_id,
@@ -178,6 +193,10 @@ class BulkUpdateWorker(threading.Thread):
                 if success:
                     success_count += 1
                 else:
+                    self.callback(
+                        "error",
+                        f"Failed to update {student_module.std_no}: {message}",
+                    )
                     failed_count += 1
 
             except Exception as e:

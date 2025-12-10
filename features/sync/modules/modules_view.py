@@ -3,6 +3,7 @@ import threading
 import wx
 
 from .fetch_module_dialog import FetchModuleDialog
+from .module_form import ModuleFormDialog
 from .repository import ModuleRepository
 from .service import ModuleSyncService
 
@@ -54,6 +55,44 @@ class LoadModulesWorker(threading.Thread):
         self.should_stop = True
 
 
+class UpdateModuleWorker(threading.Thread):
+    def __init__(self, module_id, module_data, service, callback):
+        super().__init__(daemon=True)
+        self.module_id = module_id
+        self.module_data = module_data
+        self.service = service
+        self.callback = callback
+        self.should_stop = False
+        self.current_step = 0
+        self.total_steps = 4
+
+    def emit_progress(self, message: str):
+        self.current_step += 1
+        self.callback("progress", message, self.current_step, self.total_steps)
+
+    def run(self):
+        try:
+            if self.should_stop:
+                return
+
+            success, message = self.service.push_module(
+                self.module_id,
+                self.module_data,
+                self.emit_progress,
+            )
+
+            self.callback("update_finished", success, message)
+
+        except Exception as e:
+            self.callback(
+                "error", f"Error updating module {self.module_id}: {str(e)}"
+            )
+            self.callback("update_finished", False, str(e))
+
+    def stop(self):
+        self.should_stop = True
+
+
 class ModulesView(wx.Panel):
     def __init__(self, parent, status_bar=None):
         super().__init__(parent)
@@ -65,7 +104,9 @@ class ModulesView(wx.Panel):
         self.repository = ModuleRepository()
         self.service = ModuleSyncService(self.repository)
         self.load_worker = None
+        self.update_worker = None
         self.search_timer = None
+        self.selected_module_item = None
 
         self.init_ui()
         self.load_modules()
@@ -113,7 +154,12 @@ class ModulesView(wx.Panel):
 
         self.fetch_all_button = wx.Button(self, label="Fetch All")
         self.fetch_all_button.Bind(wx.EVT_BUTTON, self.on_fetch_all)
-        filters_sizer.Add(self.fetch_all_button, 0)
+        filters_sizer.Add(self.fetch_all_button, 0, wx.RIGHT, 10)
+
+        self.edit_button = wx.Button(self, label="Edit")
+        self.edit_button.Bind(wx.EVT_BUTTON, self.on_edit)
+        self.edit_button.Enable(False)
+        filters_sizer.Add(self.edit_button, 0)
 
         main_sizer.Add(filters_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 40)
 
@@ -131,6 +177,8 @@ class ModulesView(wx.Panel):
         self.list_ctrl.AppendColumn("Timestamp", width=150)
 
         self.list_ctrl.Bind(wx.EVT_RIGHT_UP, self.on_list_right_click)
+        self.list_ctrl.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_list_item_selected)
+        self.list_ctrl.Bind(wx.EVT_LIST_ITEM_DESELECTED, self.on_list_item_deselected)
 
         main_sizer.Add(self.list_ctrl, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 40)
 
@@ -307,6 +355,87 @@ class ModulesView(wx.Panel):
                 wx.OK | wx.ICON_ERROR,
             )
 
+    def on_list_item_selected(self, event):
+        item = event.GetIndex()
+        if item != wx.NOT_FOUND:
+            self.selected_module_item = item
+            self.edit_button.Enable(True)
+
+    def on_list_item_deselected(self, event):
+        self.selected_module_item = None
+        self.edit_button.Enable(False)
+
+    def on_edit(self, event):
+        if self.selected_module_item is None:
+            wx.MessageBox(
+                "Please select a module to edit.",
+                "No Selection",
+                wx.OK | wx.ICON_INFORMATION,
+            )
+            return
+
+        module_id = self.list_ctrl.GetItemData(self.selected_module_item)
+        module_code = self.list_ctrl.GetItemText(self.selected_module_item, 0)
+        module_name = self.list_ctrl.GetItemText(self.selected_module_item, 1)
+        module_status = self.list_ctrl.GetItemText(self.selected_module_item, 2)
+
+        module_data = {
+            "id": module_id,
+            "code": module_code,
+            "name": module_name,
+            "status": module_status,
+        }
+
+        dialog = ModuleFormDialog(module_data, self, self.status_bar)
+        if dialog.ShowModal() == wx.ID_OK:
+            updated_data = dialog.get_updated_data()
+
+            self.fetch_button.Enable(False)
+            self.fetch_all_button.Enable(False)
+            self.edit_button.Enable(False)
+
+            self.update_worker = UpdateModuleWorker(
+                updated_data["id"],
+                {
+                    "code": updated_data["code"],
+                    "name": updated_data["name"],
+                    "status": updated_data["status"],
+                },
+                self.service,
+                self.on_update_callback,
+            )
+            self.update_worker.start()
+        dialog.Destroy()
+
+    def on_update_callback(self, event_type, *args):
+        wx.CallAfter(self._handle_update_event, event_type, *args)
+
+    def _handle_update_event(self, event_type, *args):
+        if event_type == "progress":
+            message, current, total = args
+            if self.status_bar:
+                self.status_bar.show_progress(message, current, total)
+        elif event_type == "update_finished":
+            success, message = args
+            if self.status_bar:
+                self.status_bar.clear()
+            self.fetch_button.Enable(True)
+            self.fetch_all_button.Enable(True)
+            self.edit_button.Enable(self.selected_module_item is not None)
+
+            if success:
+                wx.MessageBox(
+                    "Module updated successfully.",
+                    "Success",
+                    wx.OK | wx.ICON_INFORMATION,
+                )
+                self.load_modules()
+            else:
+                wx.MessageBox(message, "Update Failed", wx.OK | wx.ICON_ERROR)
+        elif event_type == "error":
+            error_msg = args[0]
+            wx.MessageBox(error_msg, "Error", wx.OK | wx.ICON_WARNING)
+
     def on_modules_callback(self, event_type, *args):
         wx.CallAfter(self._handle_modules_event, event_type, *args)
 
@@ -315,6 +444,8 @@ class ModulesView(wx.Panel):
             modules, total = args
             self.total_modules = total
             self.list_ctrl.DeleteAllItems()
+            self.selected_module_item = None
+            self.edit_button.Enable(False)
 
             for row, module in enumerate(modules):
                 index = self.list_ctrl.InsertItem(row, module.code or "")
@@ -329,6 +460,8 @@ class ModulesView(wx.Panel):
             error_msg = args[0]
             print(f"Error loading modules: {error_msg}")
             self.list_ctrl.DeleteAllItems()
+            self.selected_module_item = None
+            self.edit_button.Enable(False)
             self.page_label.SetLabel("No data available")
             self.records_label.SetLabel("")
 

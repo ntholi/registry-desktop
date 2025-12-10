@@ -126,7 +126,6 @@ class BulkStudentModulesRepository:
         self,
         semester_module_id: int,
         structure_id: int,
-        semester_number: Optional[str] = None,
         term: Optional[str] = None,
     ) -> list[StudentModuleRow]:
         """Fetch all students who have a specific module in their enrollment."""
@@ -172,11 +171,6 @@ class BulkStudentModulesRepository:
                     )
                 )
             )
-
-            if semester_number:
-                query = query.filter(
-                    StructureSemester.semester_number == semester_number
-                )
 
             if term:
                 query = query.filter(StudentSemester.term == term)

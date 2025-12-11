@@ -27,6 +27,10 @@
         {
           "title": "Student Modules",
           "action": "bulk_student_modules"
+        },
+        {
+          "title": "Student Semesters",
+          "action": "bulk_student_semesters"
         }
       ]
     },

@@ -95,9 +95,7 @@ class LoadModulesWorker(threading.Thread):
 
 
 class LoadStudentsWorker(threading.Thread):
-    def __init__(
-        self, repository, semester_module_id, structure_id, term, callback
-    ):
+    def __init__(self, repository, semester_module_id, structure_id, term, callback):
         super().__init__(daemon=True)
         self.repository = repository
         self.semester_module_id = semester_module_id
@@ -330,6 +328,19 @@ class StudentModulesView(wx.Panel):
         self.module_filter.Bind(wx.EVT_CHOICE, self.on_module_changed)
         filters_sizer2.Add(self.module_filter, 0, wx.RIGHT, 10)
 
+        self.module_search_input = wx.TextCtrl(self, size=wx.Size(200, -1))
+        self.module_search_input.SetHint("Module name or code...")
+        self.module_search_input.Enable(False)
+        self.module_search_input.Bind(wx.EVT_TEXT, self.on_module_search_text_changed)
+        filters_sizer2.Add(self.module_search_input, 0, wx.RIGHT, 10)
+
+        self.filter_by_module_button = wx.Button(self, label="Filter by Module")
+        self.filter_by_module_button.Bind(
+            wx.EVT_BUTTON, self.on_filter_by_module_search
+        )
+        self.filter_by_module_button.Enable(False)
+        filters_sizer2.Add(self.filter_by_module_button, 0, wx.RIGHT, 10)
+
         self.term_filter = wx.Choice(self)
         self.term_filter.Append("All Terms", None)
         self.term_filter.SetSelection(0)
@@ -345,23 +356,6 @@ class StudentModulesView(wx.Panel):
         filters_sizer2.Add(self.update_button, 0)
 
         main_sizer.Add(filters_sizer2, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 40)
-
-        main_sizer.AddSpacer(10)
-
-        filters_sizer3 = wx.BoxSizer(wx.HORIZONTAL)
-
-        self.module_search_input = wx.TextCtrl(self, size=wx.Size(200, -1))
-        self.module_search_input.SetHint("Module name or code...")
-        self.module_search_input.Enable(False)
-        self.module_search_input.Bind(wx.EVT_TEXT, self.on_module_search_text_changed)
-        filters_sizer3.Add(self.module_search_input, 0, wx.RIGHT, 10)
-
-        self.filter_by_module_button = wx.Button(self, label="Filter by Module")
-        self.filter_by_module_button.Bind(wx.EVT_BUTTON, self.on_filter_by_module_search)
-        self.filter_by_module_button.Enable(False)
-        filters_sizer3.Add(self.filter_by_module_button, 0)
-
-        main_sizer.Add(filters_sizer3, 0, wx.LEFT | wx.RIGHT, 40)
 
         main_sizer.AddSpacer(15)
         line = wx.StaticLine(self)
@@ -392,8 +386,9 @@ class StudentModulesView(wx.Panel):
 
         self.list_ctrl.AppendColumn("", width=40)
         self.list_ctrl.AppendColumn("Student No", width=120)
-        self.list_ctrl.AppendColumn("Name", width=250)
-        self.list_ctrl.AppendColumn("Module", width=100)
+        self.list_ctrl.AppendColumn("Name", width=200)
+        self.list_ctrl.AppendColumn("Code", width=100)
+        self.list_ctrl.AppendColumn("Module Name", width=200)
         self.list_ctrl.AppendColumn("Status", width=100)
         self.list_ctrl.AppendColumn("Credits", width=70)
         self.list_ctrl.AppendColumn("Marks", width=70)
@@ -784,12 +779,13 @@ class StudentModulesView(wx.Panel):
             self.list_ctrl.SetItem(index, 1, student.std_no)
             self.list_ctrl.SetItem(index, 2, student.name or "")
             self.list_ctrl.SetItem(index, 3, student.module_code or "")
-            self.list_ctrl.SetItem(index, 4, student.status or "")
+            self.list_ctrl.SetItem(index, 4, student.module_name or "")
+            self.list_ctrl.SetItem(index, 5, student.status or "")
             self.list_ctrl.SetItem(
-                index, 5, str(student.credits) if student.credits else ""
+                index, 6, str(student.credits) if student.credits else ""
             )
-            self.list_ctrl.SetItem(index, 6, student.marks or "")
-            self.list_ctrl.SetItem(index, 7, student.grade or "")
+            self.list_ctrl.SetItem(index, 7, student.marks or "")
+            self.list_ctrl.SetItem(index, 8, student.grade or "")
             self.list_ctrl.SetItemData(index, row)
 
         self.update_records_label()

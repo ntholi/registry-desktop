@@ -123,6 +123,33 @@ class LoadStudentsWorker(threading.Thread):
         self.should_stop = True
 
 
+class LoadStudentsByModuleSearchWorker(threading.Thread):
+    def __init__(self, repository, structure_id, search_query, term, callback):
+        super().__init__(daemon=True)
+        self.repository = repository
+        self.structure_id = structure_id
+        self.search_query = search_query
+        self.term = term
+        self.callback = callback
+        self.should_stop = False
+
+    def run(self):
+        if self.should_stop:
+            return
+        try:
+            students = self.repository.fetch_students_by_module_search(
+                self.structure_id,
+                self.search_query,
+                self.term,
+            )
+            self.callback("students_loaded", students)
+        except Exception as e:
+            self.callback("students_error", str(e))
+
+    def stop(self):
+        self.should_stop = True
+
+
 class BulkUpdateWorker(threading.Thread):
     def __init__(self, student_modules, update_data, service, callback):
         super().__init__(daemon=True)
@@ -228,12 +255,14 @@ class StudentModulesView(wx.Panel):
 
         self.current_students = []
         self.checked_items = set()
+        self.module_search_text = ""
 
         self.filter_worker = None
         self.programs_worker = None
         self.structures_worker = None
         self.modules_worker = None
         self.students_worker = None
+        self.module_search_worker = None
         self.update_worker = None
 
         self.init_ui()
@@ -292,7 +321,6 @@ class StudentModulesView(wx.Panel):
 
         main_sizer.AddSpacer(10)
 
-        # Second row: Module, Term, Filter Students button
         filters_sizer2 = wx.BoxSizer(wx.HORIZONTAL)
 
         self.module_filter = wx.Choice(self)
@@ -309,11 +337,6 @@ class StudentModulesView(wx.Panel):
         self.term_filter.Bind(wx.EVT_CHOICE, self.on_term_changed)
         filters_sizer2.Add(self.term_filter, 0, wx.RIGHT, 10)
 
-        self.add_students_button = wx.Button(self, label="Filter Students")
-        self.add_students_button.Bind(wx.EVT_BUTTON, self.on_add_students)
-        self.add_students_button.Enable(False)
-        filters_sizer2.Add(self.add_students_button, 0, wx.RIGHT, 10)
-
         filters_sizer2.AddStretchSpacer()
 
         self.update_button = wx.Button(self, label="Update Module")
@@ -322,6 +345,23 @@ class StudentModulesView(wx.Panel):
         filters_sizer2.Add(self.update_button, 0)
 
         main_sizer.Add(filters_sizer2, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 40)
+
+        main_sizer.AddSpacer(10)
+
+        filters_sizer3 = wx.BoxSizer(wx.HORIZONTAL)
+
+        self.module_search_input = wx.TextCtrl(self, size=wx.Size(200, -1))
+        self.module_search_input.SetHint("Module name or code...")
+        self.module_search_input.Enable(False)
+        self.module_search_input.Bind(wx.EVT_TEXT, self.on_module_search_text_changed)
+        filters_sizer3.Add(self.module_search_input, 0, wx.RIGHT, 10)
+
+        self.filter_by_module_button = wx.Button(self, label="Filter by Module")
+        self.filter_by_module_button.Bind(wx.EVT_BUTTON, self.on_filter_by_module_search)
+        self.filter_by_module_button.Enable(False)
+        filters_sizer3.Add(self.filter_by_module_button, 0)
+
+        main_sizer.Add(filters_sizer3, 0, wx.LEFT | wx.RIGHT, 40)
 
         main_sizer.AddSpacer(15)
         line = wx.StaticLine(self)
@@ -449,7 +489,11 @@ class StudentModulesView(wx.Panel):
         self.term_filter.SetSelection(0)
         self.term_filter.Enable(False)
 
-        self.add_students_button.Enable(False)
+        self.module_search_input.SetValue("")
+        self.module_search_input.Enable(False)
+        self.filter_by_module_button.Enable(False)
+        self.module_search_text = ""
+
         self.clear_students()
 
         self.selected_program_id = None
@@ -494,7 +538,6 @@ class StudentModulesView(wx.Panel):
             self.program_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
         )
 
-        # Reset dependent filters
         self.structure_filter.Clear()
         self.structure_filter.Append("Select Structure", None)
         self.structure_filter.SetSelection(0)
@@ -510,7 +553,11 @@ class StudentModulesView(wx.Panel):
         self.term_filter.SetSelection(0)
         self.term_filter.Enable(False)
 
-        self.add_students_button.Enable(False)
+        self.module_search_input.SetValue("")
+        self.module_search_input.Enable(False)
+        self.filter_by_module_button.Enable(False)
+        self.module_search_text = ""
+
         self.clear_students()
 
         self.selected_structure_id = None
@@ -557,7 +604,6 @@ class StudentModulesView(wx.Panel):
             self.structure_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
         )
 
-        # Reset dependent filters
         self.module_filter.Clear()
         self.module_filter.Append("Select Module", None)
         self.module_filter.SetSelection(0)
@@ -568,7 +614,11 @@ class StudentModulesView(wx.Panel):
         self.term_filter.SetSelection(0)
         self.term_filter.Enable(False)
 
-        self.add_students_button.Enable(False)
+        self.module_search_input.SetValue("")
+        self.module_search_input.Enable(False)
+        self.filter_by_module_button.Enable(False)
+        self.module_search_text = ""
+
         self.clear_students()
 
         self.selected_module_id = None
@@ -607,6 +657,9 @@ class StudentModulesView(wx.Panel):
                 self.term_filter.Append(term, term)
             self.term_filter.SetSelection(0)
             self.term_filter.Enable(True)
+
+            self.module_search_input.Enable(True)
+            self.update_filter_by_module_button_state()
         elif event_type == "modules_error":
             self.module_filter.SetString(0, "Select Module")
             self.module_filter.Enable(True)
@@ -620,8 +673,12 @@ class StudentModulesView(wx.Panel):
             self.module_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
         )
 
-        self.clear_students()
-        self.add_students_button.Enable(self.selected_module_id is not None)
+        self.update_module_search_state()
+
+        if self.selected_module_id:
+            self.load_students_by_module()
+        else:
+            self.clear_students()
 
     def on_term_changed(self, event):
         sel = self.term_filter.GetSelection()
@@ -629,16 +686,49 @@ class StudentModulesView(wx.Panel):
             self.term_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
         )
 
-    def on_add_students(self, event):
-        if not self.selected_module_id or not self.selected_structure_id:
+        if self.selected_module_id:
+            self.load_students_by_module()
+        elif self.module_search_text and len(self.module_search_text) >= 4:
+            self.load_students_by_module_search()
+
+    def update_module_search_state(self):
+        has_specific_module = self.selected_module_id is not None
+        self.module_search_input.Enable(not has_specific_module)
+        if has_specific_module:
+            self.module_search_input.SetValue("")
+            self.module_search_text = ""
+        self.update_filter_by_module_button_state()
+
+    def update_filter_by_module_button_state(self):
+        has_specific_module = self.selected_module_id is not None
+        search_text = self.module_search_input.GetValue().strip()
+        can_search = (
+            not has_specific_module
+            and len(search_text) >= 4
+            and self.selected_structure_id is not None
+        )
+        self.filter_by_module_button.Enable(can_search)
+
+    def on_module_search_text_changed(self, event):
+        self.update_filter_by_module_button_state()
+
+    def on_filter_by_module_search(self, event):
+        search_text = self.module_search_input.GetValue().strip()
+        if len(search_text) < 4:
             wx.MessageBox(
-                "Please select a module first",
-                "Module Required",
+                "Please enter at least 4 characters to search",
+                "Search Text Required",
                 wx.OK | wx.ICON_WARNING,
             )
             return
 
-        self.add_students_button.Enable(False)
+        self.module_search_text = search_text
+        self.load_students_by_module_search()
+
+    def load_students_by_module(self):
+        if not self.selected_module_id or not self.selected_structure_id:
+            return
+
         if self.status_bar:
             self.status_bar.show_message("Loading students...")
 
@@ -651,12 +741,26 @@ class StudentModulesView(wx.Panel):
         )
         self.students_worker.start()
 
+    def load_students_by_module_search(self):
+        if not self.module_search_text or not self.selected_structure_id:
+            return
+
+        if self.status_bar:
+            self.status_bar.show_message("Loading students...")
+
+        self.module_search_worker = LoadStudentsByModuleSearchWorker(
+            self.repository,
+            self.selected_structure_id,
+            self.module_search_text,
+            self.selected_term,
+            self.on_students_callback,
+        )
+        self.module_search_worker.start()
+
     def on_students_callback(self, event_type, *args):
         wx.CallAfter(self._handle_students_event, event_type, *args)
 
     def _handle_students_event(self, event_type, *args):
-        self.add_students_button.Enable(True)
-
         if event_type == "students_loaded":
             students = args[0]
             self.current_students = list(students)
@@ -852,7 +956,6 @@ class StudentModulesView(wx.Panel):
 
             if confirm_dlg.ShowModal() == wx.ID_YES:
                 self.update_button.Enable(False)
-                self.add_students_button.Enable(False)
 
                 self.update_worker = BulkUpdateWorker(
                     selected_students,
@@ -879,7 +982,6 @@ class StudentModulesView(wx.Panel):
             if self.status_bar:
                 self.status_bar.clear()
             self.update_button.Enable(True)
-            self.add_students_button.Enable(True)
 
             if failed_count > 0:
                 wx.MessageBox(
@@ -894,9 +996,10 @@ class StudentModulesView(wx.Panel):
                     wx.OK | wx.ICON_INFORMATION,
                 )
 
-            # Refresh the list
             if self.selected_module_id and self.selected_structure_id:
-                self.on_add_students(None)
+                self.load_students_by_module()
+            elif self.module_search_text and self.selected_structure_id:
+                self.load_students_by_module_search()
         elif event_type == "error":
             error_msg = args[0]
             wx.MessageBox(error_msg, "Error", wx.OK | wx.ICON_WARNING)

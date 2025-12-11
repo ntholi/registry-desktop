@@ -196,7 +196,6 @@ class BulkStudentModulesRepository:
             ]
 
     def search_semester_modules(self, search_query: str):
-        """Search for semester modules by code or name."""
         with self._session() as session:
             search_pattern = f"%{search_query}%"
 
@@ -235,5 +234,84 @@ class BulkStudentModulesRepository:
                     "credits": r.credits,
                     "semester_number": r.semester_number,
                 }
+                for r in results
+            ]
+
+    def fetch_students_by_module_search(
+        self,
+        structure_id: int,
+        search_query: str,
+        term: Optional[str] = None,
+    ) -> list[StudentModuleRow]:
+        with self._session() as session:
+            search_pattern = f"%{search_query}%"
+
+            query = (
+                session.query(
+                    Student.std_no,
+                    Student.name,
+                    StudentModule.id.label("student_module_id"),
+                    StudentModule.semester_module_id,
+                    Module.code.label("module_code"),
+                    Module.name.label("module_name"),
+                    StudentModule.status,
+                    StudentModule.credits,
+                    StudentModule.marks,
+                    StudentModule.grade,
+                    StudentModule.student_semester_id,
+                )
+                .join(
+                    StudentSemester,
+                    StudentModule.student_semester_id == StudentSemester.id,
+                )
+                .join(
+                    StudentProgram,
+                    StudentSemester.student_program_id == StudentProgram.id,
+                )
+                .join(Student, StudentProgram.std_no == Student.std_no)
+                .join(
+                    SemesterModule,
+                    StudentModule.semester_module_id == SemesterModule.id,
+                )
+                .join(Module, SemesterModule.module_id == Module.id)
+                .join(
+                    StructureSemester,
+                    StudentSemester.structure_semester_id == StructureSemester.id,
+                )
+                .filter(StudentProgram.structure_id == structure_id)
+                .filter(
+                    or_(
+                        Module.code.like(search_pattern),
+                        Module.name.like(search_pattern),
+                    )
+                )
+                .filter(
+                    or_(
+                        StudentProgram.status == "Active",
+                        StudentProgram.status == "Completed",
+                    )
+                )
+            )
+
+            if term:
+                query = query.filter(StudentSemester.term == term)
+
+            query = query.order_by(Student.std_no.desc())
+            results = query.all()
+
+            return [
+                StudentModuleRow(
+                    std_no=str(r.std_no),
+                    name=r.name,
+                    student_module_id=r.student_module_id,
+                    semester_module_id=r.semester_module_id,
+                    module_code=r.module_code,
+                    module_name=r.module_name,
+                    status=r.status,
+                    credits=r.credits,
+                    marks=r.marks,
+                    grade=r.grade,
+                    student_semester_id=r.student_semester_id,
+                )
                 for r in results
             ]

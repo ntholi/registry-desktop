@@ -157,7 +157,7 @@ class EnrollmentService:
                 {
                     "id": student_semester_id,
                     "term": term_name,
-                    "semester_number": normalized_semester_number,
+                    "structure_semester_id": structure_semester_id,
                     "status": semester_status,
                     "caf_date": today(),
                 },
@@ -233,6 +233,7 @@ class EnrollmentService:
                             "id": cms_mod["id"],
                             "semester_module_id": req_mod.semester_module_id,
                             "status": req_mod.module_status,
+                            "credits": req_mod.credits or 0,
                             "marks": "NM",
                             "grade": "NM",
                             "student_semester_id": student_semester_id,

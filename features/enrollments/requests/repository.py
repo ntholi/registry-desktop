@@ -425,25 +425,43 @@ class EnrollmentRequestRepository:
                         .first()
                     )
 
+                    if not existing:
+                        existing = (
+                            session.query(StudentSemester)
+                            .filter(StudentSemester.student_program_id == student_program_id)
+                            .filter(StudentSemester.term == data.get("term"))
+                            .first()
+                        )
+
                     if existing:
-                        if "semester_number" in data:
-                            existing.semester_number = data["semester_number"]
+                        if "structure_semester_id" in data:
+                            existing.structure_semester_id = data["structure_semester_id"]
                         if "status" in data:
                             existing.status = data["status"]
                         if "caf_date" in data:
                             existing.caf_date = data["caf_date"]
+                        if "sponsor_id" in data:
+                            existing.sponsor_id = data["sponsor_id"]
 
                         session.commit()
                         logger.info(f"Updated student semester {semester_id}")
                         return True
                     else:
+                        if "structure_semester_id" not in data or not data["structure_semester_id"]:
+                            logger.error(
+                                f"Cannot create student semester without structure_semester_id - "
+                                f"student_program_id={student_program_id}, data={data}"
+                            )
+                            return False
+
                         new_semester = StudentSemester(
                             id=semester_id,
                             student_program_id=student_program_id,
                             term=data.get("term"),
-                            semester_number=data.get("semester_number"),
+                            structure_semester_id=data["structure_semester_id"],
                             status=data.get("status", "Active"),
                             caf_date=data.get("caf_date"),
+                            sponsor_id=data.get("sponsor_id"),
                         )
                         session.add(new_semester)
                         session.commit()
@@ -479,10 +497,14 @@ class EnrollmentRequestRepository:
                         existing.semester_module_id = data["semester_module_id"]
                     if "status" in data:
                         existing.status = data["status"]
+                    if "credits" in data:
+                        existing.credits = float(data["credits"])
                     if "marks" in data:
                         existing.marks = data["marks"]
                     if "grade" in data:
                         existing.grade = data["grade"]
+                    if "student_semester_id" in data:
+                        existing.student_semester_id = data["student_semester_id"]
 
                     session.commit()
                     logger.info(f"Updated student module {module_id}")
@@ -492,6 +514,7 @@ class EnrollmentRequestRepository:
                         id=module_id,
                         semester_module_id=data.get("semester_module_id"),
                         status=data.get("status", ""),
+                        credits=float(data.get("credits", 0)),
                         marks=data.get("marks", "NM"),
                         grade=data.get("grade", "NM"),
                         student_semester_id=data.get("student_semester_id"),

@@ -1,3 +1,5 @@
+from datetime import date
+
 import wx
 
 
@@ -12,6 +14,10 @@ class ModuleFormDialog(wx.Dialog):
         self.status_bar = status_bar
         self.SetSize(wx.Size(520, 420))
         self.init_ui()
+        if parent is not None:
+            self.CentreOnParent()
+        else:
+            self.Centre()
 
     def init_ui(self):
         panel = wx.Panel(self)
@@ -90,8 +96,9 @@ class ModuleFormDialog(wx.Dialog):
             0,
             wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL,
         )
+        current_timestamp = (self.module_data.get("timestamp") or "").strip()
         self.date_stamp_input = wx.TextCtrl(
-            panel, value=self.module_data.get("timestamp", "") or ""
+            panel, value=current_timestamp or date.today().isoformat()
         )
         form_sizer.Add(self.date_stamp_input, 0, wx.EXPAND)
 
@@ -152,6 +159,10 @@ class NewModuleFormDialog(wx.Dialog):
         )
         self.SetSize(wx.Size(520, 380))
         self.init_ui()
+        if parent is not None:
+            self.CentreOnParent()
+        else:
+            self.Centre()
 
     def init_ui(self):
         panel = wx.Panel(self)
@@ -189,7 +200,7 @@ class NewModuleFormDialog(wx.Dialog):
             0,
             wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL,
         )
-        self.date_stamp_input = wx.TextCtrl(panel)
+        self.date_stamp_input = wx.TextCtrl(panel, value=date.today().isoformat())
         form_sizer.Add(self.date_stamp_input, 0, wx.EXPAND)
 
         main_sizer.Add(form_sizer, 1, wx.ALL | wx.EXPAND, 20)

@@ -31,6 +31,10 @@
         {
           "title": "Student Semesters",
           "action": "bulk_student_semesters"
+        },
+        {
+          "title": "Student Programs",
+          "action": "bulk_student_programs"
         }
       ]
     },

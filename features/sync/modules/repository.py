@@ -4,6 +4,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Optional
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from base import get_logger
@@ -43,10 +44,10 @@ class ModuleRepository:
             query = session.query(Module)
 
             if search_query:
-                search_pattern = f"%{search_query}%"
+                search_pattern = f"%{search_query.lower()}%"
                 query = query.filter(
-                    (Module.code.like(search_pattern))
-                    | (Module.name.like(search_pattern))
+                    (func.lower(Module.code).like(search_pattern))
+                    | (func.lower(Module.name).like(search_pattern))
                 )
 
             query = query.order_by(Module.code)

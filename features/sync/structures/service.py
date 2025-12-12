@@ -1,18 +1,17 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable
 
+from bs4 import BeautifulSoup
+
 from base import get_logger
+from base.browser import BASE_URL, Browser, get_form_payload
+from features.common.cms_utils import post_cms_form
+from utils.normalizers import normalize_module_type
 
 from .repository import StructureRepository
-from .scraper import (
-    scrape_programs,
-    scrape_school_details,
-    scrape_semester_modules,
-    scrape_semesters,
-    scrape_structures,
-)
-
-from utils.normalizers import normalize_module_type
+from .scraper import (scrape_programs, scrape_school_details,
+                      scrape_semester_modules, scrape_semesters,
+                      scrape_structures)
 
 logger = get_logger(__name__)
 
@@ -20,6 +19,85 @@ logger = get_logger(__name__)
 class SchoolSyncService:
     def __init__(self, repository: StructureRepository):
         self.repository = repository
+        self._browser = Browser()
+
+    def create_structure(
+        self,
+        program_id: int,
+        data: dict,
+        progress_callback: Callable[[str], None],
+    ) -> tuple[bool, str]:
+        url = f"{BASE_URL}/f_structureadd.php?showmaster=1&ProgramID={program_id}"
+
+        try:
+            progress_callback("Fetching structure add form...")
+
+            response = self._browser.fetch(url)
+            page = BeautifulSoup(response.text, "lxml")
+            form = page.select_one("form#ff_structureadd")
+
+            if not form:
+                logger.error(
+                    f"Could not find structure add form - url={url}, response_length={len(response.text) if response and response.text else 0}"
+                )
+                return False, "Could not find add form"
+
+            progress_callback("Preparing structure data...")
+
+            form_data = get_form_payload(form)
+            form_data["a_add"] = "A"
+            form_data["x_ProgramID"] = str(program_id)
+
+            code = (data.get("code") or "").strip()
+            desc = (data.get("desc") or "").strip()
+            remark = (data.get("remark") or "").strip()
+
+            active = bool(data.get("active", True))
+            locked = bool(data.get("locked", False))
+
+            if code:
+                form_data["x_StructureCode"] = code
+            if desc:
+                form_data["x_StructureDesc"] = desc
+
+            if remark:
+                form_data["x_StructureRemark"] = remark
+            else:
+                form_data.pop("x_StructureRemark", None)
+
+            if active:
+                form_data["x_StructureActive"] = "Y"
+            else:
+                form_data.pop("x_StructureActive", None)
+
+            if locked:
+                form_data["x_StructureLocked"] = "Y"
+            else:
+                form_data.pop("x_StructureLocked", None)
+
+            progress_callback("Creating structure in CMS...")
+            cms_success, cms_message = post_cms_form(self._browser, url, form_data)
+
+            if not cms_success:
+                return False, cms_message
+
+            progress_callback("Refreshing structures from CMS...")
+            structures = scrape_structures(program_id)
+            for structure in structures:
+                self.repository.save_structure(
+                    int(structure["id"]),
+                    str(structure["code"]),
+                    str(structure.get("desc") or ""),
+                    program_id,
+                )
+
+            return True, "Structure created successfully"
+
+        except Exception as e:
+            logger.error(
+                f"Error creating structure - program_id={program_id}, data={data}, error={str(e)}"
+            )
+            return False, f"Error: {str(e)}"
 
     def fetch_school_and_programs(
         self, school_code: str, progress_callback: Callable[[str, int, int], None]

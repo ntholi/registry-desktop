@@ -21,3 +21,4 @@ local.db
 # Logs
 logs/
 *.log
+/.windsurf

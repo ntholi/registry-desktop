@@ -1,8 +1,10 @@
 import threading
+from typing import Any, cast
 
 import wx
 
 from .loader_control import LoadableControl
+from .new_structure_dialog import NewStructureDialog
 from .repository import StructureRepository
 from .service import SchoolSyncService
 
@@ -54,6 +56,46 @@ class FetchSemesterModulesWorker(threading.Thread):
         self.should_stop = True
 
 
+class CreateStructureWorker(threading.Thread):
+    def __init__(
+        self,
+        program_id: int,
+        data: dict,
+        service: SchoolSyncService,
+        callback,
+    ):
+        super().__init__(daemon=True)
+        self.program_id = program_id
+        self.data = data
+        self.service = service
+        self.callback = callback
+        self.should_stop = False
+
+    def run(self):
+        try:
+            if self.should_stop:
+                return
+
+            def progress(message: str):
+                self.callback("progress", message)
+
+            success, message = self.service.create_structure(
+                self.program_id,
+                self.data,
+                progress,
+            )
+
+            if success:
+                self.callback("finished")
+            else:
+                self.callback("error", message)
+        except Exception as e:
+            self.callback("error", str(e))
+
+    def stop(self):
+        self.should_stop = True
+
+
 class FetchStructureDataWorker(threading.Thread):
     def __init__(self, structure_id, structure_code, service, callback):
         super().__init__(daemon=True)
@@ -98,6 +140,7 @@ class StructureDetailPanel(wx.Panel):
         self.selected_semester_name = None
         self.fetch_worker = None
         self.fetch_modules_worker = None
+        self.create_structure_worker = None
         self.semesters_loader: LoadableControl
         self.modules_loader: LoadableControl
 
@@ -116,6 +159,11 @@ class StructureDetailPanel(wx.Panel):
         title_sizer.Add(self.detail_title, 0, wx.ALIGN_CENTER_VERTICAL)
 
         title_sizer.AddStretchSpacer()
+
+        self.new_button = wx.Button(self, label="New")
+        self.new_button.Bind(wx.EVT_BUTTON, self.on_new)
+        self.new_button.Enable(False)
+        title_sizer.Add(self.new_button, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 10)
 
         self.fetch_button = wx.Button(self, label="Fetch")
         self.fetch_button.Bind(wx.EVT_BUTTON, self.on_fetch)
@@ -189,6 +237,7 @@ class StructureDetailPanel(wx.Panel):
             self.selected_semester_name = None
             self.detail_title.SetLabel(f"Structure: {code}")
             self.fetch_button.Enable(True)
+            self.new_button.Enable(True)
             self.fetch_modules_button.Enable(False)
             info_text = f"{desc}\n{program}"
             self.detail_info.SetLabel(info_text)
@@ -239,6 +288,98 @@ class StructureDetailPanel(wx.Panel):
             self.on_fetch_callback,
         )
         self.fetch_worker.start()
+
+    def on_new(self, event):
+        if not self.selected_structure_id:
+            wx.MessageBox(
+                "No structure selected.",
+                "Missing Structure",
+                wx.OK | wx.ICON_WARNING,
+            )
+            return
+
+        program_info = self.repository.get_program_for_structure(
+            int(self.selected_structure_id)
+        )
+        if not program_info:
+            wx.MessageBox(
+                "Could not determine program for selected structure.",
+                "Missing Program",
+                wx.OK | wx.ICON_ERROR,
+            )
+            return
+
+        program_id, program_name = program_info
+
+        dialog = NewStructureDialog(
+            self,
+            program_name=program_name,
+            default_code="",
+            default_desc="",
+        )
+        result = dialog.ShowModal()
+        data = dialog.get_data()
+        dialog.Destroy()
+
+        if result != wx.ID_OK:
+            return
+
+        if not data.get("code") or not data.get("desc"):
+            wx.MessageBox(
+                "Code and Desc are required.",
+                "Validation",
+                wx.OK | wx.ICON_WARNING,
+            )
+            return
+
+        self.new_button.Enable(False)
+        self.fetch_button.Enable(False)
+
+        self.create_structure_worker = CreateStructureWorker(
+            program_id,
+            data,
+            self.service,
+            self.on_create_structure_callback,
+        )
+        self.create_structure_worker.start()
+
+    def on_create_structure_callback(self, event_type, *args):
+        wx.CallAfter(self._handle_create_structure_event, event_type, *args)
+
+    def _handle_create_structure_event(self, event_type, *args):
+        if event_type == "progress":
+            message = args[0]
+            if self.status_bar:
+                self.status_bar.show_message(message)
+        elif event_type == "finished":
+            if self.status_bar:
+                self.status_bar.clear()
+
+            self.new_button.Enable(True)
+            self.fetch_button.Enable(True)
+
+            parent = self.GetParent()
+            if parent and hasattr(parent, "load_structures"):
+                cast(Any, parent).load_structures()
+
+            wx.MessageBox(
+                "Structure created successfully.",
+                "Create Complete",
+                wx.OK | wx.ICON_INFORMATION,
+            )
+        elif event_type == "error":
+            error_msg = args[0]
+            if self.status_bar:
+                self.status_bar.clear()
+
+            self.new_button.Enable(True)
+            self.fetch_button.Enable(True)
+
+            wx.MessageBox(
+                f"Create failed: {error_msg}",
+                "Error",
+                wx.OK | wx.ICON_ERROR,
+            )
 
     def on_fetch_callback(self, event_type, *args):
         wx.CallAfter(self._handle_fetch_event, event_type, *args)
@@ -375,6 +516,7 @@ class StructureDetailPanel(wx.Panel):
         self.selected_semester_name = None
         self.detail_title.SetLabel("Structure Details")
         self.detail_info.SetLabel("Select a structure to view details")
+        self.new_button.Enable(False)
         self.fetch_button.Enable(False)
         self.fetch_modules_button.Enable(False)
         self.semesters_list.DeleteAllItems()

@@ -8,15 +8,8 @@ from sqlalchemy import distinct
 from sqlalchemy.orm import Session
 
 from base import get_logger
-from database import (
-    Module,
-    Program,
-    School,
-    SemesterModule,
-    Structure,
-    StructureSemester,
-    get_engine,
-)
+from database import (Module, Program, School, SemesterModule, Structure,
+                      StructureSemester, get_engine)
 
 logger = get_logger(__name__)
 
@@ -72,6 +65,18 @@ class StructureRepository:
             if school_id:
                 query = query.filter(Program.school_id == school_id)
             return query.order_by(Program.name).all()
+
+    def get_program_for_structure(self, structure_id: int) -> tuple[int, str] | None:
+        with self._session() as session:
+            result = (
+                session.query(Program.id, Program.name)
+                .join(Structure, Structure.program_id == Program.id)
+                .filter(Structure.id == structure_id)
+                .first()
+            )
+            if not result:
+                return None
+            return int(result.id), str(result.name)
 
     def fetch_structures(
         self,

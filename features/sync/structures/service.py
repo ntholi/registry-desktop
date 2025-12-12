@@ -21,6 +21,65 @@ class SchoolSyncService:
         self.repository = repository
         self._browser = Browser()
 
+    def create_semester(
+        self,
+        structure_id: int,
+        semester_code: str,
+        credits: float | None,
+        progress_callback: Callable[[str], None],
+    ) -> tuple[bool, str]:
+        url = f"{BASE_URL}/f_semesteradd.php?showmaster=1&StructureID={structure_id}"
+
+        try:
+            progress_callback("Fetching semester add form...")
+
+            response = self._browser.fetch(url)
+            page = BeautifulSoup(response.text, "lxml")
+            form = page.select_one("form#ff_semesteradd")
+
+            if not form:
+                logger.error(
+                    f"Could not find semester add form - url={url}, response_length={len(response.text) if response and response.text else 0}"
+                )
+                return False, "Could not find add form"
+
+            progress_callback("Preparing semester data...")
+
+            form_data = get_form_payload(form)
+            form_data["a_add"] = "A"
+            form_data["x_StructureID"] = str(structure_id)
+            form_data["x_SemesterCode"] = str(semester_code).strip()
+
+            if credits is not None:
+                form_data["x_SemesterCredits"] = str(credits)
+            else:
+                form_data.pop("x_SemesterCredits", None)
+
+            progress_callback("Creating semester in CMS...")
+            cms_success, cms_message = post_cms_form(self._browser, url, form_data)
+
+            if not cms_success:
+                return False, cms_message
+
+            progress_callback("Refreshing semesters from CMS...")
+            semesters = scrape_semesters(structure_id)
+            for semester in semesters:
+                self.repository.save_semester(
+                    int(semester["id"]),
+                    str(semester["semester_number"]),
+                    str(semester["name"]),
+                    float(semester["total_credits"]),
+                    structure_id,
+                )
+
+            return True, "Semester created successfully"
+
+        except Exception as e:
+            logger.error(
+                f"Error creating semester - structure_id={structure_id}, semester_code={semester_code}, credits={credits}, error={str(e)}"
+            )
+            return False, f"Error: {str(e)}"
+
     def create_structure(
         self,
         program_id: int,

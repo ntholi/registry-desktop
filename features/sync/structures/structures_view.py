@@ -209,7 +209,7 @@ class StructuresView(wx.Panel):
         content_sizer.AddSpacer(20)
 
         self.detail_panel = StructureDetailPanel(self, self.repository, self.status_bar)
-        content_sizer.Add(self.detail_panel, 1, wx.EXPAND | wx.RIGHT, 40)
+        content_sizer.Add(self.detail_panel, 2, wx.EXPAND | wx.RIGHT, 40)
 
         main_sizer.Add(content_sizer, 1, wx.EXPAND)
 

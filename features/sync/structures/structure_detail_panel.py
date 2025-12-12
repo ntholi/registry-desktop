@@ -4,6 +4,7 @@ from typing import Any, cast
 import wx
 
 from .loader_control import LoadableControl
+from .new_semester_dialog import NewSemesterDialog
 from .new_structure_dialog import NewStructureDialog
 from .repository import StructureRepository
 from .service import SchoolSyncService
@@ -49,6 +50,47 @@ class FetchSemesterModulesWorker(threading.Thread):
 
             self.callback("finished", len(semester_modules))
 
+        except Exception as e:
+            self.callback("error", str(e))
+
+    def stop(self):
+        self.should_stop = True
+
+
+class CreateSemesterWorker(threading.Thread):
+    def __init__(
+        self,
+        structure_id: int,
+        data: dict,
+        service: SchoolSyncService,
+        callback,
+    ):
+        super().__init__(daemon=True)
+        self.structure_id = structure_id
+        self.data = data
+        self.service = service
+        self.callback = callback
+        self.should_stop = False
+
+    def run(self):
+        try:
+            if self.should_stop:
+                return
+
+            def progress(message: str):
+                self.callback("progress", message)
+
+            success, message = self.service.create_semester(
+                self.structure_id,
+                str(self.data.get("semester_code") or "").strip(),
+                self.data.get("credits"),
+                progress,
+            )
+
+            if success:
+                self.callback("finished")
+            else:
+                self.callback("error", message)
         except Exception as e:
             self.callback("error", str(e))
 
@@ -136,19 +178,21 @@ class StructureDetailPanel(wx.Panel):
         self.service = SchoolSyncService(repository)
         self.selected_program_id: int | None = None
         self.selected_program_name: str | None = None
-        self.selected_structure_id = None
-        self.selected_structure_code = None
-        self.selected_semester_id = None
-        self.selected_semester_name = None
+        self.selected_structure_id: int | None = None
+        self.selected_structure_code: str | None = None
+        self.selected_semester_id: int | None = None
+        self.selected_semester_name: str | None = None
         self.fetch_worker = None
         self.fetch_modules_worker = None
         self.create_structure_worker = None
+        self.create_semester_worker = None
         self.semesters_loader: LoadableControl
         self.modules_loader: LoadableControl
 
         self.init_ui()
 
     def init_ui(self):
+        self.SetMinSize(wx.Size(760, -1))
         sizer = wx.BoxSizer(wx.VERTICAL)
 
         title_sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -174,10 +218,20 @@ class StructureDetailPanel(wx.Panel):
 
         sizer.Add(title_sizer, 0, wx.EXPAND | wx.BOTTOM, 10)
 
-        self.detail_info = wx.StaticText(
-            self, label="Select a structure to view details"
-        )
-        sizer.Add(self.detail_info, 0, wx.BOTTOM, 20)
+        self.desc_label = wx.StaticText(self, label="Select a structure to view details")
+        sizer.Add(self.desc_label, 0, wx.BOTTOM, 5)
+
+        program_row_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.program_label = wx.StaticText(self, label="")
+        program_row_sizer.Add(self.program_label, 0, wx.ALIGN_CENTER_VERTICAL)
+        program_row_sizer.AddStretchSpacer()
+
+        self.add_semester_button = wx.Button(self, label="Add Semester")
+        self.add_semester_button.Bind(wx.EVT_BUTTON, self.on_add_semester)
+        self.add_semester_button.Enable(False)
+        program_row_sizer.Add(self.add_semester_button, 0, wx.ALIGN_CENTER_VERTICAL)
+
+        sizer.Add(program_row_sizer, 0, wx.EXPAND | wx.BOTTOM, 20)
 
         line = wx.StaticLine(self)
         sizer.Add(line, 0, wx.EXPAND | wx.BOTTOM, 15)
@@ -190,7 +244,7 @@ class StructureDetailPanel(wx.Panel):
             style=wx.LC_REPORT | wx.BORDER_SIMPLE | wx.LC_SINGLE_SEL,
         )
         self.semesters_list.AppendColumn("No.", width=50)
-        self.semesters_list.AppendColumn("Semester", width=150)
+        self.semesters_list.AppendColumn("Semester", width=240)
         self.semesters_list.AppendColumn("Credits", width=80)
         self.semesters_list.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_semester_selected)
         self.semesters_loader.set_content_panel(self.semesters_list)
@@ -222,7 +276,7 @@ class StructureDetailPanel(wx.Panel):
             modules_container, style=wx.LC_REPORT | wx.BORDER_SIMPLE
         )
         self.modules_list.AppendColumn("Code", width=100)
-        self.modules_list.AppendColumn("Name", width=250)
+        self.modules_list.AppendColumn("Name", width=320)
         self.modules_list.AppendColumn("Type", width=100)
         self.modules_list.AppendColumn("Credits", width=70)
         self.modules_loader.set_content_panel(self.modules_list)
@@ -247,8 +301,9 @@ class StructureDetailPanel(wx.Panel):
             self.fetch_button.Enable(True)
             self.new_button.Enable(True)
             self.fetch_modules_button.Enable(False)
-            info_text = f"{desc}\n{program}"
-            self.detail_info.SetLabel(info_text)
+            self.add_semester_button.Enable(True)
+            self.desc_label.SetLabel(str(desc))
+            self.program_label.SetLabel(str(program))
 
             self.modules_list.DeleteAllItems()
 
@@ -347,6 +402,111 @@ class StructureDetailPanel(wx.Panel):
             self.on_create_structure_callback,
         )
         self.create_structure_worker.start()
+
+    def on_add_semester(self, event):
+        if self.selected_structure_id is None or self.selected_structure_code is None:
+            wx.MessageBox(
+                "Please select a structure first.",
+                "Missing Structure",
+                wx.OK | wx.ICON_WARNING,
+            )
+            return
+
+        program_id: int | None = self.selected_program_id
+        program_name: str | None = self.selected_program_name
+        if program_id is None or program_name is None:
+            program_info = self.repository.get_program_for_structure(
+                int(self.selected_structure_id)
+            )
+            if program_info:
+                program_id, program_name = program_info
+
+        if program_name is None:
+            wx.MessageBox(
+                "Please select a program in Filters first.",
+                "Missing Program",
+                wx.OK | wx.ICON_WARNING,
+            )
+            return
+
+        dialog = NewSemesterDialog(
+            self,
+            program_name=program_name,
+            structure_code=str(self.selected_structure_code),
+        )
+        result = dialog.ShowModal()
+        data = dialog.get_data()
+        dialog.Destroy()
+
+        if result != wx.ID_OK:
+            return
+
+        if not str(data.get("semester_code") or "").strip():
+            wx.MessageBox(
+                "Semester is required.",
+                "Validation",
+                wx.OK | wx.ICON_WARNING,
+            )
+            return
+
+        if self.create_semester_worker and self.create_semester_worker.is_alive():
+            wx.MessageBox(
+                "Another operation is in progress. Please wait.",
+                "Operation in Progress",
+                wx.OK | wx.ICON_INFORMATION,
+            )
+            return
+
+        self.add_semester_button.Enable(False)
+
+        self.create_semester_worker = CreateSemesterWorker(
+            int(self.selected_structure_id),
+            data,
+            self.service,
+            self.on_create_semester_callback,
+        )
+        self.create_semester_worker.start()
+
+    def on_create_semester_callback(self, event_type, *args):
+        wx.CallAfter(self._handle_create_semester_event, event_type, *args)
+
+    def _handle_create_semester_event(self, event_type, *args):
+        if event_type == "progress":
+            message = args[0]
+            if self.status_bar:
+                self.status_bar.show_message(message)
+        elif event_type == "finished":
+            if self.status_bar:
+                self.status_bar.clear()
+
+            self.add_semester_button.Enable(True)
+
+            structure_id = self.selected_structure_id
+            if structure_id is not None:
+                def load_data():
+                    return self.repository.get_structure_semesters(
+                        int(structure_id)
+                    )
+
+                self.semesters_loader.load_async(load_data, "Loading semesters...")
+
+            wx.MessageBox(
+                "Semester created successfully.",
+                "Create Complete",
+                wx.OK | wx.ICON_INFORMATION,
+            )
+        elif event_type == "error":
+            error_msg = args[0]
+            if self.status_bar:
+                self.status_bar.clear()
+
+            self.add_semester_button.Enable(True)
+
+            wx.MessageBox(
+                f"Create failed: {error_msg}",
+                "Error",
+                wx.OK | wx.ICON_ERROR,
+            )
 
     def on_create_structure_callback(self, event_type, *args):
         wx.CallAfter(self._handle_create_structure_event, event_type, *args)
@@ -520,10 +680,12 @@ class StructureDetailPanel(wx.Panel):
         self.selected_semester_id = None
         self.selected_semester_name = None
         self.detail_title.SetLabel("Structure Details")
-        self.detail_info.SetLabel("Select a structure to view details")
+        self.desc_label.SetLabel("Select a structure to view details")
+        self.program_label.SetLabel("")
         self.new_button.Enable(self.selected_program_id is not None)
         self.fetch_button.Enable(False)
         self.fetch_modules_button.Enable(False)
+        self.add_semester_button.Enable(False)
         self.semesters_list.DeleteAllItems()
         self.modules_list.DeleteAllItems()
         self.Layout()

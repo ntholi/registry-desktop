@@ -80,6 +80,94 @@ class SchoolSyncService:
             )
             return False, f"Error: {str(e)}"
 
+    def create_semester_module(
+        self,
+        semester_id: int,
+        data: dict,
+        progress_callback: Callable[[str], None],
+    ) -> tuple[bool, str]:
+        url = f"{BASE_URL}/f_semmoduleadd.php?showmaster=1&SemesterID={semester_id}"
+
+        try:
+            progress_callback("Fetching semester module add form...")
+
+            response = self._browser.fetch(url)
+            page = BeautifulSoup(response.text, "lxml")
+            form = page.select_one("form#ff_semmoduleadd")
+
+            if not form:
+                logger.error(
+                    f"Could not find semester module add form - url={url}, response_length={len(response.text) if response and response.text else 0}"
+                )
+                return False, "Could not find add form"
+
+            module_id = data.get("module_id")
+            module_type = str(data.get("module_type") or "").strip()
+            credits = str(data.get("credits") or "").strip()
+
+            if not module_id:
+                return False, "Module is required"
+
+            if not module_type:
+                return False, "Module type is required"
+
+            if not credits:
+                return False, "Credits is required"
+
+            progress_callback("Preparing semester module data...")
+
+            form_data = get_form_payload(form)
+            form_data["a_add"] = "A"
+            form_data["x_SemesterID"] = str(semester_id)
+            form_data["x_ModuleID"] = str(module_id)
+            form_data["x_ModuleTypeCode"] = module_type
+            form_data["x_SemModuleCredit"] = credits
+
+            if bool(data.get("optional")):
+                form_data["x_SemModuleOpt"] = "Y"
+            else:
+                form_data.pop("x_SemModuleOpt", None)
+
+            remark = str(data.get("remark") or "").strip()
+            if remark:
+                form_data["x_SemModRemark"] = remark
+            else:
+                form_data.pop("x_SemModRemark", None)
+
+            prereq_id = data.get("prerequisite_id")
+            if prereq_id:
+                form_data["x_PreReq"] = str(prereq_id)
+            else:
+                form_data.pop("x_PreReq", None)
+
+            progress_callback("Creating semester module in CMS...")
+            cms_success, cms_message = post_cms_form(self._browser, url, form_data)
+
+            if not cms_success:
+                return False, cms_message
+
+            progress_callback("Refreshing semester modules from CMS...")
+
+            semester_modules = scrape_semester_modules(int(semester_id))
+            for sem_module in semester_modules:
+                normalized_type = normalize_module_type(str(sem_module["type"]))
+                self.repository.save_semester_module(
+                    int(sem_module["id"]),
+                    str(sem_module["module_code"]),
+                    str(sem_module["module_name"]),
+                    normalized_type,
+                    float(sem_module["credits"]),
+                    int(semester_id),
+                    bool(sem_module["hidden"]),
+                )
+
+            return True, "Semester module created successfully"
+        except Exception as e:
+            logger.error(
+                f"Error creating semester module - semester_id={semester_id}, data={data}, error={str(e)}"
+            )
+            return False, f"Error: {str(e)}"
+
     def create_structure(
         self,
         program_id: int,

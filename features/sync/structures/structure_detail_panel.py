@@ -134,6 +134,8 @@ class StructureDetailPanel(wx.Panel):
         self.repository = repository
         self.status_bar = status_bar
         self.service = SchoolSyncService(repository)
+        self.selected_program_id: int | None = None
+        self.selected_program_name: str | None = None
         self.selected_structure_id = None
         self.selected_structure_code = None
         self.selected_semester_id = None
@@ -229,13 +231,19 @@ class StructureDetailPanel(wx.Panel):
 
         self.SetSizer(sizer)
 
+    def set_program_context(self, program_id: int | None, program_name: str | None) -> None:
+        self.selected_program_id = program_id
+        self.selected_program_name = program_name
+        self.new_button.Enable(program_id is not None)
+        self.Layout()
+
     def load_structure_details(self, structure_id, code, desc, program):
         try:
             self.selected_structure_id = structure_id
             self.selected_structure_code = code
             self.selected_semester_id = None
             self.selected_semester_name = None
-            self.detail_title.SetLabel(f"Structure: {code}")
+            self.detail_title.SetLabel(code)
             self.fetch_button.Enable(True)
             self.new_button.Enable(True)
             self.fetch_modules_button.Enable(False)
@@ -290,26 +298,23 @@ class StructureDetailPanel(wx.Panel):
         self.fetch_worker.start()
 
     def on_new(self, event):
-        if not self.selected_structure_id:
+        program_id: int | None = self.selected_program_id
+        program_name: str | None = self.selected_program_name
+
+        if program_id is None and self.selected_structure_id is not None:
+            program_info = self.repository.get_program_for_structure(
+                int(self.selected_structure_id)
+            )
+            if program_info:
+                program_id, program_name = program_info
+
+        if program_id is None or program_name is None:
             wx.MessageBox(
-                "No structure selected.",
-                "Missing Structure",
+                "Please select a program in Filters first.",
+                "Missing Program",
                 wx.OK | wx.ICON_WARNING,
             )
             return
-
-        program_info = self.repository.get_program_for_structure(
-            int(self.selected_structure_id)
-        )
-        if not program_info:
-            wx.MessageBox(
-                "Could not determine program for selected structure.",
-                "Missing Program",
-                wx.OK | wx.ICON_ERROR,
-            )
-            return
-
-        program_id, program_name = program_info
 
         dialog = NewStructureDialog(
             self,
@@ -336,7 +341,7 @@ class StructureDetailPanel(wx.Panel):
         self.fetch_button.Enable(False)
 
         self.create_structure_worker = CreateStructureWorker(
-            program_id,
+            int(program_id),
             data,
             self.service,
             self.on_create_structure_callback,
@@ -516,7 +521,7 @@ class StructureDetailPanel(wx.Panel):
         self.selected_semester_name = None
         self.detail_title.SetLabel("Structure Details")
         self.detail_info.SetLabel("Select a structure to view details")
-        self.new_button.Enable(False)
+        self.new_button.Enable(self.selected_program_id is not None)
         self.fetch_button.Enable(False)
         self.fetch_modules_button.Enable(False)
         self.semesters_list.DeleteAllItems()

@@ -287,6 +287,7 @@ class StructuresView(wx.Panel):
             self.school_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
         )
         self.selected_program_id = None
+        self.detail_panel.set_program_context(None, None)
         self.current_page = 1
         self.load_programs_for_school(self.selected_school_id, trigger_load_structures=True)
 
@@ -300,6 +301,11 @@ class StructuresView(wx.Panel):
         self.selected_program_id = (
             self.program_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
         )
+
+        program_name = None
+        if self.selected_program_id is not None and sel != wx.NOT_FOUND:
+            program_name = self.program_filter.GetString(sel)
+        self.detail_panel.set_program_context(self.selected_program_id, program_name)
 
         self.current_page = 1
         if self.status_bar:
@@ -453,6 +459,9 @@ class StructuresView(wx.Panel):
             self.program_filter.SetSelection(0)
             self.program_filter.Enable(True)
 
+            self.selected_program_id = None
+            self.detail_panel.set_program_context(None, None)
+
             if self.pending_load_structures:
                 self.pending_load_structures = False
                 self.load_structures()
@@ -461,6 +470,9 @@ class StructuresView(wx.Panel):
             print(f"Error loading programs: {error_msg}")
             self.program_filter.SetString(0, "All Programs")
             self.program_filter.Enable(True)
+
+            self.selected_program_id = None
+            self.detail_panel.set_program_context(None, None)
 
         if self.status_bar:
             self.status_bar.clear()

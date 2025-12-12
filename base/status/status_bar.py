@@ -51,7 +51,10 @@ class StatusBar(wx.Panel):
 
             if current > 0 and current != self.last_current:
                 elapsed = time.time() - self.start_time
-                rate = current / elapsed
+                if elapsed <= 0:
+                    rate = 0
+                else:
+                    rate = current / elapsed
                 remaining_items = total - current
 
                 if rate > 0:

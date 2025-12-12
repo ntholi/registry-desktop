@@ -23,7 +23,7 @@ class NewSemesterDialog(wx.Dialog):
         self.credits_input: wx.TextCtrl
 
         self._init_ui()
-        self.Centre()
+        self.CenterOnScreen()
 
     def _init_ui(self) -> None:
         main_sizer = wx.BoxSizer(wx.VERTICAL)

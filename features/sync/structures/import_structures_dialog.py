@@ -73,7 +73,7 @@ class ImportStructuresDialog(wx.Dialog):
 
         self.init_ui()
         self.load_schools()
-        self.Centre()
+        self.CenterOnScreen()
 
     def init_ui(self):
         main_sizer = wx.BoxSizer(wx.VERTICAL)

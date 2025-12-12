@@ -96,7 +96,7 @@ class AddSchoolDialog(wx.Dialog):
         self.programs = []
 
         self.init_ui()
-        self.Centre()
+        self.CenterOnScreen()
 
     def init_ui(self):
         main_sizer = wx.BoxSizer(wx.VERTICAL)

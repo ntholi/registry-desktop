@@ -26,7 +26,7 @@ class NewStructureDialog(wx.Dialog):
         self.locked_checkbox: wx.CheckBox
 
         self._init_ui(default_code=default_code, default_desc=default_desc)
-        self.Centre()
+        self.CenterOnScreen()
 
     def _init_ui(self, *, default_code: str, default_desc: str) -> None:
         main_sizer = wx.BoxSizer(wx.VERTICAL)

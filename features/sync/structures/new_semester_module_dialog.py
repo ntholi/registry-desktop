@@ -1,6 +1,9 @@
+import re
+
 import wx
 from sqlalchemy import func
 from sqlalchemy.orm import Session
+from wx.lib.intctrl import IntCtrl
 
 from database import Module, get_engine
 from database.models import ModuleType
@@ -18,7 +21,7 @@ class NewSemesterModuleDialog(wx.Dialog):
         super().__init__(
             parent,
             title="New Semester Module",
-            size=wx.Size(760, 620),
+            size=wx.Size(760, 720),
             style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
         )
 
@@ -37,10 +40,15 @@ class NewSemesterModuleDialog(wx.Dialog):
         self.selected_module_label: wx.StaticText
 
         self.type_choice: wx.Choice
-        self.credits_choice: wx.Choice
+        self.credits_input: IntCtrl
         self.optional_checkbox: wx.CheckBox
         self.remark_input: wx.TextCtrl
         self.prereq_choice: wx.Choice
+
+        self.ok_btn: wx.Button
+        self._form_controls: list[wx.Window] = []
+        self._type_manually_set = False
+        self._suppress_type_choice_event = False
 
         self._init_ui()
         self.CenterOnScreen()
@@ -111,21 +119,22 @@ class NewSemesterModuleDialog(wx.Dialog):
         form_sizer = wx.FlexGridSizer(cols=2, vgap=10, hgap=12)
         form_sizer.AddGrowableCol(1, 1)
 
-        form_sizer.Add(wx.StaticText(self, label="Type"), 0, wx.ALIGN_CENTER_VERTICAL)
+        credits_label = wx.StaticText(self, label="Credits")
+        form_sizer.Add(credits_label, 0, wx.ALIGN_CENTER_VERTICAL)
+        self.credits_input = IntCtrl(self, min=0, max=999)
+        self.credits_input.SetHint("Auto-filled from module code")
+        self.credits_input.Bind(wx.EVT_TEXT, self._on_credits_changed)
+        form_sizer.Add(self.credits_input, 1, wx.EXPAND)
+
+        type_label = wx.StaticText(self, label="Type")
+        form_sizer.Add(type_label, 0, wx.ALIGN_CENTER_VERTICAL)
         self.type_choice = wx.Choice(self)
         for t in self._type_options():
             self.type_choice.Append(t)
         if self.type_choice.GetCount() > 0:
             self.type_choice.SetSelection(0)
+        self.type_choice.Bind(wx.EVT_CHOICE, self._on_type_choice)
         form_sizer.Add(self.type_choice, 1, wx.EXPAND)
-
-        form_sizer.Add(wx.StaticText(self, label="Credits"), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.credits_choice = wx.Choice(self)
-        for value, label in self._credit_options():
-            self.credits_choice.Append(label, value)
-        if self.credits_choice.GetCount() > 0:
-            self.credits_choice.SetSelection(0)
-        form_sizer.Add(self.credits_choice, 1, wx.EXPAND)
 
         form_sizer.Add(wx.StaticText(self, label="Optional"), 0, wx.ALIGN_CENTER_VERTICAL)
         self.optional_checkbox = wx.CheckBox(self, label="Mark as optional")
@@ -152,9 +161,9 @@ class NewSemesterModuleDialog(wx.Dialog):
         buttons = wx.BoxSizer(wx.HORIZONTAL)
         buttons.AddStretchSpacer()
 
-        ok_btn = wx.Button(self, wx.ID_OK, "Create")
-        ok_btn.Bind(wx.EVT_BUTTON, self._on_submit)
-        buttons.Add(ok_btn, 0, wx.RIGHT, 10)
+        self.ok_btn = wx.Button(self, wx.ID_OK, "Create")
+        self.ok_btn.Bind(wx.EVT_BUTTON, self._on_submit)
+        buttons.Add(self.ok_btn, 0, wx.RIGHT, 10)
 
         cancel_btn = wx.Button(self, wx.ID_CANCEL, "Cancel")
         buttons.Add(cancel_btn, 0)
@@ -162,6 +171,17 @@ class NewSemesterModuleDialog(wx.Dialog):
         main_sizer.Add(buttons, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 15)
 
         self.SetSizer(main_sizer)
+
+        self._form_controls = [
+            credits_label,
+            self.credits_input,
+            type_label,
+            self.type_choice,
+            self.optional_checkbox,
+            self.remark_input,
+            self.prereq_choice,
+        ]
+        self._set_form_enabled(False)
 
     def _on_search(self, event: wx.CommandEvent) -> None:
         query = self.search_input.GetValue().strip()
@@ -178,6 +198,10 @@ class NewSemesterModuleDialog(wx.Dialog):
         self._selected_module_code = None
         self._selected_module_name = None
         self.selected_module_label.SetLabel("Selected module: (none)")
+        self.credits_input.SetValue(0)
+        self._type_manually_set = False
+        self._auto_set_type_from_credits(0)
+        self._set_form_enabled(False)
 
         with Session(self._engine) as session:
             pattern = f"%{query.lower()}%"
@@ -217,6 +241,14 @@ class NewSemesterModuleDialog(wx.Dialog):
         label = f"Selected module: {self._selected_module_code} - {self._selected_module_name}"
         self.selected_module_label.SetLabel(label)
 
+        self._type_manually_set = False
+        if self._selected_module_code:
+            inferred = self._extract_credits_from_module_code(self._selected_module_code)
+            if inferred is not None:
+                self.credits_input.SetValue(inferred)
+                self._auto_set_type_from_credits(inferred)
+        self._set_form_enabled(True)
+
     def _on_result_activated(self, event: wx.ListEvent) -> None:
         self._on_result_selected(event)
         self._on_submit(event)
@@ -230,26 +262,18 @@ class NewSemesterModuleDialog(wx.Dialog):
             )
             return
 
+        credits = self.credits_input.GetValue()
+        if credits is None:
+            wx.MessageBox(
+                "Credits is required.",
+                "Validation",
+                wx.OK | wx.ICON_WARNING,
+            )
+            return
+
         if self.type_choice.GetSelection() == wx.NOT_FOUND:
             wx.MessageBox(
                 "Please select a type.",
-                "Validation",
-                wx.OK | wx.ICON_WARNING,
-            )
-            return
-
-        if self.credits_choice.GetSelection() == wx.NOT_FOUND:
-            wx.MessageBox(
-                "Please select credits.",
-                "Validation",
-                wx.OK | wx.ICON_WARNING,
-            )
-            return
-
-        credits = self.credits_choice.GetClientData(self.credits_choice.GetSelection())
-        if credits in (None, ""):
-            wx.MessageBox(
-                "Please select credits.",
                 "Validation",
                 wx.OK | wx.ICON_WARNING,
             )
@@ -262,9 +286,7 @@ class NewSemesterModuleDialog(wx.Dialog):
         if self.type_choice.GetSelection() != wx.NOT_FOUND:
             module_type = self.type_choice.GetString(self.type_choice.GetSelection())
 
-        credits = None
-        if self.credits_choice.GetSelection() != wx.NOT_FOUND:
-            credits = self.credits_choice.GetClientData(self.credits_choice.GetSelection())
+        credits = self.credits_input.GetValue()
 
         prereq_id = None
         if self.prereq_choice.GetSelection() != wx.NOT_FOUND:
@@ -276,10 +298,61 @@ class NewSemesterModuleDialog(wx.Dialog):
             "module_name": self._selected_module_name,
             "module_type": module_type,
             "optional": bool(self.optional_checkbox.GetValue()),
-            "credits": str(credits) if credits is not None else "",
+            "credits": str(int(credits)) if credits is not None else "",
             "remark": self.remark_input.GetValue().strip(),
             "prerequisite_id": prereq_id,
         }
+
+    def _set_form_enabled(self, enabled: bool) -> None:
+        for ctrl in self._form_controls:
+            ctrl.Enable(enabled)
+        self.ok_btn.Enable(enabled)
+
+    def _on_credits_changed(self, event: wx.CommandEvent) -> None:
+        if self._type_manually_set:
+            event.Skip()
+            return
+
+        credits = self.credits_input.GetValue()
+        if credits is None:
+            event.Skip()
+            return
+
+        self._auto_set_type_from_credits(int(credits))
+        event.Skip()
+
+    def _on_type_choice(self, event: wx.CommandEvent) -> None:
+        if not self._suppress_type_choice_event:
+            self._type_manually_set = True
+        event.Skip()
+
+    def _auto_set_type_from_credits(self, credits: int) -> None:
+        target = "Major" if credits > 10 else "Minor"
+        index = self.type_choice.FindString(target)
+        if index == wx.NOT_FOUND:
+            return
+
+        self._suppress_type_choice_event = True
+        try:
+            self.type_choice.SetSelection(index)
+        finally:
+            self._suppress_type_choice_event = False
+
+    @staticmethod
+    def _extract_credits_from_module_code(module_code: str) -> int | None:
+        match = re.search(r"(\d+)$", module_code.strip())
+        if not match:
+            return None
+
+        digits = match.group(1)
+        if not digits:
+            return None
+
+        last_two = digits[-2:] if len(digits) >= 2 else digits
+        try:
+            return int(last_two)
+        except ValueError:
+            return None
 
     @staticmethod
     def _type_options() -> list[str]:
@@ -287,13 +360,3 @@ class NewSemesterModuleDialog(wx.Dialog):
         if "Standard" not in base:
             base.append("Standard")
         return base
-
-    @staticmethod
-    def _credit_options() -> list[tuple[str | None, str]]:
-        values: list[tuple[str | None, str]] = [(None, "?")]
-        current = 1.0
-        while current <= 12.0:
-            raw = str(int(current)) if current.is_integer() else str(current)
-            values.append((raw, f"{current:.1f}"))
-            current += 0.5
-        return values

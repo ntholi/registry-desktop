@@ -2,19 +2,8 @@ from datetime import datetime
 from typing import Literal
 
 import nanoid
-from sqlalchemy import (
-    BigInteger,
-    Boolean,
-    DateTime,
-    Enum,
-    Float,
-    ForeignKey,
-    Index,
-    Integer,
-    String,
-    Text,
-    UniqueConstraint,
-)
+from sqlalchemy import (BigInteger, Boolean, DateTime, Enum, Float, ForeignKey,
+                        Index, Integer, String, Text, UniqueConstraint)
 from sqlalchemy.dialects.postgresql import JSON as PostgreSQLJSON
 from sqlalchemy.orm import Mapped, declarative_base, mapped_column
 
@@ -508,6 +497,7 @@ class Module(Base):
     status: Mapped[ModuleStatus] = mapped_column(
         String, nullable=False, default="Active"
     )
+    remark: Mapped[str | None] = mapped_column(Text, nullable=True)
     timestamp: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 

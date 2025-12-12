@@ -18,6 +18,7 @@ class ModuleRow:
     code: str
     name: str
     status: str
+    remark: Optional[str]
     timestamp: Optional[str]
 
 
@@ -58,11 +59,16 @@ class ModuleRepository:
                 code=result.code,  # type: ignore
                 name=result.name,  # type: ignore
                 status=result.status,  # type: ignore
+                remark=result.remark,  # type: ignore
                 timestamp=result.timestamp,  # type: ignore
             )
             for result in results
         ]
         return rows, total
+
+    def get_module(self, module_id: int) -> Optional[Module]:
+        with self._session() as session:
+            return session.query(Module).filter(Module.id == module_id).first()
 
     def save_module(
         self,
@@ -70,6 +76,7 @@ class ModuleRepository:
         code: str,
         name: str,
         status: str,
+        remark: Optional[str] = None,
         timestamp: Optional[str] = None,
     ) -> Module:
         with self._session() as session:
@@ -80,6 +87,7 @@ class ModuleRepository:
                 existing_module.code = code  # type: ignore
                 existing_module.name = name  # type: ignore
                 existing_module.status = status  # type: ignore
+                existing_module.remark = remark  # type: ignore
                 existing_module.timestamp = timestamp  # type: ignore
                 session.commit()
                 session.refresh(existing_module)
@@ -90,9 +98,35 @@ class ModuleRepository:
                     code=code,
                     name=name,
                     status=status,
+                    remark=remark,
                     timestamp=timestamp,
                 )
                 session.add(new_module)
                 session.commit()
                 session.refresh(new_module)
                 return new_module
+
+    def create_local_module(
+        self,
+        code: str,
+        name: str,
+        status: str,
+        remark: Optional[str] = None,
+        timestamp: Optional[str] = None,
+    ) -> tuple[bool, str, Optional[Module]]:
+        with self._session() as session:
+            existing = session.query(Module).filter(Module.code == code).first()
+            if existing:
+                return False, f"Module with code '{code}' already exists", existing
+
+            new_module = Module(
+                code=code,
+                name=name,
+                status=status,
+                remark=remark,
+                timestamp=timestamp,
+            )
+            session.add(new_module)
+            session.commit()
+            session.refresh(new_module)
+            return True, "Module created", new_module

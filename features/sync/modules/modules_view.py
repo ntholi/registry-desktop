@@ -3,7 +3,7 @@ import threading
 import wx
 
 from .fetch_module_dialog import FetchModuleDialog
-from .module_form import ModuleFormDialog
+from .module_form import ModuleFormDialog, NewModuleFormDialog
 from .repository import ModuleRepository
 from .service import ModuleSyncService
 
@@ -155,6 +155,13 @@ class ModulesView(wx.Panel):
         self.fetch_all_button = wx.Button(self, label="Fetch All")
         self.fetch_all_button.Bind(wx.EVT_BUTTON, self.on_fetch_all)
         filters_sizer.Add(self.fetch_all_button, 0, wx.RIGHT, 10)
+
+        separator = wx.StaticLine(self, style=wx.LI_VERTICAL)
+        filters_sizer.Add(separator, 0, wx.EXPAND | wx.RIGHT | wx.LEFT, 10)
+
+        self.new_button = wx.Button(self, label="New")
+        self.new_button.Bind(wx.EVT_BUTTON, self.on_new)
+        filters_sizer.Add(self.new_button, 0, wx.RIGHT, 10)
 
         self.edit_button = wx.Button(self, label="Edit")
         self.edit_button.Bind(wx.EVT_BUTTON, self.on_edit)
@@ -380,11 +387,15 @@ class ModulesView(wx.Panel):
         module_status = self.list_ctrl.GetItemText(self.selected_module_item, 2)
         module_timestamp = self.list_ctrl.GetItemText(self.selected_module_item, 3)
 
+        existing_module = self.repository.get_module(module_id)
+        module_remark = existing_module.remark if existing_module else None
+
         module_data = {
             "id": module_id,
             "code": module_code,
             "name": module_name,
             "status": module_status,
+            "remark": module_remark,
             "timestamp": module_timestamp,
         }
 
@@ -394,6 +405,7 @@ class ModulesView(wx.Panel):
 
             self.fetch_button.Enable(False)
             self.fetch_all_button.Enable(False)
+            self.new_button.Enable(False)
             self.edit_button.Enable(False)
 
             self.update_worker = UpdateModuleWorker(
@@ -402,6 +414,7 @@ class ModulesView(wx.Panel):
                     "code": updated_data["code"],
                     "name": updated_data["name"],
                     "status": updated_data["status"],
+                    "remark": updated_data.get("remark"),
                     "date_stamp": updated_data["date_stamp"],
                 },
                 self.service,
@@ -409,6 +422,51 @@ class ModulesView(wx.Panel):
             )
             self.update_worker.start()
         dialog.Destroy()
+
+    def on_new(self, event):
+        dialog = NewModuleFormDialog(self)
+        if dialog.ShowModal() == wx.ID_OK:
+            new_data = dialog.get_new_data()
+
+            self.fetch_button.Enable(False)
+            self.fetch_all_button.Enable(False)
+            self.new_button.Enable(False)
+            self.edit_button.Enable(False)
+
+            worker = CreateModuleWorker(new_data, self.service, self.on_create_callback)
+            worker.start()
+        dialog.Destroy()
+
+    def on_create_callback(self, event_type, *args):
+        wx.CallAfter(self._handle_create_event, event_type, *args)
+
+    def _handle_create_event(self, event_type, *args):
+        if event_type == "progress":
+            message = args[0] if args else ""
+            if self.status_bar:
+                self.status_bar.show_message(message)
+        elif event_type == "create_finished":
+            success, message = args
+            if self.status_bar:
+                self.status_bar.clear()
+
+            self.fetch_button.Enable(True)
+            self.fetch_all_button.Enable(True)
+            self.new_button.Enable(True)
+            self.edit_button.Enable(self.selected_module_item is not None)
+
+            if success:
+                wx.MessageBox(
+                    "Module created successfully.",
+                    "Success",
+                    wx.OK | wx.ICON_INFORMATION,
+                )
+                self.load_modules()
+            else:
+                wx.MessageBox(message, "Create Failed", wx.OK | wx.ICON_ERROR)
+        elif event_type == "error":
+            error_msg = args[0]
+            wx.MessageBox(error_msg, "Error", wx.OK | wx.ICON_WARNING)
 
     def on_update_callback(self, event_type, *args):
         wx.CallAfter(self._handle_update_event, event_type, *args)
@@ -424,6 +482,7 @@ class ModulesView(wx.Panel):
                 self.status_bar.clear()
             self.fetch_button.Enable(True)
             self.fetch_all_button.Enable(True)
+            self.new_button.Enable(True)
             self.edit_button.Enable(self.selected_module_item is not None)
 
             if success:
@@ -470,3 +529,24 @@ class ModulesView(wx.Panel):
 
         if self.status_bar:
             self.status_bar.clear()
+
+
+class CreateModuleWorker(threading.Thread):
+    def __init__(self, module_data, service, callback):
+        super().__init__(daemon=True)
+        self.module_data = module_data
+        self.service = service
+        self.callback = callback
+
+    def run(self):
+        try:
+            def progress_callback(message: str):
+                self.callback("progress", message)
+
+            success, message = self.service.create_module(
+                self.module_data, progress_callback=progress_callback
+            )
+            self.callback("create_finished", success, message)
+        except Exception as e:
+            self.callback("error", str(e))
+            self.callback("create_finished", False, str(e))

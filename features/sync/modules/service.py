@@ -138,6 +138,9 @@ class ModuleSyncService:
             if "date_stamp" in data and data["date_stamp"]:
                 form_data["x_DateStamp"] = data["date_stamp"]
 
+            if "remark" in data and data["remark"]:
+                form_data["x_ModuleRemark"] = data["remark"]
+
             progress_callback(f"Pushing module {module_id} to CMS...")
 
             cms_success, cms_message = post_cms_form(self._browser, url, form_data)
@@ -150,6 +153,7 @@ class ModuleSyncService:
                     code=data.get("code", ""),
                     name=data.get("name", ""),
                     status=data.get("status", ""),
+                    remark=data.get("remark"),
                     timestamp=data.get("date_stamp"),
                 )
                 return True, "Module updated successfully"
@@ -161,5 +165,85 @@ class ModuleSyncService:
                 f"Error pushing module - module_id={module_id}, "
                 f"url={url}, data={data}, error={str(e)}",
             )
+            return False, f"Error: {str(e)}"
+
+    def create_module(
+        self,
+        data: dict,
+        progress_callback: Callable[[str], None],
+    ) -> tuple[bool, str]:
+        url = f"{BASE_URL}/f_moduleadd.php"
+
+        try:
+            progress_callback("Fetching module add form...")
+
+            response = self._browser.fetch(url)
+            page = BeautifulSoup(response.text, "lxml")
+            form = page.select_one("form#ff_moduleadd")
+
+            if not form:
+                logger.error(
+                    f"Could not find add form - url={url}, response_length={len(response.text) if response and response.text else 0}"
+                )
+                return False, "Could not find add form"
+
+            progress_callback("Preparing module data...")
+
+            form_data = get_form_payload(form)
+            form_data["a_add"] = "A"
+
+            code = (data.get("code") or "").strip()
+            name = (data.get("name") or "").strip()
+            remark = data.get("remark")
+            date_stamp = data.get("date_stamp")
+            status = (data.get("status") or "Active").strip() or "Active"
+
+            if code:
+                form_data["x_ModuleCode"] = code
+            if name:
+                form_data["x_ModuleName"] = name
+            if status:
+                form_data["x_ModuleStatCode"] = status
+            if remark:
+                form_data["x_ModuleRemark"] = remark
+            if date_stamp:
+                form_data["x_DateStamp"] = date_stamp
+
+            progress_callback("Creating module in CMS...")
+            cms_success, cms_message = post_cms_form(self._browser, url, form_data)
+
+            if not cms_success:
+                return False, cms_message
+
+            progress_callback("Fetching created module to get ModuleID...")
+
+            created = scrape_modules(code)
+            if not created:
+                return False, "Module created in CMS but could not be found by search"
+
+            created_module = None
+            for candidate in created:
+                candidate_code = str(candidate.get("code", "")).strip().lower()
+                if candidate_code == code.lower():
+                    created_module = candidate
+                    break
+
+            if created_module is None:
+                created_module = created[0]
+
+            progress_callback("Saving module to database...")
+            self.repository.save_module(
+                module_id=int(created_module["id"]),
+                code=created_module.get("code", code),
+                name=created_module.get("name", name),
+                status=created_module.get("status", "Active"),
+                remark=remark,
+                timestamp=created_module.get("timestamp") or date_stamp,
+            )
+
+            return True, "Module created successfully"
+
+        except Exception as e:
+            logger.error(f"Error creating module - data={data}, error={str(e)}")
             return False, f"Error: {str(e)}"
 

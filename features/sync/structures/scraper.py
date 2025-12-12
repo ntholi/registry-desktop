@@ -2,9 +2,66 @@ from bs4 import BeautifulSoup
 
 from base import get_logger
 from base.browser import BASE_URL, Browser
+from database.models import ProgramLevel
 from utils.modules import extract_module_code_and_name
 
 logger = get_logger(__name__)
+
+
+def _extract_program_id(href: str) -> int | None:
+    if "ProgramID=" not in href:
+        return None
+
+    try:
+        program_id_raw = href.split("ProgramID=")[1].split("&")[0]
+        return int(program_id_raw)
+    except (ValueError, IndexError):
+        return None
+
+
+def _normalize_program_level(category: str) -> ProgramLevel:
+    normalized = category.strip().lower()
+    if normalized in {"certificate", "cert"}:
+        return "certificate"
+    if "cert" in normalized:
+        return "certificate"
+    if normalized in {"diploma", "dip"}:
+        return "diploma"
+    if "dip" in normalized:
+        return "diploma"
+    if normalized in {"degree", "deg"}:
+        return "degree"
+    if "degree" in normalized or "bachelor" in normalized or "undergraduate" in normalized:
+        return "degree"
+
+    logger.warning(f"Unknown program category '{category}', defaulting to 'degree'")
+    return "degree"
+
+
+def _scrape_program_level(browser: Browser, program_id: int) -> ProgramLevel:
+    url = f"{BASE_URL}/f_programview.php?ProgramID={program_id}"
+    response = browser.fetch(url)
+    page = BeautifulSoup(response.text, "lxml")
+
+    for row in page.select("table.ewTable tr"):
+        cells = row.select("td")
+        if len(cells) < 2:
+            continue
+
+        label = cells[0].get_text(strip=True)
+        if label.strip().lower() != "category":
+            continue
+
+        category = cells[1].get_text(strip=True)
+        if not category:
+            break
+
+        return _normalize_program_level(category)
+
+    logger.warning(
+        f"Could not find Category on program view page, defaulting to 'degree' - program_id={program_id}"
+    )
+    return "degree"
 
 
 def scrape_structures(program_id: int) -> list[dict[str, str | int]]:
@@ -186,7 +243,7 @@ def scrape_school_id(school_code: str) -> int | None:
     return None
 
 
-def scrape_programs(school_id: int) -> list[dict[str, str]]:
+def scrape_programs(school_id: int) -> list[dict[str, str | int]]:
     browser = Browser()
     url = f"{BASE_URL}/f_programlist.php?showmaster=1&SchoolID={school_id}"
     response = browser.fetch(url)
@@ -207,16 +264,22 @@ def scrape_programs(school_id: int) -> list[dict[str, str]]:
             continue
 
         view_link = row.select_one("a[href*='f_programview.php']")
-        if view_link and "href" in view_link.attrs:
-            href = str(view_link["href"])
-            if "ProgramID=" in href:
-                program_id = href.split("ProgramID=")[1]
-                programs.append(
-                    {
-                        "id": program_id,
-                        "code": program_code,
-                        "name": program_name,
-                    }
-                )
+        if not view_link or "href" not in view_link.attrs:
+            continue
+
+        href = str(view_link["href"])
+        program_id = _extract_program_id(href)
+        if not program_id:
+            continue
+
+        level = _scrape_program_level(browser, program_id)
+        programs.append(
+            {
+                "id": program_id,
+                "code": program_code,
+                "name": program_name,
+                "level": level,
+            }
+        )
 
     return programs

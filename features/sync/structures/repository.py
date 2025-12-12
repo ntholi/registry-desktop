@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from base import get_logger
 from database import (Module, Program, School, SemesterModule, Structure,
                       StructureSemester, get_engine)
+from database.models import ProgramLevel
 
 logger = get_logger(__name__)
 
@@ -205,7 +206,7 @@ class StructureRepository:
         code: str,
         name: str,
         school_id: int,
-        level: str = "Unknown",
+        level: ProgramLevel = "degree",
     ) -> Program:
         with self._session() as session:
             existing_program = (

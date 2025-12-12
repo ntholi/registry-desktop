@@ -261,6 +261,7 @@ class SchoolSyncService:
                 program["code"],
                 program["name"],
                 school_id,
+                program.get("level", "degree"),
             )
 
         if fetch_structures:

@@ -64,7 +64,9 @@ class NewSemesterModuleDialog(wx.Dialog):
         main_sizer.Add(header, 0, wx.ALL, 15)
 
         main_sizer.Add(
-            wx.StaticText(self, label=f"Semester: {self._semester_name} (ID: {self._semester_id})"),
+            wx.StaticText(
+                self, label=f"Semester: {self._semester_name} (ID: {self._semester_id})"
+            ),
             0,
             wx.LEFT | wx.RIGHT | wx.BOTTOM,
             10,
@@ -107,11 +109,15 @@ class NewSemesterModuleDialog(wx.Dialog):
 
         main_sizer.AddSpacer(10)
 
-        self.selected_module_label = wx.StaticText(self, label="Selected module: (none)")
+        self.selected_module_label = wx.StaticText(
+            self, label="Selected module: (none)"
+        )
         font = self.selected_module_label.GetFont()
         font = font.Bold()
         self.selected_module_label.SetFont(font)
-        main_sizer.Add(self.selected_module_label, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 15)
+        main_sizer.Add(
+            self.selected_module_label, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 15
+        )
 
         main_sizer.Add(wx.StaticLine(self), 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 15)
         main_sizer.AddSpacer(15)
@@ -136,15 +142,21 @@ class NewSemesterModuleDialog(wx.Dialog):
         self.type_choice.Bind(wx.EVT_CHOICE, self._on_type_choice)
         form_sizer.Add(self.type_choice, 1, wx.EXPAND)
 
-        form_sizer.Add(wx.StaticText(self, label="Optional"), 0, wx.ALIGN_CENTER_VERTICAL)
+        form_sizer.Add(
+            wx.StaticText(self, label="Optional"), 0, wx.ALIGN_CENTER_VERTICAL
+        )
         self.optional_checkbox = wx.CheckBox(self, label="Mark as optional")
         form_sizer.Add(self.optional_checkbox, 1, wx.EXPAND)
 
         form_sizer.Add(wx.StaticText(self, label="Remark"), 0, wx.ALIGN_TOP)
-        self.remark_input = wx.TextCtrl(self, style=wx.TE_MULTILINE, size=wx.Size(-1, 70))
+        self.remark_input = wx.TextCtrl(
+            self, style=wx.TE_MULTILINE, size=wx.Size(-1, 70)
+        )
         form_sizer.Add(self.remark_input, 1, wx.EXPAND)
 
-        form_sizer.Add(wx.StaticText(self, label="Prerequisite"), 0, wx.ALIGN_CENTER_VERTICAL)
+        form_sizer.Add(
+            wx.StaticText(self, label="Prerequisite"), 0, wx.ALIGN_CENTER_VERTICAL
+        )
         self.prereq_choice = wx.Choice(self)
         self.prereq_choice.Append("(none)", None)
         for existing in self._existing_semester_modules:
@@ -198,7 +210,7 @@ class NewSemesterModuleDialog(wx.Dialog):
         self._selected_module_code = None
         self._selected_module_name = None
         self.selected_module_label.SetLabel("Selected module: (none)")
-        self.credits_input.SetValue(0)
+        self.credits_input.SetValue("0")
         self._type_manually_set = False
         self._auto_set_type_from_credits(0)
         self._set_form_enabled(False)
@@ -243,9 +255,11 @@ class NewSemesterModuleDialog(wx.Dialog):
 
         self._type_manually_set = False
         if self._selected_module_code:
-            inferred = self._extract_credits_from_module_code(self._selected_module_code)
+            inferred = self._extract_credits_from_module_code(
+                self._selected_module_code
+            )
             if inferred is not None:
-                self.credits_input.SetValue(inferred)
+                self.credits_input.SetValue(str(inferred))
                 self._auto_set_type_from_credits(inferred)
         self._set_form_enabled(True)
 
@@ -290,7 +304,9 @@ class NewSemesterModuleDialog(wx.Dialog):
 
         prereq_id = None
         if self.prereq_choice.GetSelection() != wx.NOT_FOUND:
-            prereq_id = self.prereq_choice.GetClientData(self.prereq_choice.GetSelection())
+            prereq_id = self.prereq_choice.GetClientData(
+                self.prereq_choice.GetSelection()
+            )
 
         return {
             "module_id": self._selected_module_id,

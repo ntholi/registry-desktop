@@ -95,7 +95,9 @@ class LoadStudentsWorker(threading.Thread):
 
 
 class BulkUpdateStructureWorker(threading.Thread):
-    def __init__(self, student_programs, new_structure_id, new_structure_code, service, callback):
+    def __init__(
+        self, student_programs, new_structure_id, new_structure_code, service, callback
+    ):
         super().__init__(daemon=True)
         self.student_programs = student_programs
         self.new_structure_id = new_structure_id
@@ -595,6 +597,14 @@ class StudentProgramsView(wx.Panel):
             )
             return
 
+        if self.selected_program_id is None:
+            wx.MessageBox(
+                "Please select a program first",
+                "No Program Selected",
+                wx.OK | wx.ICON_WARNING,
+            )
+            return
+
         dialog = UpdateStructureDialog(
             len(selected_students),
             self.selected_program_id,
@@ -613,7 +623,11 @@ class StudentProgramsView(wx.Panel):
             message = (
                 f"You are about to update the structure version for {count} student(s) to:\n\n"
                 f"Version: {selected_structure.code}"
-                + (f"\nDescription: {selected_structure.desc}" if selected_structure.desc else "")
+                + (
+                    f"\nDescription: {selected_structure.desc}"
+                    if selected_structure.desc
+                    else ""
+                )
                 + "\n\nDo you want to proceed?"
             )
 

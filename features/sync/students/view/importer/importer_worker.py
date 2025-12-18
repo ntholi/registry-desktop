@@ -52,9 +52,7 @@ class ImporterWorker(threading.Thread):
             self.project.current_student = std_no
             ImporterProjectManager.save_project(self.project)
 
-            current_overall = (
-                total_students - len(remaining_students) + idx + 1
-            )
+            current_overall = total_students - len(remaining_students) + idx + 1
 
             student_started = True
 
@@ -64,7 +62,11 @@ class ImporterWorker(threading.Thread):
                     overall_progress = (current_overall - 1) * 3 + current
                     overall_total = total_students * 3
                     self.callback(
-                        "progress", message, overall_progress, overall_total, self.project
+                        "progress",
+                        message,
+                        overall_progress,
+                        overall_total,
+                        self.project,
                     )
 
                 was_updated = self.sync_service.fetch_student(
@@ -75,7 +77,8 @@ class ImporterWorker(threading.Thread):
                     self.project.success_count += 1
                 else:
                     self.project.failed_count += 1
-                    self.project.failed_students.append(std_no)
+                    if self.project.failed_students is not None:
+                        self.project.failed_students.append(std_no)
 
                 ImporterProjectManager.save_project(self.project)
 
@@ -87,7 +90,8 @@ class ImporterWorker(threading.Thread):
                 )
                 self.callback("error", f"Error importing student {std_no}: {str(e)}")
                 self.project.failed_count += 1
-                self.project.failed_students.append(std_no)
+                if self.project.failed_students is not None:
+                    self.project.failed_students.append(std_no)
                 ImporterProjectManager.save_project(self.project)
 
                 student_started = False

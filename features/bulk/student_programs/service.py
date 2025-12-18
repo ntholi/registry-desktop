@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Callable, Optional
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 
 from base import get_logger
 from base.browser import BASE_URL, Browser, get_form_payload
@@ -37,9 +37,7 @@ class StudentProgramService:
         url = f"{BASE_URL}/r_stdprogramedit.php?StdProgramID={cms_program_id}"
 
         try:
-            progress_callback(
-                f"Fetching edit form for {student_program.std_no}..."
-            )
+            progress_callback(f"Fetching edit form for {student_program.std_no}...")
 
             response = self._browser.fetch(url)
             page = BeautifulSoup(response.text, "lxml")
@@ -53,9 +51,7 @@ class StudentProgramService:
                 )
                 return False, "Could not find edit form"
 
-            progress_callback(
-                f"Preparing data for {student_program.std_no}..."
-            )
+            progress_callback(f"Preparing data for {student_program.std_no}...")
 
             form_data = get_form_payload(form)
 
@@ -63,7 +59,9 @@ class StudentProgramService:
 
             form_data["x_StructureID"] = str(new_structure_id)
 
-            self._populate_form_with_current_data(form, form_data, student_program, page)
+            self._populate_form_with_current_data(
+                form, form_data, student_program, page
+            )
 
             progress_callback(
                 f"Pushing structure update for {student_program.std_no} to CMS..."
@@ -72,9 +70,7 @@ class StudentProgramService:
             cms_success, cms_message = post_cms_form(self._browser, url, form_data)
 
             if cms_success:
-                progress_callback(
-                    f"Saving {student_program.std_no} to database..."
-                )
+                progress_callback(f"Saving {student_program.std_no} to database...")
 
                 db_success, db_message = (
                     self._repository.update_student_program_structure(
@@ -104,7 +100,7 @@ class StudentProgramService:
 
     def _populate_form_with_current_data(
         self,
-        form: BeautifulSoup,
+        form: Tag,
         form_data: dict,
         student_program: StudentProgramRow,
         page: BeautifulSoup,
@@ -142,52 +138,64 @@ class StudentProgramService:
         elif student_program.status:
             form_data["x_ProgramStatus"] = student_program.status
 
-        self._preserve_select_values(form, form_data, [
-            "x_TransferFrom",
-            "x_AssistProviderCode",
-            "x_AssistSchCode",
-            "x_GradingVersion",
-        ])
+        self._preserve_select_values(
+            form,
+            form_data,
+            [
+                "x_TransferFrom",
+                "x_AssistProviderCode",
+                "x_AssistSchCode",
+                "x_GradingVersion",
+            ],
+        )
 
-        self._preserve_text_values(form, form_data, [
-            "x_StdProgRemark",
-            "x_AssistMemo",
-            "x_AssistStdAcc",
-            "x_AssistPercent",
-            "x_AssistAmount",
-            "x_AssistNetAmount",
-            "x_AssistBond",
-            "x_AssistApprovalDate",
-            "x_AssistDate",
-            "x_AssistExpiryDate",
-            "x_AssistRemark",
-            "x_LOASubmittedDate",
-            "x_GraduationDate",
-            "x_CertSN",
-            "x_CertPrintDate",
-            "x_CertCollDate",
-            "x_GradSession",
-            "x_GradGuest",
-            "x_GradGownSize",
-            "x_GradGownPickUp",
-            "x_GradGownReturn",
-            "x_FdnCertSN",
-            "x_FdnCertPrintDate",
-            "x_FdnCertCollDate",
-            "x_CurtinID",
-        ])
+        self._preserve_text_values(
+            form,
+            form_data,
+            [
+                "x_StdProgRemark",
+                "x_AssistMemo",
+                "x_AssistStdAcc",
+                "x_AssistPercent",
+                "x_AssistAmount",
+                "x_AssistNetAmount",
+                "x_AssistBond",
+                "x_AssistApprovalDate",
+                "x_AssistDate",
+                "x_AssistExpiryDate",
+                "x_AssistRemark",
+                "x_LOASubmittedDate",
+                "x_GraduationDate",
+                "x_CertSN",
+                "x_CertPrintDate",
+                "x_CertCollDate",
+                "x_GradSession",
+                "x_GradGuest",
+                "x_GradGownSize",
+                "x_GradGownPickUp",
+                "x_GradGownReturn",
+                "x_FdnCertSN",
+                "x_FdnCertPrintDate",
+                "x_FdnCertCollDate",
+                "x_CurtinID",
+            ],
+        )
 
-        self._preserve_checkbox_values(form, form_data, [
-            "x_LOASubmitted",
-            "x_DualProgram",
-            "x_GradRSVP",
-        ])
+        self._preserve_checkbox_values(
+            form,
+            form_data,
+            [
+                "x_LOASubmitted",
+                "x_DualProgram",
+                "x_GradRSVP",
+            ],
+        )
 
         if student_program.graduation_date:
             form_data["x_GraduationDate"] = student_program.graduation_date
 
     def _preserve_select_values(
-        self, form: BeautifulSoup, form_data: dict, field_names: list[str]
+        self, form: Tag, form_data: dict, field_names: list[str]
     ):
         for field_name in field_names:
             select = form.select_one(f"select#{field_name}")
@@ -200,9 +208,7 @@ class StudentProgramService:
                     if first_option:
                         form_data[field_name] = first_option.get("value", "")
 
-    def _preserve_text_values(
-        self, form: BeautifulSoup, form_data: dict, field_names: list[str]
-    ):
+    def _preserve_text_values(self, form: Tag, form_data: dict, field_names: list[str]):
         for field_name in field_names:
             text_input = form.select_one(f"input#{field_name}")
             if text_input:
@@ -217,7 +223,7 @@ class StudentProgramService:
                         form_data[field_name] = value
 
     def _preserve_checkbox_values(
-        self, form: BeautifulSoup, form_data: dict, field_names: list[str]
+        self, form: Tag, form_data: dict, field_names: list[str]
     ):
         for field_name in field_names:
             checkbox = form.select_one(f"input[name='{field_name}']")

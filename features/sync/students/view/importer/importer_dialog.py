@@ -152,7 +152,9 @@ class ImporterDialog(wx.Dialog):
             panel, label="Enrollment Data (Programs, Semesters, Modules, etc.)"
         )
         self.enrollment_data_checkbox.SetValue(True)
-        self.enrollment_data_checkbox.Bind(wx.EVT_CHECKBOX, self.on_data_checkbox_changed)
+        self.enrollment_data_checkbox.Bind(
+            wx.EVT_CHECKBOX, self.on_data_checkbox_changed
+        )
         checkbox_sizer.Add(self.enrollment_data_checkbox, 0)
 
         sizer.Add(checkbox_sizer, 0, wx.LEFT | wx.RIGHT, 20)
@@ -316,13 +318,17 @@ class ImporterDialog(wx.Dialog):
             self.show_setup_panel()
 
     def show_setup_panel(self):
-        self.progress_panel.Hide()
-        self.setup_panel.Show()
+        if self.progress_panel:
+            self.progress_panel.Hide()
+        if self.setup_panel:
+            self.setup_panel.Show()
         self.Layout()
 
     def show_progress_panel(self):
-        self.setup_panel.Hide()
-        self.progress_panel.Show()
+        if self.setup_panel:
+            self.setup_panel.Hide()
+        if self.progress_panel:
+            self.progress_panel.Show()
         self.Layout()
 
     def on_select_all_checkbox(self, event):
@@ -371,7 +377,9 @@ class ImporterDialog(wx.Dialog):
 
         if not start_num.isdigit() or not end_num.isdigit():
             wx.MessageBox(
-                "Student numbers must be numeric.", "Invalid Input", wx.OK | wx.ICON_WARNING
+                "Student numbers must be numeric.",
+                "Invalid Input",
+                wx.OK | wx.ICON_WARNING,
             )
             return
 
@@ -443,6 +451,10 @@ class ImporterDialog(wx.Dialog):
             logger.warning("Worker already running, cannot start new worker")
             return
 
+        if not self.project:
+            logger.error("Cannot start worker without a project")
+            return
+
         self.project.status = "running"
         ImporterProjectManager.save_project(self.project)
 
@@ -474,10 +486,16 @@ class ImporterDialog(wx.Dialog):
             self.stop_button.Enable(False)
 
             if self.status_bar:
-                self.status_bar.show_message("Pausing import - completing current student...")
+                self.status_bar.show_message(
+                    "Pausing import - completing current student..."
+                )
 
     def resume_worker(self):
         logger.info("Resuming import")
+        if not self.project:
+            logger.error("Cannot resume worker without a project")
+            return
+
         self.project.status = "running"
         ImporterProjectManager.save_project(self.project)
         self.start_worker()
@@ -502,7 +520,9 @@ class ImporterDialog(wx.Dialog):
         dlg.Destroy()
 
         if self.worker and self.worker.is_alive():
-            logger.info("Stopping and deleting import project - completing current student...")
+            logger.info(
+                "Stopping and deleting import project - completing current student..."
+            )
             self.worker.stop()
             self.stop_button.Enable(False)
             self.stop_button.SetLabel("Stopping...")
@@ -510,7 +530,9 @@ class ImporterDialog(wx.Dialog):
             self.hide_button.Enable(False)
 
             if self.status_bar:
-                self.status_bar.show_message("Stopping import - completing current student...")
+                self.status_bar.show_message(
+                    "Stopping import - completing current student..."
+                )
 
             wx.CallLater(100, self._wait_for_stop_completion)
         else:

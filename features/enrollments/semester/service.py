@@ -80,7 +80,7 @@ class SemesterEnrollmentService:
                 sem_data = scrape_student_semester_data(sem_id, None, None)
                 if sem_data.get("term") == term:
                     logger.info(f"Found created semester ID: {sem_id}")
-                    return sem_id
+                    return int(sem_id)
 
             logger.error("Could not find created semester in CMS list")
             return None

@@ -15,9 +15,9 @@ class ImporterProject:
     status: str
     success_count: int = 0
     failed_count: int = 0
-    failed_students: list = None
-    created_at: str = None
-    updated_at: str = None
+    failed_students: Optional[list] = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
 
     def __post_init__(self):
         if self.failed_students is None:

@@ -492,6 +492,7 @@ class StudentRepository:
     def upsert_student_program(
         self, student_program_id: str, std_no: int, data: dict
     ) -> tuple[bool, str]:
+        structure_id: Optional[int] = None
         with self._session() as session:
             try:
                 existing = (
@@ -501,7 +502,6 @@ class StudentRepository:
                     .first()
                 )
 
-                structure_id = None
                 if "structure_code" in data:
                     structure_id = self.get_structure_by_code_or_desc(
                         data["structure_code"], data["structure_code"]
@@ -577,9 +577,9 @@ class StudentRepository:
     def upsert_student_semester(
         self, std_program_id: int, data: dict
     ) -> tuple[bool, str, Optional[int]]:
+        semester_id: Optional[int] = None
         with self._session() as session:
             try:
-                semester_id = None
                 if "id" in data:
                     try:
                         semester_id = int(data["id"])
@@ -691,6 +691,9 @@ class StudentRepository:
             return semester_module[0] if semester_module else None
 
     def upsert_student_module(self, data: dict) -> tuple[bool, str]:
+        std_module_id: int = 0
+        student_semester_id: Optional[int] = None
+        semester_module_id: Optional[int] = None
         with self._session() as session:
             try:
                 std_module_id = int(data["id"])
@@ -704,8 +707,6 @@ class StudentRepository:
                     .filter(StudentModule.id == std_module_id)
                     .first()
                 )
-
-                semester_module_id = None
 
                 if "semester_module_id" in data and data["semester_module_id"]:
                     semester_module_id = data["semester_module_id"]
@@ -854,6 +855,8 @@ class StudentRepository:
                 return False, error_msg
 
     def upsert_student_education(self, data: dict) -> tuple[bool, str]:
+        education_id: int = 0
+        std_no: Optional[str] = None
         with self._session() as session:
             try:
                 education_id = int(data["id"])

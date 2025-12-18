@@ -160,7 +160,7 @@ response = browser.post(url, form_data)
    - Confirm no exceptions or database constraint violations
 2. **Only stop when verified**: Do NOT end your work until you have confirmed the fix is working
 3. **If tests fail**: Debug the issue, make additional fixes, and re-test until working
-4. 1. **You may run the application**: `uv run main.py` so that the user can test the functionality manually, and you track the logs to monitor your changes.
+4. Always run `uv run pyright` and fix all type errors, run it iteratively until zero errors remain. 
 
 ## Key Files Reference
 

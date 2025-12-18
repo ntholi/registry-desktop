@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, Union
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 
 from base import get_logger
 from base.browser import Browser, get_form_payload
@@ -23,7 +23,7 @@ def fetch_cms_form(
     browser: Browser,
     url: str,
     form_selector: str,
-) -> tuple[Optional[BeautifulSoup], Optional[dict]]:
+) -> tuple[Optional[BeautifulSoup], Optional[Tag]]:
     try:
         response = browser.fetch(url)
         page = BeautifulSoup(response.text, "lxml")

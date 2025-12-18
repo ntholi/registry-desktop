@@ -89,6 +89,10 @@ def _extract_terms_from_page(page: BeautifulSoup) -> list[dict]:
     rows = page.select("table#ewlistmain tr")
 
     for row in rows:
+        row_class = row.get("class")
+        if row_class and "ewTableHeader" in row_class:
+            continue
+
         cells = row.select("td")
         if len(cells) < 7:
             continue

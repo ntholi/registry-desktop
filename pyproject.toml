@@ -19,4 +19,5 @@ dependencies = [
     "google-auth-oauthlib>=1.2.3",
     "google-auth-httplib2>=0.2.1",
     "tomli>=2.3.0",
+    "pyright>=1.1.407",
 ]

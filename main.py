@@ -33,6 +33,7 @@ from features.export.reports.reports_view import ReportsView
 from features.sync.modules.modules_view import ModulesView
 from features.sync.structures.structures_view import StructuresView
 from features.sync.students import StudentsView
+from features.sync.terms.terms_view import TermsView
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +72,7 @@ class MainWindow(wx.Frame):
             "sync_students": StudentsView,
             "sync_structures": StructuresView,
             "sync_modules": ModulesView,
+            "sync_terms": TermsView,
             "bulk_student_modules": StudentModulesView,
             "bulk_student_semesters": StudentSemestersView,
             "bulk_student_programs": StudentProgramsView,

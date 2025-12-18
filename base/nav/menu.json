@@ -16,6 +16,10 @@
         {
           "title": "Modules",
           "action": "sync_modules"
+        },
+        {
+          "title": "Terms",
+          "action": "sync_terms"
         }
       ]
     },

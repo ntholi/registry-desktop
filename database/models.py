@@ -2,8 +2,19 @@ from datetime import datetime
 from typing import Literal
 
 import nanoid
-from sqlalchemy import (BigInteger, Boolean, DateTime, Enum, Float, ForeignKey,
-                        Index, Integer, String, Text, UniqueConstraint)
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import JSON as PostgreSQLJSON
 from sqlalchemy.orm import Mapped, declarative_base, mapped_column
 
@@ -572,7 +583,7 @@ class Term(Base):
     __tablename__ = "terms"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    name: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    code: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     semester: Mapped[int] = mapped_column(Integer, nullable=False)
     created_at: Mapped[datetime | None] = mapped_column(

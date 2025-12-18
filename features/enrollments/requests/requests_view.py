@@ -434,9 +434,7 @@ class RequestsView(wx.Panel):
             }
 
         if self.detail_loader:
-            self.detail_loader.load_async(
-                load_data, "Loading registration details..."
-            )
+            self.detail_loader.load_async(load_data, "Loading registration details...")
 
         self.Layout()
 
@@ -567,7 +565,9 @@ class RequestsView(wx.Panel):
         self.program_filter.SetSelection(0)
         self.selected_program_id = None
         self.current_page = 1
-        self.load_programs_for_school(self.selected_school_id, trigger_load_requests=True)
+        self.load_programs_for_school(
+            self.selected_school_id, trigger_load_requests=True
+        )
 
     def on_filter_changed(self, event):
         sel = self.school_filter.GetSelection()
@@ -797,7 +797,7 @@ class RequestsView(wx.Panel):
 
             self.term_filter.SetString(0, "All Terms")
             for term in terms:
-                self.term_filter.Append(str(term.name), term.id)
+                self.term_filter.Append(str(term.code), term.id)
             self.term_filter.SetSelection(0)
             self.term_filter.Enable(True)
         elif event_type == "filters_error":
@@ -850,7 +850,7 @@ class RequestsView(wx.Panel):
                 self.list_ctrl.SetItem(index, 1, request.std_no)
                 self.list_ctrl.SetItem(index, 2, request.student_name or "")
                 self.list_ctrl.SetItem(index, 3, request.sponsor_name or "")
-                self.list_ctrl.SetItem(index, 4, request.term_name or "")
+                self.list_ctrl.SetItem(index, 4, request.term_code or "")
                 self.list_ctrl.SetItem(
                     index,
                     5,
@@ -900,4 +900,3 @@ class RequestsView(wx.Panel):
                 wx.OK | wx.ICON_ERROR,
             )
             self.enroll_button.Enable(True)
-

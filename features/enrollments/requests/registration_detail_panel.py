@@ -163,7 +163,7 @@ class RegistrationDetailPanel(wx.Panel):
         self.info_label.SetLabel(f"Registration Request #{request_id}")
         self.student_value.SetLabel(student_info)
         self.sponsor_value.SetLabel(details.get("sponsor_name") or "N/A")
-        self.term_value.SetLabel(details.get("term_name") or "N/A")
+        self.term_value.SetLabel(details.get("term_code") or "N/A")
         self.semester_value.SetLabel(
             f"Semester {details.get('semester_number')} ({details.get('semester_status')})"
         )

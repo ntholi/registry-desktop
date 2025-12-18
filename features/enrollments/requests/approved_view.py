@@ -309,7 +309,7 @@ class ApprovedView(wx.Panel):
 
             terms = self.repository.list_terms()
             for term in terms:
-                self.term_filter.Append(str(term.name), term.id)
+                self.term_filter.Append(str(term.code), term.id)
 
         except Exception as e:
             print(f"Error loading filter options: {str(e)}")
@@ -417,7 +417,7 @@ class ApprovedView(wx.Panel):
                 self.list_ctrl.SetItem(index, 1, request.std_no)
                 self.list_ctrl.SetItem(index, 2, request.student_name or "")
                 self.list_ctrl.SetItem(index, 3, request.sponsor_name or "")
-                self.list_ctrl.SetItem(index, 4, request.term_name or "")
+                self.list_ctrl.SetItem(index, 4, request.term_code or "")
                 self.list_ctrl.SetItem(
                     index,
                     5,

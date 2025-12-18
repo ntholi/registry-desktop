@@ -33,7 +33,7 @@ class RegistrationRequestRow:
     std_no: str
     student_name: Optional[str]
     sponsor_name: Optional[str]
-    term_name: Optional[str]
+    term_code: Optional[str]
     semester_number: str
     semester_status: str
     status: str
@@ -70,7 +70,7 @@ class EnrollmentRequestRepository:
 
     def list_terms(self):
         with self._session() as session:
-            rows = session.query(Term.id, Term.name).order_by(Term.name.desc()).all()
+            rows = session.query(Term.id, Term.code).order_by(Term.code.desc()).all()
             return rows
 
     def list_statuses(self):
@@ -102,7 +102,7 @@ class EnrollmentRequestRepository:
                     Student.std_no,
                     Student.name.label("student_name"),
                     Sponsor.name.label("sponsor_name"),
-                    Term.name.label("term_name"),
+                    Term.code.label("term_code"),
                     RegistrationRequest.semester_number,
                     RegistrationRequest.semester_status,
                     RegistrationRequest.status,
@@ -220,7 +220,7 @@ class EnrollmentRequestRepository:
                     std_no=str(result.std_no),
                     student_name=result.student_name,
                     sponsor_name=result.sponsor_name,
-                    term_name=result.term_name,
+                    term_code=result.term_code,
                     semester_number=result.semester_number,
                     semester_status=result.semester_status,
                     status=result.status,
@@ -252,7 +252,7 @@ class EnrollmentRequestRepository:
                     Student.std_no,
                     Student.name.label("student_name"),
                     Sponsor.name.label("sponsor_name"),
-                    Term.name.label("term_name"),
+                    Term.code.label("term_code"),
                     RegistrationRequest.semester_number,
                     RegistrationRequest.semester_status,
                     RegistrationRequest.status,
@@ -279,7 +279,7 @@ class EnrollmentRequestRepository:
                 "std_no": request.std_no,
                 "student_name": request.student_name,
                 "sponsor_name": request.sponsor_name,
-                "term_name": request.term_name,
+                "term_code": request.term_code,
                 "semester_number": request.semester_number,
                 "semester_status": request.semester_status,
                 "status": request.status,
@@ -296,7 +296,7 @@ class EnrollmentRequestRepository:
                 session.query(
                     RegistrationRequest.id.label("request_id"),
                     Student.std_no,
-                    Term.name.label("term_name"),
+                    Term.code.label("term_code"),
                     RegistrationRequest.semester_number,
                     RegistrationRequest.semester_status,
                     StudentProgram.id.label("student_program_id"),
@@ -338,7 +338,7 @@ class EnrollmentRequestRepository:
             return {
                 "request_id": result.request_id,
                 "std_no": result.std_no,
-                "term_name": result.term_name,
+                "term_code": result.term_code,
                 "semester_number": result.semester_number,
                 "semester_status": result.semester_status,
                 "student_program_id": result.student_program_id,
@@ -428,14 +428,18 @@ class EnrollmentRequestRepository:
                     if not existing:
                         existing = (
                             session.query(StudentSemester)
-                            .filter(StudentSemester.student_program_id == student_program_id)
+                            .filter(
+                                StudentSemester.student_program_id == student_program_id
+                            )
                             .filter(StudentSemester.term == data.get("term"))
                             .first()
                         )
 
                     if existing:
                         if "structure_semester_id" in data:
-                            existing.structure_semester_id = data["structure_semester_id"]
+                            existing.structure_semester_id = data[
+                                "structure_semester_id"
+                            ]
                         if "status" in data:
                             existing.status = data["status"]
                         if "caf_date" in data:
@@ -447,7 +451,10 @@ class EnrollmentRequestRepository:
                         logger.info(f"Updated student semester {semester_id}")
                         return True
                     else:
-                        if "structure_semester_id" not in data or not data["structure_semester_id"]:
+                        if (
+                            "structure_semester_id" not in data
+                            or not data["structure_semester_id"]
+                        ):
                             logger.error(
                                 f"Cannot create student semester without structure_semester_id - "
                                 f"student_program_id={student_program_id}, data={data}"

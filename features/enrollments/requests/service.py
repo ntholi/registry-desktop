@@ -68,7 +68,7 @@ class EnrollmentService:
             return False
 
         std_no = enrollment_data["std_no"]
-        term_name = enrollment_data["term_name"]
+        term_code = enrollment_data["term_code"]
         semester_number = enrollment_data["semester_number"]
         semester_status = enrollment_data["semester_status"]
         student_program_id = enrollment_data["student_program_id"]
@@ -80,7 +80,7 @@ class EnrollmentService:
             return False
 
         logger.info(
-            f"Enrolling student {std_no} for term {term_name}, semester {semester_number}"
+            f"Enrolling student {std_no} for term {term_code}, semester {semester_number}"
         )
         logger.info(
             f"Found student program {student_program_id} with structure {structure_id}"
@@ -97,10 +97,10 @@ class EnrollmentService:
 
         existing_semester_id = None
         for sem in existing_semesters:
-            if sem.get("term") == term_name:
+            if sem.get("term") == term_code:
                 existing_semester_id = sem.get("id")
                 logger.info(
-                    f"Found existing semester {existing_semester_id} for term {term_name} on CMS"
+                    f"Found existing semester {existing_semester_id} for term {term_code} on CMS"
                 )
                 break
 
@@ -112,7 +112,7 @@ class EnrollmentService:
                 f"Reusing existing semester for student {std_no}...", 40, 100
             )
         else:
-            logger.info(f"Creating new semester for student {std_no}, term {term_name}")
+            logger.info(f"Creating new semester for student {std_no}, term {term_code}")
 
             progress_callback(
                 f"Getting structure semester for student {std_no}...", 30, 100
@@ -135,7 +135,7 @@ class EnrollmentService:
             created_sem_id = self._semester_service.create_semester_on_cms(
                 student_program_id,
                 structure_id,
-                term_name,
+                term_code,
                 structure_semester_id,
                 semester_status,
                 today(),
@@ -156,7 +156,7 @@ class EnrollmentService:
                 student_program_id,
                 {
                     "id": student_semester_id,
-                    "term": term_name,
+                    "term": term_code,
                     "structure_semester_id": structure_semester_id,
                     "status": semester_status,
                     "caf_date": today(),

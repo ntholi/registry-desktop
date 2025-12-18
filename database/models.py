@@ -584,8 +584,12 @@ class Term(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     code: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    year: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    start_date: Mapped[str | None] = mapped_column(Text, nullable=True)
+    end_date: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    semester: Mapped[int] = mapped_column(Integer, nullable=False)
+    semester: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime, default=utc_now, nullable=True
     )

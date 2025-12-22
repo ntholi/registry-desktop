@@ -13,7 +13,7 @@ class ImporterDialog(wx.Dialog):
         super().__init__(
             parent,
             title="Import Students",
-            size=wx.Size(600, 500),
+            size=wx.Size(620, 580),
             style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
         )
 
@@ -158,6 +158,39 @@ class ImporterDialog(wx.Dialog):
         checkbox_sizer.Add(self.enrollment_data_checkbox, 0)
 
         sizer.Add(checkbox_sizer, 0, wx.LEFT | wx.RIGHT, 20)
+
+        sizer.AddSpacer(15)
+
+        separator_line2 = wx.StaticLine(panel, style=wx.LI_HORIZONTAL)
+        sizer.Add(separator_line2, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 20)
+
+        sizer.AddSpacer(10)
+
+        advanced_header = wx.StaticText(panel, label="Advanced Options")
+        font = advanced_header.GetFont()
+        font = font.Bold()
+        advanced_header.SetFont(font)
+        sizer.Add(advanced_header, 0, wx.LEFT | wx.RIGHT, 20)
+
+        sizer.AddSpacer(10)
+
+        advanced_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        self.skip_active_term_checkbox = wx.CheckBox(
+            panel,
+            label="Skip active term semester (don't import semester data for the active term)",
+        )
+        self.skip_active_term_checkbox.SetValue(True)
+        advanced_sizer.Add(self.skip_active_term_checkbox, 0, wx.BOTTOM, 5)
+
+        self.delete_programs_checkbox = wx.CheckBox(
+            panel,
+            label="Delete existing program data before import (cascades to semesters & modules)",
+        )
+        self.delete_programs_checkbox.SetValue(False)
+        advanced_sizer.Add(self.delete_programs_checkbox, 0)
+
+        sizer.Add(advanced_sizer, 0, wx.LEFT | wx.RIGHT, 20)
 
         sizer.AddStretchSpacer()
 
@@ -412,6 +445,8 @@ class ImporterDialog(wx.Dialog):
             "personal_info": self.personal_info_checkbox.GetValue(),
             "education_history": self.education_history_checkbox.GetValue(),
             "enrollment_data": self.enrollment_data_checkbox.GetValue(),
+            "skip_active_term": self.skip_active_term_checkbox.GetValue(),
+            "delete_programs_before_import": self.delete_programs_checkbox.GetValue(),
         }
 
         if not any(import_options.values()):

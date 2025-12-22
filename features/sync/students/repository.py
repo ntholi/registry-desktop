@@ -22,6 +22,7 @@ from database import (
     StudentModule,
     StudentProgram,
     StudentSemester,
+    Term,
     get_engine,
 )
 from utils.normalizers import normalize_student_module_status
@@ -1004,3 +1005,33 @@ class StudentRepository:
         global _sponsor_cache
         _sponsor_cache.clear()
         logger.info("Cleared sponsor cache")
+
+    def get_active_term_code(self) -> Optional[str]:
+        with self._session() as session:
+            result = session.query(Term.code).filter(Term.is_active == True).first()
+            return result[0] if result else None
+
+    def delete_student_programs(self, std_no: str) -> tuple[bool, int]:
+        try:
+            numeric_std_no = int(std_no)
+        except (TypeError, ValueError):
+            return False, 0
+
+        with self._session() as session:
+            try:
+                deleted_count = (
+                    session.query(StudentProgram)
+                    .filter(StudentProgram.std_no == numeric_std_no)
+                    .delete(synchronize_session="fetch")
+                )
+                session.commit()
+                logger.info(
+                    f"Deleted {deleted_count} student programs for student {std_no}"
+                )
+                return True, deleted_count
+            except Exception as e:
+                session.rollback()
+                logger.error(
+                    f"Error deleting student programs for student {std_no}: {str(e)}"
+                )
+                return False, 0

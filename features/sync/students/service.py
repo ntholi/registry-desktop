@@ -58,7 +58,20 @@ class StudentSyncService:
                 "personal_info": True,
                 "education_history": True,
                 "enrollment_data": True,
+                "skip_active_term": True,
+                "delete_programs_before_import": False,
             }
+
+        skip_active_term = import_options.get("skip_active_term", True)
+        delete_programs_before_import = import_options.get(
+            "delete_programs_before_import", False
+        )
+
+        active_term_code: Optional[str] = None
+        if skip_active_term:
+            active_term_code = self._repository.get_active_term_code()
+            if active_term_code:
+                logger.info(f"Will skip semesters for active term: {active_term_code}")
 
         self._repository.preload_all_sponsors()
 
@@ -129,10 +142,30 @@ class StudentSyncService:
             )
             program_ids = extract_student_program_ids(student_number)
 
+            if delete_programs_before_import and program_ids:
+                progress_callback(
+                    f"Deleting existing program data for {student_number}...",
+                    2,
+                    total_steps,
+                )
+                success, deleted_count = self._repository.delete_student_programs(
+                    student_number
+                )
+                if success:
+                    logger.info(
+                        f"Deleted {deleted_count} existing programs for student {student_number} "
+                        f"before import"
+                    )
+                else:
+                    logger.warning(
+                        f"Failed to delete existing programs for student {student_number}"
+                    )
+
         programs_synced = 0
         programs_failed = 0
         semesters_synced = 0
         semesters_failed = 0
+        semesters_skipped = 0
         modules_synced = 0
         modules_failed = 0
 
@@ -189,6 +222,20 @@ class StudentSyncService:
                                     sem_id, structure_id, self._repository
                                 )
                                 if semester_data and semester_data.get("term"):
+                                    semester_term = semester_data.get("term")
+                                    if (
+                                        skip_active_term
+                                        and active_term_code
+                                        and semester_term == active_term_code
+                                    ):
+                                        logger.info(
+                                            f"Skipping active term semester - student_number={student_number}, "
+                                            f"program_id={program_id}, semester_id={sem_id}, "
+                                            f"term={semester_term}"
+                                        )
+                                        semesters_skipped += 1
+                                        continue
+
                                     sem_success, sem_msg, db_semester_id = (
                                         self._repository.upsert_student_semester(
                                             std_program_id, semester_data
@@ -279,7 +326,12 @@ class StudentSyncService:
 
         progress_callback(
             f"Completed sync for {student_number}: {educations_synced} education records, "
-            f"{programs_synced} programs, {semesters_synced} semesters, {modules_synced} modules synced",
+            f"{programs_synced} programs, {semesters_synced} semesters, {modules_synced} modules synced"
+            + (
+                f", {semesters_skipped} semesters skipped"
+                if semesters_skipped > 0
+                else ""
+            ),
             total_steps,
             total_steps,
         )
@@ -287,7 +339,8 @@ class StudentSyncService:
         logger.info(
             f"Fetch completed for {student_number}: Student updated={student_updated}, "
             f"Education records synced={educations_synced}, Programs synced={programs_synced}, "
-            f"Semesters synced={semesters_synced}, Modules synced={modules_synced}, "
+            f"Semesters synced={semesters_synced}, Semesters skipped={semesters_skipped}, "
+            f"Modules synced={modules_synced}, "
             f"Education records failed={educations_failed}, Programs failed={programs_failed}, "
             f"Semesters failed={semesters_failed}, Modules failed={modules_failed}"
         )

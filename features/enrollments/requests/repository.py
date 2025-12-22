@@ -431,7 +431,7 @@ class EnrollmentRequestRepository:
                             .filter(
                                 StudentSemester.student_program_id == student_program_id
                             )
-                            .filter(StudentSemester.term == data.get("term"))
+                            .filter(StudentSemester.term_code == data.get("term"))
                             .first()
                         )
 

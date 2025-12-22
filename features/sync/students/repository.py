@@ -71,9 +71,9 @@ class StudentRepository:
     def list_terms(self):
         with self._session() as session:
             rows = (
-                session.query(distinct(StudentSemester.term))
-                .filter(StudentSemester.term.isnot(None))
-                .order_by(StudentSemester.term.desc())
+                session.query(distinct(StudentSemester.term_code))
+                .filter(StudentSemester.term_code.isnot(None))
+                .order_by(StudentSemester.term_code.desc())
                 .all()
             )
             return [row[0] for row in rows]
@@ -149,7 +149,7 @@ class StudentRepository:
                         StructureSemester.semester_number == semester_number
                     )
                 if term:
-                    query = query.filter(StudentSemester.term == term)
+                    query = query.filter(StudentSemester.term_code == term)
 
             if search_query:
                 search_term = f"%{search_query}%"
@@ -368,7 +368,7 @@ class StudentRepository:
             semesters = (
                 session.query(
                     StudentSemester.id,
-                    StudentSemester.term,
+                    StudentSemester.term_code,
                     StructureSemester.semester_number,
                     StudentSemester.status,
                     StudentSemester.caf_date,
@@ -378,7 +378,7 @@ class StudentRepository:
                     StudentSemester.structure_semester_id == StructureSemester.id,
                 )
                 .filter(StudentSemester.student_program_id == student_program_id)
-                .order_by(StudentSemester.term, StructureSemester.semester_number)
+                .order_by(StudentSemester.term_code, StructureSemester.semester_number)
                 .all()
             )
             return semesters
@@ -391,7 +391,7 @@ class StudentRepository:
                 session.query(
                     StudentSemester.id,
                     StudentSemester.student_program_id,
-                    StudentSemester.term,
+                    StudentSemester.term_code,
                     StudentSemester.structure_semester_id,
                     StructureSemester.semester_number,
                     StudentSemester.status,
@@ -413,7 +413,7 @@ class StudentRepository:
                 return {
                     "id": result[0],
                     "student_program_id": result[1],
-                    "term": result[2],
+                    "term_code": result[2],
                     "structure_semester_id": result[3],
                     "semester_number": result[4],
                     "status": result[5],
@@ -601,7 +601,7 @@ class StudentRepository:
                     existing = (
                         session.query(StudentSemester)
                         .filter(StudentSemester.student_program_id == std_program_id)
-                        .filter(StudentSemester.term == data.get("term"))
+                        .filter(StudentSemester.term_code == data.get("term"))
                         .first()
                     )
 

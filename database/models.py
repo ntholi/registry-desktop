@@ -472,7 +472,7 @@ class StudentSemester(Base):
     __tablename__ = "student_semesters"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    term: Mapped[str] = mapped_column(String, nullable=False)
+    term_code: Mapped[str] = mapped_column(String, nullable=False)
     structure_semester_id: Mapped[int] = mapped_column(
         Integer,
         ForeignKey("structure_semesters.id", ondelete="CASCADE"),
@@ -493,7 +493,7 @@ class StudentSemester(Base):
     __table_args__ = (
         Index("fk_student_semesters_student_program_id", "student_program_id"),
         Index("fk_student_semesters_structure_semester_id", "structure_semester_id"),
-        Index("idx_student_semesters_term", "term"),
+        Index("idx_student_semesters_term", "term_code"),
         Index("idx_student_semesters_status", "status"),
         Index("fk_student_semesters_sponsor_id", "sponsor_id"),
     )

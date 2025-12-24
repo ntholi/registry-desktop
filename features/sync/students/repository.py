@@ -644,7 +644,7 @@ class StudentRepository:
                     new_semester = StudentSemester(
                         id=semester_id,
                         student_program_id=std_program_id,
-                        term=data.get("term"),
+                        term_code=data.get("term"),
                         structure_semester_id=data["structure_semester_id"],
                         status=data.get("status")
                         or data.get("semester_status", "Active"),

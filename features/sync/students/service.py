@@ -146,6 +146,7 @@ class StudentSyncService:
                 self._repository.upsert_next_of_kin(student_number, address_list)
 
         program_ids = []
+        preserved_semesters: list[dict] = []
         if import_options.get("enrollment_data"):
             progress_callback(
                 f"Fetching program list for {student_number}...", 2, total_steps
@@ -153,6 +154,23 @@ class StudentSyncService:
             program_ids = extract_student_program_ids(student_number)
 
             if delete_programs_before_import and program_ids:
+                if skip_active_term and active_term_code:
+                    progress_callback(
+                        f"Preserving active term semesters for {student_number}...",
+                        2,
+                        total_steps,
+                    )
+                    preserved_semesters = (
+                        self._repository.get_active_term_semesters_for_student(
+                            student_number, active_term_code
+                        )
+                    )
+                    if preserved_semesters:
+                        logger.info(
+                            f"Preserved {len(preserved_semesters)} active term semesters "
+                            f"for student {student_number} before deletion"
+                        )
+
                 progress_callback(
                     f"Deleting existing program data for {student_number}...",
                     2,
@@ -176,6 +194,7 @@ class StudentSyncService:
         semesters_synced = 0
         semesters_failed = 0
         semesters_skipped = 0
+        semesters_restored = 0
         modules_synced = 0
         modules_failed = 0
 
@@ -321,6 +340,50 @@ class StudentSyncService:
                                 )
                                 semesters_failed += 1
 
+                        if preserved_semesters:
+                            for preserved_sem in preserved_semesters:
+                                if (
+                                    preserved_sem.get("student_program_id")
+                                    == std_program_id
+                                ):
+                                    progress_callback(
+                                        f"Restoring preserved active term semester for program {idx}/{len(program_ids)} - {student_number}...",
+                                        2,
+                                        total_steps,
+                                    )
+                                    try:
+                                        (
+                                            restore_success,
+                                            restore_msg,
+                                            restored_sem_id,
+                                        ) = self._repository.restore_preserved_semester(
+                                            std_program_id, preserved_sem
+                                        )
+                                        if restore_success and restored_sem_id:
+                                            semesters_restored += 1
+                                            modules_count = len(
+                                                preserved_sem.get("modules", [])
+                                            )
+                                            modules_synced += modules_count
+                                            logger.info(
+                                                f"Restored preserved semester {restored_sem_id} "
+                                                f"with {modules_count} modules for program {std_program_id}"
+                                            )
+                                        else:
+                                            logger.warning(
+                                                f"Failed to restore preserved semester - "
+                                                f"student_number={student_number}, "
+                                                f"program_id={program_id}, error={restore_msg}"
+                                            )
+                                            semesters_failed += 1
+                                    except Exception as e:
+                                        logger.error(
+                                            f"Error restoring preserved semester - "
+                                            f"student_number={student_number}, "
+                                            f"program_id={program_id}, error={str(e)}"
+                                        )
+                                        semesters_failed += 1
+
                     else:
                         logger.warning(
                             f"Failed to sync program - student_number={student_number}, "
@@ -341,6 +404,11 @@ class StudentSyncService:
                 f", {semesters_skipped} semesters skipped"
                 if semesters_skipped > 0
                 else ""
+            )
+            + (
+                f", {semesters_restored} semesters restored"
+                if semesters_restored > 0
+                else ""
             ),
             total_steps,
             total_steps,
@@ -350,7 +418,7 @@ class StudentSyncService:
             f"Fetch completed for {student_number}: Student updated={student_updated}, "
             f"Education records synced={educations_synced}, Programs synced={programs_synced}, "
             f"Semesters synced={semesters_synced}, Semesters skipped={semesters_skipped}, "
-            f"Modules synced={modules_synced}, "
+            f"Semesters restored={semesters_restored}, Modules synced={modules_synced}, "
             f"Education records failed={educations_failed}, Programs failed={programs_failed}, "
             f"Semesters failed={semesters_failed}, Modules failed={modules_failed}"
         )

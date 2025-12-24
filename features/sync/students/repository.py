@@ -1020,6 +1020,151 @@ class StudentRepository:
             result = session.query(Term.code).filter(Term.is_active == True).first()
             return result[0] if result else None
 
+    def get_active_term_semesters_for_student(
+        self, std_no: str, active_term_code: str
+    ) -> list[dict]:
+        try:
+            numeric_std_no = int(std_no)
+        except (TypeError, ValueError):
+            return []
+
+        preserved_semesters: list[dict] = []
+        with self._session() as session:
+            try:
+                semesters = (
+                    session.query(
+                        StudentSemester.id,
+                        StudentSemester.term_code,
+                        StudentSemester.structure_semester_id,
+                        StudentSemester.status,
+                        StudentSemester.caf_date,
+                        StudentSemester.sponsor_id,
+                        StudentProgram.id.label("student_program_id"),
+                        StudentProgram.structure_id,
+                    )
+                    .join(
+                        StudentProgram,
+                        StudentSemester.student_program_id == StudentProgram.id,
+                    )
+                    .filter(StudentProgram.std_no == numeric_std_no)
+                    .filter(StudentSemester.term_code == active_term_code)
+                    .all()
+                )
+
+                for sem in semesters:
+                    modules = (
+                        session.query(
+                            StudentModule.id,
+                            StudentModule.semester_module_id,
+                            StudentModule.status,
+                            StudentModule.credits,
+                            StudentModule.marks,
+                            StudentModule.grade,
+                        )
+                        .filter(StudentModule.student_semester_id == sem.id)
+                        .all()
+                    )
+
+                    preserved_semesters.append(
+                        {
+                            "id": sem.id,
+                            "term": sem.term_code,
+                            "structure_semester_id": sem.structure_semester_id,
+                            "status": sem.status,
+                            "caf_date": sem.caf_date,
+                            "sponsor_id": sem.sponsor_id,
+                            "student_program_id": sem.student_program_id,
+                            "structure_id": sem.structure_id,
+                            "modules": [
+                                {
+                                    "id": mod.id,
+                                    "semester_module_id": mod.semester_module_id,
+                                    "status": mod.status,
+                                    "credits": mod.credits,
+                                    "marks": mod.marks,
+                                    "grade": mod.grade,
+                                }
+                                for mod in modules
+                            ],
+                        }
+                    )
+
+                logger.info(
+                    f"Preserved {len(preserved_semesters)} active term semesters for student {std_no}"
+                )
+                return preserved_semesters
+            except Exception as e:
+                logger.error(
+                    f"Error getting active term semesters for student {std_no}: {str(e)}"
+                )
+                return []
+
+    def restore_preserved_semester(
+        self, std_program_id: int, semester_data: dict
+    ) -> tuple[bool, str, Optional[int]]:
+        with self._session() as session:
+            try:
+                semester_id = semester_data.get("id")
+                if not semester_id:
+                    return False, "No semester ID provided", None
+
+                existing = (
+                    session.query(StudentSemester)
+                    .filter(StudentSemester.id == semester_id)
+                    .first()
+                )
+
+                if existing:
+                    logger.info(
+                        f"Semester {semester_id} already exists for program {std_program_id}, skipping restore"
+                    )
+                    return True, "Semester already exists", semester_id
+
+                new_semester = StudentSemester(
+                    id=semester_id,
+                    student_program_id=std_program_id,
+                    term_code=semester_data.get("term"),
+                    structure_semester_id=semester_data["structure_semester_id"],
+                    status=semester_data.get("status", "Active"),
+                    caf_date=semester_data.get("caf_date"),
+                    sponsor_id=semester_data.get("sponsor_id"),
+                )
+                session.add(new_semester)
+                session.flush()
+
+                for module_data in semester_data.get("modules", []):
+                    existing_module = (
+                        session.query(StudentModule)
+                        .filter(StudentModule.id == module_data.get("id"))
+                        .first()
+                    )
+                    if existing_module:
+                        continue
+
+                    new_module = StudentModule(
+                        id=module_data.get("id"),
+                        semester_module_id=module_data["semester_module_id"],
+                        status=module_data.get("status", "Registered"),
+                        credits=module_data.get("credits", 0),
+                        marks=module_data.get("marks", ""),
+                        grade=module_data.get("grade", ""),
+                        student_semester_id=semester_id,
+                    )
+                    session.add(new_module)
+
+                session.commit()
+                logger.info(
+                    f"Restored semester {semester_id} with {len(semester_data.get('modules', []))} modules "
+                    f"for program {std_program_id}"
+                )
+                return True, "Semester restored", semester_id
+            except Exception as e:
+                session.rollback()
+                logger.error(
+                    f"Error restoring semester for program {std_program_id}: {str(e)}"
+                )
+                return False, str(e), None
+
     def delete_student_programs(self, std_no: str) -> tuple[bool, int]:
         try:
             numeric_std_no = int(std_no)

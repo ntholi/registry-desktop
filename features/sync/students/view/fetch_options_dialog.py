@@ -6,7 +6,7 @@ class FetchOptionsDialog(wx.Dialog):
         super().__init__(
             parent,
             title="Fetch Options",
-            size=wx.Size(500, 340 if show_advanced_options else 240),
+            size=wx.Size(500, 360 if show_advanced_options else 260),
             style=wx.DEFAULT_DIALOG_STYLE,
         )
 
@@ -79,7 +79,14 @@ class FetchOptionsDialog(wx.Dialog):
         self.enrollment_data_checkbox.Bind(
             wx.EVT_CHECKBOX, self.on_data_checkbox_changed
         )
-        checkbox_sizer.Add(self.enrollment_data_checkbox, 0)
+        checkbox_sizer.Add(self.enrollment_data_checkbox, 0, wx.BOTTOM, 5)
+
+        self.addresses_checkbox = wx.CheckBox(
+            self, label="Addresses (Next of Kin, Contact persons, etc.)"
+        )
+        self.addresses_checkbox.SetValue(True)
+        self.addresses_checkbox.Bind(wx.EVT_CHECKBOX, self.on_data_checkbox_changed)
+        checkbox_sizer.Add(self.addresses_checkbox, 0)
 
         main_sizer.Add(checkbox_sizer, 0, wx.LEFT | wx.RIGHT, 15)
 
@@ -140,6 +147,7 @@ class FetchOptionsDialog(wx.Dialog):
             "personal_info": self.personal_info_checkbox.GetValue(),
             "education_history": self.education_history_checkbox.GetValue(),
             "enrollment_data": self.enrollment_data_checkbox.GetValue(),
+            "addresses": self.addresses_checkbox.GetValue(),
         }
         if self.show_advanced_options:
             options["skip_active_term"] = self.skip_active_term_checkbox.GetValue()
@@ -157,6 +165,7 @@ class FetchOptionsDialog(wx.Dialog):
         self.personal_info_checkbox.SetValue(is_checked)
         self.education_history_checkbox.SetValue(is_checked)
         self.enrollment_data_checkbox.SetValue(is_checked)
+        self.addresses_checkbox.SetValue(is_checked)
         self.update_fetch_button_state()
 
     def on_data_checkbox_changed(self, event):
@@ -166,6 +175,7 @@ class FetchOptionsDialog(wx.Dialog):
                 self.personal_info_checkbox.GetValue(),
                 self.education_history_checkbox.GetValue(),
                 self.enrollment_data_checkbox.GetValue(),
+                self.addresses_checkbox.GetValue(),
             ]
         )
         any_checked = any(
@@ -174,6 +184,7 @@ class FetchOptionsDialog(wx.Dialog):
                 self.personal_info_checkbox.GetValue(),
                 self.education_history_checkbox.GetValue(),
                 self.enrollment_data_checkbox.GetValue(),
+                self.addresses_checkbox.GetValue(),
             ]
         )
 
@@ -193,6 +204,7 @@ class FetchOptionsDialog(wx.Dialog):
                 self.personal_info_checkbox.GetValue(),
                 self.education_history_checkbox.GetValue(),
                 self.enrollment_data_checkbox.GetValue(),
+                self.addresses_checkbox.GetValue(),
             ]
         )
         self.fetch_button.Enable(has_checkboxes)

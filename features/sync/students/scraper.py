@@ -705,3 +705,56 @@ def scrape_student_education_data(std_education_id: str) -> dict:
 
     logger.info(f"Scraped education data for student education {std_education_id}")
     return data
+
+
+def scrape_student_addresses(std_no: str) -> list[dict]:
+    browser = Browser()
+    url = f"{BASE_URL}/r_stdrelationlist.php?showmaster=1&StudentID={std_no}"
+    response = browser.fetch(url)
+
+    page = BeautifulSoup(response.text, "lxml")
+    table = page.select_one("table#ewlistmain")
+
+    if not table:
+        logger.warning(f"No address table found for student {std_no}")
+        return []
+
+    addresses = []
+    rows = table.select("tr.ewTableRow, tr.ewTableAltRow")
+
+    for row in rows:
+        cells = row.select("td")
+        if len(cells) < 6:
+            continue
+
+        relation_code = cells[0].get_text(strip=True)
+        name = cells[1].get_text(strip=True)
+        contact_no = cells[2].get_text(strip=True)
+        occupation = cells[3].get_text(strip=True)
+        address = cells[4].get_text(strip=True)
+        country = cells[5].get_text(strip=True)
+
+        if not name:
+            continue
+
+        normalized_relationship = normalize_next_of_kin_relationship(relation_code)
+        normalized_name = normalize_name(name)
+        normalized_phone = normalize_phone(contact_no)
+        normalized_occupation = normalize_text(occupation) if occupation else None
+        normalized_address = normalize_text(address) if address else None
+        normalized_country = normalize_text(country) if country else None
+
+        if normalized_relationship and normalized_name:
+            addresses.append(
+                {
+                    "name": normalized_name,
+                    "relationship": normalized_relationship,
+                    "phone": normalized_phone,
+                    "occupation": normalized_occupation,
+                    "address": normalized_address,
+                    "country": normalized_country,
+                }
+            )
+
+    logger.info(f"Scraped {len(addresses)} address records for student {std_no}")
+    return addresses

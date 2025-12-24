@@ -831,6 +831,12 @@ class StudentRepository:
                             existing.phone = kin_data["phone"]
                         if kin_data.get("email"):
                             existing.email = kin_data["email"]
+                        if kin_data.get("occupation"):
+                            existing.occupation = kin_data["occupation"]
+                        if kin_data.get("address"):
+                            existing.address = kin_data["address"]
+                        if kin_data.get("country"):
+                            existing.country = kin_data["country"]
                     else:
                         new_kin = NextOfKin(
                             std_no=numeric_student_number,
@@ -838,6 +844,9 @@ class StudentRepository:
                             relationship=relationship,
                             phone=kin_data.get("phone"),
                             email=kin_data.get("email"),
+                            occupation=kin_data.get("occupation"),
+                            address=kin_data.get("address"),
+                            country=kin_data.get("country"),
                         )
                         session.add(new_kin)
 

@@ -14,6 +14,7 @@ from .scraper import (
     extract_student_education_ids,
     extract_student_program_ids,
     extract_student_semester_ids,
+    scrape_student_addresses,
     scrape_student_data,
     scrape_student_education_data,
     scrape_student_modules_concurrent,
@@ -58,6 +59,7 @@ class StudentSyncService:
                 "personal_info": True,
                 "education_history": True,
                 "enrollment_data": True,
+                "addresses": True,
                 "skip_active_term": True,
                 "delete_programs_before_import": False,
             }
@@ -134,6 +136,14 @@ class StudentSyncService:
                         f"education_id={edu_id}, error={str(e)}",
                     )
                     educations_failed += 1
+
+        if import_options.get("addresses"):
+            progress_callback(
+                f"Fetching addresses for {student_number}...", 1, total_steps
+            )
+            address_list = scrape_student_addresses(student_number)
+            if address_list:
+                self._repository.upsert_next_of_kin(student_number, address_list)
 
         program_ids = []
         if import_options.get("enrollment_data"):

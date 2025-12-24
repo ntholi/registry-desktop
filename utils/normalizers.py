@@ -452,6 +452,10 @@ def normalize_next_of_kin_relationship(
     if not relationship:
         return None
 
+    normalized = relationship.strip().lower()
+    if normalized.startswith("a-"):
+        normalized = normalized[2:]
+
     relationship_mapping: dict[str, NextOfKinRelationship] = {
         "mother": "Mother",
         "mom": "Mother",
@@ -470,11 +474,13 @@ def normalize_next_of_kin_relationship(
         "daughter": "Child",
         "kid": "Child",
         "spouse": "Spouse",
-        "husband": "Spouse",
-        "wife": "Spouse",
         "partner": "Spouse",
+        "husband": "Husband",
+        "wife": "Wife",
+        "self": "Self",
+        "permanent": "Permanent",
+        "guardian": "Guardian",
         "other": "Other",
-        "guardian": "Other",
         "relative": "Other",
         "friend": "Other",
         "uncle": "Other",
@@ -485,7 +491,6 @@ def normalize_next_of_kin_relationship(
         "cousin": "Other",
     }
 
-    normalized = relationship.strip().lower()
     return relationship_mapping.get(normalized, "Other")
 
 

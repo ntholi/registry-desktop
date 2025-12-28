@@ -19,7 +19,6 @@ class ModuleRow:
     code: str
     name: str
     status: str
-    remark: Optional[str]
     timestamp: Optional[str]
 
 
@@ -60,7 +59,6 @@ class ModuleRepository:
                 code=result.code,  # type: ignore
                 name=result.name,  # type: ignore
                 status=result.status,  # type: ignore
-                remark=result.remark,  # type: ignore
                 timestamp=result.timestamp,  # type: ignore
             )
             for result in results
@@ -77,7 +75,6 @@ class ModuleRepository:
         code: str,
         name: str,
         status: str,
-        remark: Optional[str] = None,
         timestamp: Optional[str] = None,
     ) -> Module:
         with self._session() as session:
@@ -88,7 +85,6 @@ class ModuleRepository:
                 existing_module.code = code  # type: ignore
                 existing_module.name = name  # type: ignore
                 existing_module.status = status  # type: ignore
-                existing_module.remark = remark  # type: ignore
                 existing_module.timestamp = timestamp  # type: ignore
                 session.commit()
                 session.refresh(existing_module)
@@ -99,7 +95,6 @@ class ModuleRepository:
                     code=code,
                     name=name,
                     status=status,
-                    remark=remark,
                     timestamp=timestamp,
                 )
                 session.add(new_module)
@@ -112,7 +107,6 @@ class ModuleRepository:
         code: str,
         name: str,
         status: str,
-        remark: Optional[str] = None,
         timestamp: Optional[str] = None,
     ) -> tuple[bool, str, Optional[Module]]:
         with self._session() as session:
@@ -124,7 +118,6 @@ class ModuleRepository:
                 code=code,
                 name=name,
                 status=status,
-                remark=remark,
                 timestamp=timestamp,
             )
             session.add(new_module)

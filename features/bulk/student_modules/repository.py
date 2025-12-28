@@ -110,14 +110,14 @@ class BulkStudentModulesRepository:
         """List all unique terms for students enrolled in a structure."""
         with self._session() as session:
             results = (
-                session.query(StudentSemester.term_code)
+                session.query(StudentSemester.term)
                 .join(
                     StudentProgram,
                     StudentSemester.student_program_id == StudentProgram.id,
                 )
                 .filter(StudentProgram.structure_id == structure_id)
                 .distinct()
-                .order_by(StudentSemester.term_code.desc())
+                .order_by(StudentSemester.term.desc())
                 .all()
             )
             return [r[0] for r in results]
@@ -139,7 +139,7 @@ class BulkStudentModulesRepository:
                     Module.code.label("module_code"),
                     Module.name.label("module_name"),
                     StudentModule.status,
-                    StudentModule.credits,
+                    SemesterModule.credits,
                     StudentModule.marks,
                     StudentModule.grade,
                     StudentModule.student_semester_id,
@@ -173,7 +173,7 @@ class BulkStudentModulesRepository:
             )
 
             if term:
-                query = query.filter(StudentSemester.term_code == term)
+                query = query.filter(StudentSemester.term == term)
 
             query = query.order_by(Student.std_no.desc())
             results = query.all()
@@ -255,7 +255,7 @@ class BulkStudentModulesRepository:
                     Module.code.label("module_code"),
                     Module.name.label("module_name"),
                     StudentModule.status,
-                    StudentModule.credits,
+                    SemesterModule.credits,
                     StudentModule.marks,
                     StudentModule.grade,
                     StudentModule.student_semester_id,
@@ -294,7 +294,7 @@ class BulkStudentModulesRepository:
             )
 
             if term:
-                query = query.filter(StudentSemester.term_code == term)
+                query = query.filter(StudentSemester.term == term)
 
             query = query.order_by(Student.std_no.desc())
             results = query.all()

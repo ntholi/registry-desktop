@@ -387,15 +387,11 @@ class ModulesView(wx.Panel):
         module_status = self.list_ctrl.GetItemText(self.selected_module_item, 2)
         module_timestamp = self.list_ctrl.GetItemText(self.selected_module_item, 3)
 
-        existing_module = self.repository.get_module(module_id)
-        module_remark = existing_module.remark if existing_module else None
-
         module_data = {
             "id": module_id,
             "code": module_code,
             "name": module_name,
             "status": module_status,
-            "remark": module_remark,
             "timestamp": module_timestamp,
         }
 

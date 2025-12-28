@@ -23,7 +23,7 @@ class ModuleFormDialog(wx.Dialog):
         panel = wx.Panel(self)
         main_sizer = wx.BoxSizer(wx.VERTICAL)
 
-        form_sizer = wx.FlexGridSizer(rows=6, cols=2, vgap=10, hgap=10)
+        form_sizer = wx.FlexGridSizer(rows=5, cols=2, vgap=10, hgap=10)
         form_sizer.AddGrowableCol(1)
 
         # Module ID (read-only)
@@ -76,19 +76,6 @@ class ModuleFormDialog(wx.Dialog):
         else:
             self.status_choice.SetSelection(0)
         form_sizer.Add(self.status_choice, 0, wx.EXPAND)
-
-        form_sizer.Add(
-            wx.StaticText(panel, label="Remark:"),
-            0,
-            wx.ALIGN_RIGHT | wx.ALIGN_TOP,
-        )
-        self.remark_input = wx.TextCtrl(
-            panel,
-            value=self.module_data.get("remark", "") or "",
-            style=wx.TE_MULTILINE,
-            size=wx.Size(-1, 90),
-        )
-        form_sizer.Add(self.remark_input, 0, wx.EXPAND)
 
         # Date Stamp
         form_sizer.Add(
@@ -145,7 +132,6 @@ class ModuleFormDialog(wx.Dialog):
             "code": self.code_input.GetValue().strip(),
             "name": self.name_input.GetValue().strip(),
             "status": status,
-            "remark": self.remark_input.GetValue().strip() or None,
             "date_stamp": self.date_stamp_input.GetValue().strip(),
         }
 
@@ -168,7 +154,7 @@ class NewModuleFormDialog(wx.Dialog):
         panel = wx.Panel(self)
         main_sizer = wx.BoxSizer(wx.VERTICAL)
 
-        form_sizer = wx.FlexGridSizer(rows=4, cols=2, vgap=10, hgap=10)
+        form_sizer = wx.FlexGridSizer(rows=3, cols=2, vgap=10, hgap=10)
         form_sizer.AddGrowableCol(1)
 
         form_sizer.Add(
@@ -186,14 +172,6 @@ class NewModuleFormDialog(wx.Dialog):
         )
         self.name_input = wx.TextCtrl(panel)
         form_sizer.Add(self.name_input, 0, wx.EXPAND)
-
-        form_sizer.Add(
-            wx.StaticText(panel, label="Remark:"),
-            0,
-            wx.ALIGN_RIGHT | wx.ALIGN_TOP,
-        )
-        self.remark_input = wx.TextCtrl(panel, style=wx.TE_MULTILINE, size=wx.Size(-1, 90))
-        form_sizer.Add(self.remark_input, 0, wx.EXPAND)
 
         form_sizer.Add(
             wx.StaticText(panel, label="Date Stamp:"),
@@ -238,13 +216,11 @@ class NewModuleFormDialog(wx.Dialog):
         event.Skip()
 
     def get_new_data(self) -> dict:
-        remark = self.remark_input.GetValue().strip() or None
         date_stamp = self.date_stamp_input.GetValue().strip() or None
 
         return {
             "code": self.code_input.GetValue().strip(),
             "name": self.name_input.GetValue().strip(),
-            "remark": remark,
             "date_stamp": date_stamp,
             "status": "Active",
         }

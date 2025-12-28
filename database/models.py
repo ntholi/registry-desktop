@@ -354,9 +354,6 @@ class NextOfKin(Base):
     relationship: Mapped[NextOfKinRelationship] = mapped_column(String, nullable=False)
     phone: Mapped[str | None] = mapped_column(Text, nullable=True)
     email: Mapped[str | None] = mapped_column(Text, nullable=True)
-    occupation: Mapped[str | None] = mapped_column(Text, nullable=True)
-    address: Mapped[str | None] = mapped_column(Text, nullable=True)
-    country: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime, default=utc_now, nullable=True
     )
@@ -457,7 +454,7 @@ class StudentSemester(Base):
     __tablename__ = "student_semesters"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    term_code: Mapped[str] = mapped_column(String, nullable=False)
+    term: Mapped[str] = mapped_column(String, nullable=False)
     structure_semester_id: Mapped[int] = mapped_column(
         Integer,
         ForeignKey("structure_semesters.id", ondelete="CASCADE"),
@@ -478,7 +475,7 @@ class StudentSemester(Base):
     __table_args__ = (
         Index("fk_student_semesters_student_program_id", "student_program_id"),
         Index("fk_student_semesters_structure_semester_id", "structure_semester_id"),
-        Index("idx_student_semesters_term", "term_code"),
+        Index("idx_student_semesters_term", "term"),
         Index("idx_student_semesters_status", "status"),
         Index("fk_student_semesters_sponsor_id", "sponsor_id"),
     )
@@ -493,7 +490,6 @@ class Module(Base):
     status: Mapped[ModuleStatus] = mapped_column(
         String, nullable=False, default="Active"
     )
-    remark: Mapped[str | None] = mapped_column(Text, nullable=True)
     timestamp: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
@@ -530,7 +526,6 @@ class StudentModule(Base):
         Integer, ForeignKey("semester_modules.id", ondelete="CASCADE"), nullable=False
     )
     status: Mapped[StudentModuleStatus] = mapped_column(String, nullable=False)
-    credits: Mapped[float] = mapped_column(Float, nullable=False)
     marks: Mapped[str] = mapped_column(String, nullable=False)
     grade: Mapped[Grade] = mapped_column(String, nullable=False)
     student_semester_id: Mapped[int] = mapped_column(

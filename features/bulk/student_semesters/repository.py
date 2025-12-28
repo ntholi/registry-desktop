@@ -31,7 +31,7 @@ class StudentSemesterRow:
     student_semester_id: int
     structure_semester_id: int
     semester_number: str
-    term_code: str
+    term: str
     status: str
     student_program_id: int
 
@@ -84,14 +84,14 @@ class BulkStudentSemestersRepository:
     def list_terms(self, structure_id: int):
         with self._session() as session:
             results = (
-                session.query(StudentSemester.term_code)
+                session.query(StudentSemester.term)
                 .join(
                     StudentProgram,
                     StudentSemester.student_program_id == StudentProgram.id,
                 )
                 .filter(StudentProgram.structure_id == structure_id)
                 .distinct()
-                .order_by(StudentSemester.term_code.desc())
+                .order_by(StudentSemester.term.desc())
                 .all()
             )
             return [r[0] for r in results]
@@ -110,7 +110,7 @@ class BulkStudentSemestersRepository:
                     StudentSemester.id.label("student_semester_id"),
                     StudentSemester.structure_semester_id,
                     StructureSemester.semester_number,
-                    StudentSemester.term_code,
+                    StudentSemester.term,
                     StudentSemester.status,
                     StudentSemester.student_program_id,
                 )
@@ -134,7 +134,7 @@ class BulkStudentSemestersRepository:
             )
 
             if term:
-                query = query.filter(StudentSemester.term_code == term)
+                query = query.filter(StudentSemester.term == term)
 
             query = query.order_by(Student.std_no.desc())
             results = query.all()
@@ -146,7 +146,7 @@ class BulkStudentSemestersRepository:
                     student_semester_id=r.student_semester_id,
                     structure_semester_id=r.structure_semester_id,
                     semester_number=r.semester_number,
-                    term_code=r.term_code,
+                    term=r.term,
                     status=r.status,
                     student_program_id=r.student_program_id,
                 )

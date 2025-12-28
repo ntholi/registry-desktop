@@ -649,7 +649,7 @@ class StudentSemestersView(wx.Panel):
             self.list_ctrl.SetItem(
                 index, 3, format_semester(student.semester_number, type="short")
             )
-            self.list_ctrl.SetItem(index, 4, student.term_code or "")
+            self.list_ctrl.SetItem(index, 4, student.term or "")
             self.list_ctrl.SetItem(index, 5, student.status or "")
             self.list_ctrl.SetItemData(index, row)
 

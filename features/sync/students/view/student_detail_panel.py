@@ -246,7 +246,7 @@ class StudentDetailPanel(wx.Panel):
 
         for row, semester in enumerate(semesters):
             index = self.semesters_list.InsertItem(row, str(semester.id or ""))
-            self.semesters_list.SetItem(index, 1, str(semester.term_code or ""))
+            self.semesters_list.SetItem(index, 1, str(semester.term or ""))
             self.semesters_list.SetItem(
                 index,
                 2,

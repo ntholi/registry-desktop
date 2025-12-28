@@ -410,7 +410,6 @@ class ModulesView(wx.Panel):
                     "code": updated_data["code"],
                     "name": updated_data["name"],
                     "status": updated_data["status"],
-                    "remark": updated_data.get("remark"),
                     "date_stamp": updated_data["date_stamp"],
                 },
                 self.service,

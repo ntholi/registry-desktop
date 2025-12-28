@@ -433,7 +433,7 @@ class StudentRepository:
                     StudentModule.status,
                     StudentModule.marks,
                     StudentModule.grade,
-                    StudentModule.credits,
+                    SemesterModule.credits,
                 )
                 .join(
                     SemesterModule,
@@ -831,12 +831,6 @@ class StudentRepository:
                             existing.phone = kin_data["phone"]
                         if kin_data.get("email"):
                             existing.email = kin_data["email"]
-                        if kin_data.get("occupation"):
-                            existing.occupation = kin_data["occupation"]
-                        if kin_data.get("address"):
-                            existing.address = kin_data["address"]
-                        if kin_data.get("country"):
-                            existing.country = kin_data["country"]
                     else:
                         new_kin = NextOfKin(
                             std_no=numeric_student_number,
@@ -844,9 +838,6 @@ class StudentRepository:
                             relationship=relationship,
                             phone=kin_data.get("phone"),
                             email=kin_data.get("email"),
-                            occupation=kin_data.get("occupation"),
-                            address=kin_data.get("address"),
-                            country=kin_data.get("country"),
                         )
                         session.add(new_kin)
 
@@ -1057,9 +1048,13 @@ class StudentRepository:
                             StudentModule.id,
                             StudentModule.semester_module_id,
                             StudentModule.status,
-                            StudentModule.credits,
+                            SemesterModule.credits,
                             StudentModule.marks,
                             StudentModule.grade,
+                        )
+                        .join(
+                            SemesterModule,
+                            StudentModule.semester_module_id == SemesterModule.id,
                         )
                         .filter(StudentModule.student_semester_id == sem.id)
                         .all()
@@ -1068,7 +1063,7 @@ class StudentRepository:
                     preserved_semesters.append(
                         {
                             "id": sem.id,
-                            "term": sem.term_code,
+                            "term": sem.term,
                             "structure_semester_id": sem.structure_semester_id,
                             "status": sem.status,
                             "caf_date": sem.caf_date,
@@ -1123,7 +1118,7 @@ class StudentRepository:
                 new_semester = StudentSemester(
                     id=semester_id,
                     student_program_id=std_program_id,
-                    term_code=semester_data.get("term"),
+                    term=semester_data.get("term"),
                     structure_semester_id=semester_data["structure_semester_id"],
                     status=semester_data.get("status", "Active"),
                     caf_date=semester_data.get("caf_date"),
@@ -1145,7 +1140,6 @@ class StudentRepository:
                         id=module_data.get("id"),
                         semester_module_id=module_data["semester_module_id"],
                         status=module_data.get("status", "Registered"),
-                        credits=module_data.get("credits", 0),
                         marks=module_data.get("marks", ""),
                         grade=module_data.get("grade", ""),
                         student_semester_id=semester_id,

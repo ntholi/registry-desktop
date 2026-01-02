@@ -160,6 +160,7 @@ class EnrollmentService:
                     "structure_semester_id": structure_semester_id,
                     "status": semester_status,
                     "caf_date": today(),
+                    "registration_request_id": request_id,
                 },
             )
 

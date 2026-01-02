@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import String, distinct, or_
@@ -446,6 +447,10 @@ class EnrollmentRequestRepository:
                             existing.caf_date = data["caf_date"]
                         if "sponsor_id" in data:
                             existing.sponsor_id = data["sponsor_id"]
+                        if "registration_request_id" in data:
+                            existing.registration_request_id = data[
+                                "registration_request_id"
+                            ]
 
                         session.commit()
                         logger.info(f"Updated student semester {semester_id}")
@@ -469,6 +474,7 @@ class EnrollmentRequestRepository:
                             status=data.get("status", "Active"),
                             caf_date=data.get("caf_date"),
                             sponsor_id=data.get("sponsor_id"),
+                            registration_request_id=data.get("registration_request_id"),
                         )
                         session.add(new_semester)
                         session.commit()
@@ -550,6 +556,8 @@ class EnrollmentRequestRepository:
                     return False
 
                 request.status = status  # type: ignore
+                if status == "registered":
+                    request.date_registered = datetime.now()  # type: ignore
                 session.commit()
                 logger.info(
                     f"Updated registration request {request_id} status to {status}"

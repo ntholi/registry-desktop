@@ -210,7 +210,7 @@ class NewSemesterModuleDialog(wx.Dialog):
         self._selected_module_code = None
         self._selected_module_name = None
         self.selected_module_label.SetLabel("Selected module: (none)")
-        self.credits_input.SetValue("0")
+        self.credits_input.SetValue(0)  # type: ignore[arg-type]
         self._type_manually_set = False
         self._auto_set_type_from_credits(0)
         self._set_form_enabled(False)
@@ -259,7 +259,7 @@ class NewSemesterModuleDialog(wx.Dialog):
                 self._selected_module_code
             )
             if inferred is not None:
-                self.credits_input.SetValue(str(inferred))
+                self.credits_input.SetValue(inferred)  # type: ignore[arg-type]
                 self._auto_set_type_from_credits(inferred)
         self._set_form_enabled(True)
 

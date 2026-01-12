@@ -30,6 +30,7 @@ from features.enrollments.requests.requests_view import RequestsView
 from features.enrollments.student.student_view import StudentView
 from features.export.certificates.certificates_view import CertificatesView
 from features.export.reports.reports_view import ReportsView
+from features.repairs.module_grades import ModuleGradesView
 from features.sync.modules.modules_view import ModulesView
 from features.sync.structures.structures_view import StructuresView
 from features.sync.students import StudentsView
@@ -79,6 +80,7 @@ class MainWindow(wx.Frame):
             "enrollment_requests": RequestsView,
             "enrollments_module": ModuleView,
             "enrollments_student": StudentView,
+            "repair_module_grades": ModuleGradesView,
             "export_certificates": CertificatesView,
             "export_reports": ReportsView,
         }

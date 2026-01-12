@@ -67,6 +67,17 @@
       ]
     },
     {
+      "title": "Repairs",
+      "description": "Repair and correct data issues",
+      "icon": null,
+      "submenu": [
+        {
+          "title": "Module Grades",
+          "action": "repair_module_grades"
+        }
+      ]
+    },
+    {
       "title": "Export",
       "description": "Export data and reports",
       "icon": null,

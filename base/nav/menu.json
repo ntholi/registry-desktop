@@ -29,16 +29,21 @@
       "icon": null,
       "submenu": [
         {
-          "title": "Student Modules",
-          "action": "bulk_student_modules"
-        },
-        {
-          "title": "Student Semesters",
-          "action": "bulk_student_semesters"
-        },
-        {
-          "title": "Student Programs",
-          "action": "bulk_student_programs"
+          "title": "Students",
+          "submenu": [
+            {
+              "title": "Modules",
+              "action": "bulk_student_modules"
+            },
+            {
+              "title": "Semesters",
+              "action": "bulk_student_semesters"
+            },
+            {
+              "title": "Programs",
+              "action": "bulk_student_programs"
+            }
+          ]
         }
       ]
     },

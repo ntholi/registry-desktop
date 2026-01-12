@@ -68,26 +68,29 @@ class AccordionNavigation(wx.Panel):
 
             root = self.tree.AddRoot("Root")
 
-            for item_config in config["menu_items"]:
-                # Add category as parent
-                parent_item = self.tree.AppendItem(
-                    root,
-                    item_config["title"],
-                )
-                parent_font = self.tree.GetItemFont(parent_item)
-                parent_font.PointSize = 10
-                parent_font = parent_font.Bold()
-                self.tree.SetItemFont(parent_item, parent_font)
+            def add_menu_items(parent, items, level=0):
+                for item_config in items:
+                    title = item_config["title"]
+                    action = item_config.get("action")
+                    submenu = item_config.get("submenu")
 
-                # Add submenu items
-                for submenu in item_config["submenu"]:
-                    child_item = self.tree.AppendItem(
-                        parent_item, submenu["title"], data=submenu["action"]
-                    )
-                    self.action_items[submenu["action"]] = child_item
-                    child_font = self.tree.GetItemFont(child_item)
-                    child_font.PointSize = 9
-                    self.tree.SetItemFont(child_item, child_font)
+                    item = self.tree.AppendItem(parent, title, data=action)
+
+                    font = self.tree.GetItemFont(item)
+                    if level == 0:
+                        font.PointSize = 10
+                        font = font.Bold()
+                    else:
+                        font.PointSize = 9
+                    self.tree.SetItemFont(item, font)
+
+                    if action:
+                        self.action_items[action] = item
+
+                    if submenu:
+                        add_menu_items(item, submenu, level + 1)
+
+            add_menu_items(root, config["menu_items"])
 
             # Expand all categories
             self.tree.ExpandAll()

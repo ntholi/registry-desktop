@@ -171,3 +171,8 @@ response = browser.post(url, form_data)
 - `database/connection.py`: DB connection factory (local vs. Turso)
 - `features/sync/students/`: Complete reference implementation for sync workflows
 - `samples/pages/`: Sample .php pages from the CMS for reference when scraping/posting (forms, views, etc.)
+
+
+**EXTREMELY IMPORTANT**: Always run this command on the terminal when finished:
+`"Done"`
+(No matter what! Do not combine it with other commands or outputs).

@@ -469,7 +469,7 @@ class EnrollmentRequestRepository:
                         new_semester = StudentSemester(
                             id=semester_id,
                             student_program_id=student_program_id,
-                            term=data.get("term"),
+                            term_code=data.get("term"),
                             structure_semester_id=data["structure_semester_id"],
                             status=data.get("status", "Active"),
                             caf_date=data.get("caf_date"),

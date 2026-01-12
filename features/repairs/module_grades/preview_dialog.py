@@ -6,6 +6,17 @@ import wx
 from .repository import StudentModuleGradeRow
 
 
+def is_borderline_marks(marks: str) -> bool:
+    if not marks:
+        return False
+    try:
+        marks_int = int(marks)
+        last_digit = marks_int % 10
+        return last_digit == 4 or last_digit == 9
+    except ValueError:
+        return False
+
+
 @dataclass
 class GradePreviewItem:
     std_no: str
@@ -26,16 +37,18 @@ class RecalculatePreviewDialog(wx.Dialog):
         parent,
         preview_items: list[GradePreviewItem],
         skip_pp_default: bool = True,
+        skip_borderline_default: bool = True,
     ):
         super().__init__(
             parent,
             title="Grade Recalculation Preview",
             style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
-            size=wx.Size(900, 600),
+            size=wx.Size(800, 600),
         )
 
         self.preview_items = preview_items
         self.skip_pp = skip_pp_default
+        self.skip_borderline = skip_borderline_default
         self.filtered_items: list[GradePreviewItem] = []
 
         self.init_ui()
@@ -62,8 +75,17 @@ class RecalculatePreviewDialog(wx.Dialog):
 
         self.skip_pp_checkbox = wx.CheckBox(self, label="Skip PP grades")
         self.skip_pp_checkbox.SetValue(self.skip_pp)
-        self.skip_pp_checkbox.Bind(wx.EVT_CHECKBOX, self.on_skip_pp_changed)
-        options_sizer.Add(self.skip_pp_checkbox, 0, wx.ALIGN_CENTER_VERTICAL)
+        self.skip_pp_checkbox.Bind(wx.EVT_CHECKBOX, self.on_skip_option_changed)
+        options_sizer.Add(
+            self.skip_pp_checkbox, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 20
+        )
+
+        self.skip_borderline_checkbox = wx.CheckBox(
+            self, label="Skip Borderline (44, 49, 54, 59, etc.)"
+        )
+        self.skip_borderline_checkbox.SetValue(self.skip_borderline)
+        self.skip_borderline_checkbox.Bind(wx.EVT_CHECKBOX, self.on_skip_option_changed)
+        options_sizer.Add(self.skip_borderline_checkbox, 0, wx.ALIGN_CENTER_VERTICAL)
 
         options_sizer.AddStretchSpacer()
 
@@ -77,13 +99,11 @@ class RecalculatePreviewDialog(wx.Dialog):
         self.list_ctrl = wx.ListCtrl(self, style=wx.LC_REPORT | wx.BORDER_SIMPLE)
 
         self.list_ctrl.AppendColumn("Student No", width=100)
-        self.list_ctrl.AppendColumn("Name", width=150)
+        self.list_ctrl.AppendColumn("Name", width=180)
         self.list_ctrl.AppendColumn("Module Code", width=100)
-        self.list_ctrl.AppendColumn("Module Name", width=180)
-        self.list_ctrl.AppendColumn("Old Marks", width=75)
-        self.list_ctrl.AppendColumn("Old Grade", width=75)
-        self.list_ctrl.AppendColumn("New Marks", width=75)
-        self.list_ctrl.AppendColumn("New Grade", width=75)
+        self.list_ctrl.AppendColumn("Module Name", width=200)
+        self.list_ctrl.AppendColumn("Old Grade", width=90)
+        self.list_ctrl.AppendColumn("New Grade", width=90)
 
         main_sizer.Add(self.list_ctrl, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 20)
 
@@ -121,8 +141,9 @@ class RecalculatePreviewDialog(wx.Dialog):
 
         self.SetSizer(main_sizer)
 
-    def on_skip_pp_changed(self, event):
+    def on_skip_option_changed(self, event):
         self.skip_pp = self.skip_pp_checkbox.GetValue()
+        self.skip_borderline = self.skip_borderline_checkbox.GetValue()
         self.update_list()
 
     def update_list(self):
@@ -145,11 +166,26 @@ class RecalculatePreviewDialog(wx.Dialog):
                 will_skip += 1
                 continue
 
+            if self.skip_borderline and is_borderline_marks(item.new_marks):
+                will_skip += 1
+                continue
+
             if item.old_marks == item.new_marks and item.old_grade == item.new_grade:
                 no_change += 1
                 continue
 
             self.filtered_items.append(item)
+
+            old_grade_display = (
+                f"{item.old_marks}/{item.old_grade}"
+                if item.old_marks or item.old_grade
+                else ""
+            )
+            new_grade_display = (
+                f"{item.new_marks}/{item.new_grade}"
+                if item.new_marks or item.new_grade
+                else ""
+            )
 
             index = self.list_ctrl.InsertItem(
                 self.list_ctrl.GetItemCount(), item.std_no
@@ -157,10 +193,8 @@ class RecalculatePreviewDialog(wx.Dialog):
             self.list_ctrl.SetItem(index, 1, item.name or "")
             self.list_ctrl.SetItem(index, 2, item.module_code or "")
             self.list_ctrl.SetItem(index, 3, item.module_name or "")
-            self.list_ctrl.SetItem(index, 4, item.old_marks or "")
-            self.list_ctrl.SetItem(index, 5, item.old_grade or "")
-            self.list_ctrl.SetItem(index, 6, item.new_marks or "")
-            self.list_ctrl.SetItem(index, 7, item.new_grade or "")
+            self.list_ctrl.SetItem(index, 4, old_grade_display)
+            self.list_ctrl.SetItem(index, 5, new_grade_display)
 
             will_update += 1
 

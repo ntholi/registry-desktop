@@ -128,8 +128,8 @@ class ModuleGradesRepository:
 
     def fetch_students_with_module(
         self,
-        semester_module_id: int,
         structure_id: int,
+        semester_module_id: Optional[int] = None,
         term: Optional[str] = None,
     ) -> list[StudentModuleGradeRow]:
         with self._session() as session:
@@ -174,7 +174,6 @@ class ModuleGradesRepository:
                     StructureSemester,
                     StudentSemester.structure_semester_id == StructureSemester.id,
                 )
-                .filter(StudentModule.semester_module_id == semester_module_id)
                 .filter(StudentProgram.structure_id == structure_id)
                 .filter(
                     or_(
@@ -183,6 +182,11 @@ class ModuleGradesRepository:
                     )
                 )
             )
+
+            if semester_module_id:
+                query = query.filter(
+                    StudentModule.semester_module_id == semester_module_id
+                )
 
             if term:
                 query = query.filter(StudentSemester.term_code == term)

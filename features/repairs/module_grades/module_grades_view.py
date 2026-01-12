@@ -1,11 +1,13 @@
 import threading
+from typing import Optional
 
 import wx
 
 from utils.formatters import format_semester
 
+from .preview_dialog import GradePreviewItem, RecalculatePreviewDialog
 from .repository import ModuleGradesRepository, StudentModuleGradeRow
-from .service import ModuleGradesService
+from .service import SKIP_GRADES, ModuleGradesService, calculate_module_grade
 
 
 class LoadFilterOptionsWorker(threading.Thread):
@@ -93,11 +95,18 @@ class LoadModulesWorker(threading.Thread):
 
 
 class LoadStudentsWorker(threading.Thread):
-    def __init__(self, repository, semester_module_id, structure_id, term, callback):
+    def __init__(
+        self,
+        repository,
+        structure_id,
+        semester_module_id: Optional[int],
+        term: Optional[str],
+        callback,
+    ):
         super().__init__(daemon=True)
         self.repository = repository
-        self.semester_module_id = semester_module_id
         self.structure_id = structure_id
+        self.semester_module_id = semester_module_id
         self.term = term
         self.callback = callback
         self.should_stop = False
@@ -107,8 +116,8 @@ class LoadStudentsWorker(threading.Thread):
             return
         try:
             students = self.repository.fetch_students_with_module(
-                self.semester_module_id,
                 self.structure_id,
+                self.semester_module_id,
                 self.term,
             )
             self.callback("students_loaded", students)
@@ -119,66 +128,196 @@ class LoadStudentsWorker(threading.Thread):
         self.should_stop = True
 
 
-class RecalculateGradesWorker(threading.Thread):
+class BuildPreviewWorker(threading.Thread):
     def __init__(
         self,
         student_modules: list[StudentModuleGradeRow],
-        service: ModuleGradesService,
-        skip_pp: bool,
+        repository: ModuleGradesRepository,
         callback,
     ):
         super().__init__(daemon=True)
         self.student_modules = student_modules
-        self.service = service
-        self.skip_pp = skip_pp
+        self.repository = repository
+        self.callback = callback
+        self.should_stop = False
+
+    def run(self):
+        preview_items: list[GradePreviewItem] = []
+        total = len(self.student_modules)
+
+        for idx, sm in enumerate(self.student_modules):
+            if self.should_stop:
+                break
+
+            self.callback(
+                "progress",
+                f"Calculating {idx + 1}/{total}: {sm.std_no}...",
+                idx + 1,
+                total,
+            )
+
+            current_grade = (sm.grade or "").upper()
+
+            if current_grade in SKIP_GRADES:
+                preview_items.append(
+                    GradePreviewItem(
+                        std_no=sm.std_no,
+                        name=sm.name or "",
+                        module_code=sm.module_code or "",
+                        module_name=sm.module_name or "",
+                        old_marks=sm.marks or "",
+                        old_grade=sm.grade or "",
+                        new_marks="",
+                        new_grade="",
+                        student_module=sm,
+                        skip_reason=f"Grade is {current_grade}",
+                    )
+                )
+                continue
+
+            if not sm.term_id:
+                preview_items.append(
+                    GradePreviewItem(
+                        std_no=sm.std_no,
+                        name=sm.name or "",
+                        module_code=sm.module_code or "",
+                        module_name=sm.module_name or "",
+                        old_marks=sm.marks or "",
+                        old_grade=sm.grade or "",
+                        new_marks="",
+                        new_grade="",
+                        student_module=sm,
+                        skip_reason="No term found",
+                    )
+                )
+                continue
+
+            assessments = self.repository.get_assessments_for_module(
+                sm.module_id, sm.term_id
+            )
+
+            if not assessments:
+                preview_items.append(
+                    GradePreviewItem(
+                        std_no=sm.std_no,
+                        name=sm.name or "",
+                        module_code=sm.module_code or "",
+                        module_name=sm.module_name or "",
+                        old_marks=sm.marks or "",
+                        old_grade=sm.grade or "",
+                        new_marks="",
+                        new_grade="",
+                        student_module=sm,
+                        skip_reason="No assessments found",
+                    )
+                )
+                continue
+
+            assessment_marks = self.repository.get_assessment_marks_for_student_module(
+                sm.student_module_id
+            )
+
+            if not assessment_marks:
+                preview_items.append(
+                    GradePreviewItem(
+                        std_no=sm.std_no,
+                        name=sm.name or "",
+                        module_code=sm.module_code or "",
+                        module_name=sm.module_name or "",
+                        old_marks=sm.marks or "",
+                        old_grade=sm.grade or "",
+                        new_marks="",
+                        new_grade="",
+                        student_module=sm,
+                        skip_reason="No assessment marks",
+                    )
+                )
+                continue
+
+            calculation = calculate_module_grade(assessments, assessment_marks)
+
+            if not calculation.has_marks:
+                preview_items.append(
+                    GradePreviewItem(
+                        std_no=sm.std_no,
+                        name=sm.name or "",
+                        module_code=sm.module_code or "",
+                        module_name=sm.module_name or "",
+                        old_marks=sm.marks or "",
+                        old_grade=sm.grade or "",
+                        new_marks="",
+                        new_grade="",
+                        student_module=sm,
+                        skip_reason="No marks available",
+                    )
+                )
+                continue
+
+            new_marks = str(calculation.weighted_total)
+            new_grade = calculation.grade
+
+            preview_items.append(
+                GradePreviewItem(
+                    std_no=sm.std_no,
+                    name=sm.name or "",
+                    module_code=sm.module_code or "",
+                    module_name=sm.module_name or "",
+                    old_marks=sm.marks or "",
+                    old_grade=sm.grade or "",
+                    new_marks=new_marks,
+                    new_grade=new_grade,
+                    student_module=sm,
+                )
+            )
+
+        self.callback("finished", preview_items)
+
+    def stop(self):
+        self.should_stop = True
+
+
+class ApplyGradesWorker(threading.Thread):
+    def __init__(
+        self,
+        items_to_update: list[GradePreviewItem],
+        repository: ModuleGradesRepository,
+        callback,
+    ):
+        super().__init__(daemon=True)
+        self.items_to_update = items_to_update
+        self.repository = repository
         self.callback = callback
         self.should_stop = False
 
     def run(self):
         success_count = 0
-        skipped_count = 0
         failed_count = 0
-        total = len(self.student_modules)
+        total = len(self.items_to_update)
 
-        for idx, student_module in enumerate(self.student_modules):
+        for idx, item in enumerate(self.items_to_update):
             if self.should_stop:
                 break
 
-            try:
+            self.callback(
+                "progress",
+                f"Updating {idx + 1}/{total}: {item.std_no}...",
+                idx + 1,
+                total,
+            )
 
-                def progress_callback(message):
-                    self.callback(
-                        "progress",
-                        f"Processing {idx + 1}/{total}: {message}",
-                        idx + 1,
-                        total,
-                    )
+            success = self.repository.update_student_module_grade(
+                item.student_module.student_module_id,
+                item.new_marks,
+                item.new_grade,
+            )
 
-                success, message, _ = self.service.recalculate_grade(
-                    student_module,
-                    self.skip_pp,
-                    progress_callback,
-                )
-
-                if success:
-                    success_count += 1
-                elif "Skipped" in message:
-                    skipped_count += 1
-                else:
-                    self.callback(
-                        "error",
-                        f"Failed for {student_module.std_no}: {message}",
-                    )
-                    failed_count += 1
-
-            except Exception as e:
-                self.callback(
-                    "error",
-                    f"Error for {student_module.std_no}: {str(e)}",
-                )
+            if success:
+                success_count += 1
+            else:
+                self.callback("error", f"Failed to update {item.std_no}")
                 failed_count += 1
 
-        self.callback("finished", success_count, skipped_count, failed_count)
+        self.callback("finished", success_count, failed_count)
 
     def stop(self):
         self.should_stop = True
@@ -205,7 +344,8 @@ class ModuleGradesView(wx.Panel):
         self.structures_worker = None
         self.modules_worker = None
         self.students_worker = None
-        self.recalculate_worker = None
+        self.preview_worker = None
+        self.apply_worker = None
 
         self.init_ui()
         self.load_filter_options()
@@ -265,26 +405,20 @@ class ModuleGradesView(wx.Panel):
         filters_sizer2 = wx.BoxSizer(wx.HORIZONTAL)
 
         self.module_filter = wx.Choice(self)
-        self.module_filter.Append("Select Module", None)
+        self.module_filter.Append("All Modules", None)
         self.module_filter.SetSelection(0)
         self.module_filter.Enable(False)
         self.module_filter.Bind(wx.EVT_CHOICE, self.on_module_changed)
         filters_sizer2.Add(self.module_filter, 0, wx.RIGHT, 10)
 
         self.term_filter = wx.Choice(self)
-        self.term_filter.Append("All Terms", None)
+        self.term_filter.Append("Select Term", None)
         self.term_filter.SetSelection(0)
         self.term_filter.Enable(False)
         self.term_filter.Bind(wx.EVT_CHOICE, self.on_term_changed)
         filters_sizer2.Add(self.term_filter, 0, wx.RIGHT, 10)
 
         filters_sizer2.AddStretchSpacer()
-
-        self.skip_pp_checkbox = wx.CheckBox(self, label="Skip PP grades")
-        self.skip_pp_checkbox.SetValue(True)
-        filters_sizer2.Add(
-            self.skip_pp_checkbox, 0, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 10
-        )
 
         self.recalculate_button = wx.Button(self, label="Recalculate Grades")
         self.recalculate_button.Bind(wx.EVT_BUTTON, self.on_recalculate_grades)
@@ -407,12 +541,12 @@ class ModuleGradesView(wx.Panel):
         self.structure_filter.Enable(False)
 
         self.module_filter.Clear()
-        self.module_filter.Append("Select Module", None)
+        self.module_filter.Append("All Modules", None)
         self.module_filter.SetSelection(0)
         self.module_filter.Enable(False)
 
         self.term_filter.Clear()
-        self.term_filter.Append("All Terms", None)
+        self.term_filter.Append("Select Term", None)
         self.term_filter.SetSelection(0)
         self.term_filter.Enable(False)
 
@@ -466,12 +600,12 @@ class ModuleGradesView(wx.Panel):
         self.structure_filter.Enable(False)
 
         self.module_filter.Clear()
-        self.module_filter.Append("Select Module", None)
+        self.module_filter.Append("All Modules", None)
         self.module_filter.SetSelection(0)
         self.module_filter.Enable(False)
 
         self.term_filter.Clear()
-        self.term_filter.Append("All Terms", None)
+        self.term_filter.Append("Select Term", None)
         self.term_filter.SetSelection(0)
         self.term_filter.Enable(False)
 
@@ -522,12 +656,12 @@ class ModuleGradesView(wx.Panel):
         )
 
         self.module_filter.Clear()
-        self.module_filter.Append("Select Module", None)
+        self.module_filter.Append("All Modules", None)
         self.module_filter.SetSelection(0)
         self.module_filter.Enable(False)
 
         self.term_filter.Clear()
-        self.term_filter.Append("All Terms", None)
+        self.term_filter.Append("Select Term", None)
         self.term_filter.SetSelection(0)
         self.term_filter.Enable(False)
 
@@ -555,7 +689,7 @@ class ModuleGradesView(wx.Panel):
         if event_type == "modules_loaded":
             modules, terms = args
             self.module_filter.Clear()
-            self.module_filter.Append("Select Module", None)
+            self.module_filter.Append("All Modules", None)
             for module in modules:
                 sem_str = format_semester(module.semester_number, type="short")
                 display = f"{module.module_code} - {module.module_name} ({sem_str})"
@@ -564,13 +698,13 @@ class ModuleGradesView(wx.Panel):
             self.module_filter.Enable(True)
 
             self.term_filter.Clear()
-            self.term_filter.Append("All Terms", None)
+            self.term_filter.Append("Select Term", None)
             for term in terms:
                 self.term_filter.Append(term, term)
             self.term_filter.SetSelection(0)
             self.term_filter.Enable(True)
         elif event_type == "modules_error":
-            self.module_filter.SetString(0, "Select Module")
+            self.module_filter.SetString(0, "All Modules")
             self.module_filter.Enable(True)
 
         if self.status_bar:
@@ -581,23 +715,27 @@ class ModuleGradesView(wx.Panel):
         self.selected_module_id = (
             self.module_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
         )
-
-        if self.selected_module_id:
-            self.load_students_by_module()
-        else:
-            self.clear_students()
+        self.try_load_students()
 
     def on_term_changed(self, event):
         sel = self.term_filter.GetSelection()
         self.selected_term = (
             self.term_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
         )
+        self.try_load_students()
 
-        if self.selected_module_id:
-            self.load_students_by_module()
+    def try_load_students(self):
+        if not self.selected_structure_id:
+            return
 
-    def load_students_by_module(self):
-        if not self.selected_module_id or not self.selected_structure_id:
+        if not self.selected_term and not self.selected_module_id:
+            self.clear_students()
+            return
+
+        self.load_students()
+
+    def load_students(self):
+        if not self.selected_structure_id:
             return
 
         if self.status_bar:
@@ -605,8 +743,8 @@ class ModuleGradesView(wx.Panel):
 
         self.students_worker = LoadStudentsWorker(
             self.repository,
-            self.selected_module_id,
             self.selected_structure_id,
+            self.selected_module_id,
             self.selected_term,
             self.on_students_callback,
         )
@@ -745,69 +883,86 @@ class ModuleGradesView(wx.Panel):
             )
             return
 
-        skip_pp = self.skip_pp_checkbox.GetValue()
-        count = len(selected_students)
+        self.recalculate_button.Enable(False)
 
-        message = (
-            f"You are about to recalculate grades for {count} student module(s).\n\n"
-            f"The following grades will be skipped:\n"
-            f"  - ANN (Result Annulled)\n"
-            f"  - DNS (Did Not Submit)\n"
-            f"  - EXP (Exempted)\n"
-            f"  - DEF (Deferred)\n"
+        if self.status_bar:
+            self.status_bar.show_message("Calculating grade changes...")
+
+        self.preview_worker = BuildPreviewWorker(
+            selected_students,
+            self.repository,
+            self.on_preview_callback,
         )
-        if skip_pp:
-            message += f"  - PP (Pass Provisional) [Skip PP option enabled]\n"
-        message += "\nDo you want to proceed?"
+        self.preview_worker.start()
 
-        confirm_dlg = wx.MessageDialog(
-            self,
-            message,
-            "Confirm Grade Recalculation",
-            wx.YES_NO | wx.NO_DEFAULT | wx.ICON_WARNING,
-        )
+    def on_preview_callback(self, event_type, *args):
+        wx.CallAfter(self._handle_preview_event, event_type, *args)
 
-        if confirm_dlg.ShowModal() == wx.ID_YES:
-            self.recalculate_button.Enable(False)
-
-            self.recalculate_worker = RecalculateGradesWorker(
-                selected_students,
-                self.service,
-                skip_pp,
-                self.on_recalculate_callback,
-            )
-            self.recalculate_worker.start()
-
-        confirm_dlg.Destroy()
-
-    def on_recalculate_callback(self, event_type, *args):
-        wx.CallAfter(self._handle_recalculate_event, event_type, *args)
-
-    def _handle_recalculate_event(self, event_type, *args):
+    def _handle_preview_event(self, event_type, *args):
         if event_type == "progress":
             message, current, total = args
             if self.status_bar:
                 self.status_bar.show_progress(message, current, total)
         elif event_type == "finished":
-            success_count, skipped_count, failed_count = args
             if self.status_bar:
                 self.status_bar.clear()
             self.recalculate_button.Enable(True)
 
-            message = f"Recalculation complete:\n\n"
-            message += f"  - Updated: {success_count}\n"
-            message += f"  - Skipped: {skipped_count}\n"
+            preview_items = args[0]
+            self.show_preview_dialog(preview_items)
+
+    def show_preview_dialog(self, preview_items: list[GradePreviewItem]):
+        dialog = RecalculatePreviewDialog(self, preview_items, skip_pp_default=True)
+
+        if dialog.ShowModal() == wx.ID_OK:
+            items_to_update = dialog.get_items_to_update()
+
+            if items_to_update:
+                self.apply_grades(items_to_update)
+
+        dialog.Destroy()
+
+    def apply_grades(self, items_to_update: list[GradePreviewItem]):
+        self.recalculate_button.Enable(False)
+
+        if self.status_bar:
+            self.status_bar.show_message("Applying grade changes...")
+
+        self.apply_worker = ApplyGradesWorker(
+            items_to_update,
+            self.repository,
+            self.on_apply_callback,
+        )
+        self.apply_worker.start()
+
+    def on_apply_callback(self, event_type, *args):
+        wx.CallAfter(self._handle_apply_event, event_type, *args)
+
+    def _handle_apply_event(self, event_type, *args):
+        if event_type == "progress":
+            message, current, total = args
+            if self.status_bar:
+                self.status_bar.show_progress(message, current, total)
+        elif event_type == "finished":
+            success_count, failed_count = args
+            if self.status_bar:
+                self.status_bar.clear()
+            self.recalculate_button.Enable(True)
+
             if failed_count > 0:
-                message += f"  - Failed: {failed_count}\n"
+                wx.MessageBox(
+                    f"Updated {success_count} module(s).\n{failed_count} failed.",
+                    "Grade Update Complete",
+                    wx.OK | wx.ICON_INFORMATION,
+                )
+            else:
+                wx.MessageBox(
+                    f"Successfully updated {success_count} module(s).",
+                    "Grade Update Complete",
+                    wx.OK | wx.ICON_INFORMATION,
+                )
 
-            wx.MessageBox(
-                message,
-                "Grade Recalculation Complete",
-                wx.OK | wx.ICON_INFORMATION,
-            )
-
-            if self.selected_module_id and self.selected_structure_id:
-                self.load_students_by_module()
+            self.try_load_students()
         elif event_type == "error":
             error_msg = args[0]
             wx.MessageBox(error_msg, "Error", wx.OK | wx.ICON_WARNING)

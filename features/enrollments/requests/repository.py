@@ -259,7 +259,7 @@ class EnrollmentRequestRepository:
                     RegistrationRequest.status,
                     RegistrationRequest.message,
                     RegistrationRequest.created_at,
-                    RegistrationRequest.date_approved,
+                    RegistrationRequest.date_registered,
                 )
                 .join(Student, RegistrationRequest.std_no == Student.std_no)
                 .join(
@@ -286,7 +286,7 @@ class EnrollmentRequestRepository:
                 "status": request.status,
                 "message": request.message,
                 "created_at": request.created_at,
-                "date_approved": request.date_approved,
+                "date_registered": request.date_registered,
             }
 
     def get_enrollment_data(self, registration_request_id: int):

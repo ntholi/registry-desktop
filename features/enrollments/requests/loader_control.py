@@ -90,7 +90,9 @@ class LoaderPanel(wx.Panel):
         self.Layout()
 
     def stop(self) -> None:
-        if self.use_activity_indicator and isinstance(self.spinner, wx.ActivityIndicator):
+        if self.use_activity_indicator and isinstance(
+            self.spinner, wx.ActivityIndicator
+        ):
             self.spinner.Stop()
         elif self.timer and self.timer.IsRunning():
             self.timer.Stop()
@@ -117,10 +119,11 @@ class DataLoader(threading.Thread):
                 return
             result = self.load_func(*self.args, **self.kwargs)
             if not self.should_stop:
-                wx.CallAfter(lambda: self.callback("success", result))
+                wx.CallAfter(lambda r=result: self.callback("success", r))
         except Exception as e:
             if not self.should_stop:
-                wx.CallAfter(lambda: self.callback("error", str(e)))
+                error_msg = str(e)
+                wx.CallAfter(lambda msg=error_msg: self.callback("error", msg))
 
     def stop(self) -> None:
         self.should_stop = True

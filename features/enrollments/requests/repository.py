@@ -569,6 +569,40 @@ class EnrollmentRequestRepository:
                 logger.error(f"Error updating registration request status: {str(e)}")
                 return False
 
+    def update_requested_module_status(
+        self, semester_module_id: int, registration_request_id: int, status: str
+    ) -> bool:
+        with self._session() as session:
+            try:
+                requested_module = (
+                    session.query(RequestedModule)
+                    .filter(RequestedModule.semester_module_id == semester_module_id)
+                    .filter(
+                        RequestedModule.registration_request_id
+                        == registration_request_id
+                    )
+                    .first()
+                )
+
+                if not requested_module:
+                    logger.warning(
+                        f"Requested module not found for semester_module_id={semester_module_id}, "
+                        f"registration_request_id={registration_request_id}"
+                    )
+                    return False
+
+                requested_module.status = status  # type: ignore
+                session.commit()
+                logger.info(
+                    f"Updated requested module status to {status} for semester_module_id={semester_module_id}"
+                )
+                return True
+
+            except Exception as e:
+                session.rollback()
+                logger.error(f"Error updating requested module status: {str(e)}")
+                return False
+
     def get_clearances_for_request(self, registration_request_id: int):
         with self._session() as session:
             clearances = (

@@ -258,7 +258,7 @@ class EnrollmentService:
 
             if module_code in updated_modules_map:
                 cms_mod = updated_modules_map[module_code]
-                self._repository.upsert_student_module(
+                upsert_success = self._repository.upsert_student_module(
                     {
                         "id": cms_mod["id"],
                         "semester_module_id": req_mod.semester_module_id,
@@ -269,14 +269,21 @@ class EnrollmentService:
                         "student_semester_id": student_semester_id,
                     }
                 )
-                if module_code in existing_module_codes:
-                    modules_synced += 1
-                    logger.info(f"Synced existing module {module_code} to database")
-                else:
-                    modules_added += 1
-                    logger.info(
-                        f"Successfully saved new module {module_code} to database"
+                if upsert_success:
+                    self._repository.update_requested_module_status(
+                        req_mod.semester_module_id, request_id, "registered"
                     )
+                    if module_code in existing_module_codes:
+                        modules_synced += 1
+                        logger.info(f"Synced existing module {module_code} to database")
+                    else:
+                        modules_added += 1
+                        logger.info(
+                            f"Successfully saved new module {module_code} to database"
+                        )
+                else:
+                    modules_failed.append(module_code)
+                    logger.error(f"Failed to save module {module_code} to database")
             else:
                 modules_failed.append(module_code)
                 logger.error(

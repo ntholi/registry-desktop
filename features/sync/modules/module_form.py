@@ -32,9 +32,7 @@ class ModuleFormDialog(wx.Dialog):
             0,
             wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL,
         )
-        module_id_text = wx.StaticText(
-            panel, label=str(self.module_data.get("id", ""))
-        )
+        module_id_text = wx.StaticText(panel, label=str(self.module_data.get("id", "")))
         form_sizer.Add(module_id_text, 0, wx.EXPAND)
 
         # Module Code
@@ -65,9 +63,7 @@ class ModuleFormDialog(wx.Dialog):
             0,
             wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL,
         )
-        self.status_choice = wx.Choice(
-            panel, choices=["Active", "Defunct"]
-        )
+        self.status_choice = wx.Choice(panel, choices=["Active", "Defunct"])
         current_status = self.module_data.get("status", "").strip()
         if current_status.lower() == "active":
             self.status_choice.SetSelection(0)
@@ -151,12 +147,19 @@ class ModuleFormDialog(wx.Dialog):
 
 
 class NewModuleFormDialog(wx.Dialog):
-    def __init__(self, parent=None):
+    def __init__(
+        self,
+        parent: wx.Window | None = None,
+        initial_code: str = "",
+        initial_name: str = "",
+    ):
         super().__init__(
             parent,
             title="New Module",
             style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
         )
+        self._initial_code = initial_code
+        self._initial_name = initial_name
         self.SetSize(wx.Size(520, 380))
         self.init_ui()
         if parent is not None:
@@ -176,7 +179,7 @@ class NewModuleFormDialog(wx.Dialog):
             0,
             wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL,
         )
-        self.code_input = wx.TextCtrl(panel)
+        self.code_input = wx.TextCtrl(panel, value=self._initial_code)
         form_sizer.Add(self.code_input, 0, wx.EXPAND)
 
         form_sizer.Add(
@@ -184,7 +187,7 @@ class NewModuleFormDialog(wx.Dialog):
             0,
             wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL,
         )
-        self.name_input = wx.TextCtrl(panel)
+        self.name_input = wx.TextCtrl(panel, value=self._initial_name)
         form_sizer.Add(self.name_input, 0, wx.EXPAND)
 
         form_sizer.Add(
@@ -192,7 +195,9 @@ class NewModuleFormDialog(wx.Dialog):
             0,
             wx.ALIGN_RIGHT | wx.ALIGN_TOP,
         )
-        self.remark_input = wx.TextCtrl(panel, style=wx.TE_MULTILINE, size=wx.Size(-1, 90))
+        self.remark_input = wx.TextCtrl(
+            panel, style=wx.TE_MULTILINE, size=wx.Size(-1, 90)
+        )
         form_sizer.Add(self.remark_input, 0, wx.EXPAND)
 
         form_sizer.Add(

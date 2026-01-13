@@ -1,4 +1,5 @@
 import re
+import threading
 
 import wx
 from sqlalchemy import func
@@ -7,6 +8,36 @@ from wx.lib.intctrl import IntCtrl
 
 from database import Module, get_engine
 from database.models import ModuleType
+from features.sync.modules.module_form import NewModuleFormDialog
+from features.sync.modules.repository import ModuleRepository
+from features.sync.modules.service import ModuleSyncService
+
+
+class CreateModuleWorker(threading.Thread):
+    def __init__(
+        self,
+        module_data: dict,
+        service: ModuleSyncService,
+        callback,
+    ):
+        super().__init__(daemon=True)
+        self.module_data = module_data
+        self.service = service
+        self.callback = callback
+
+    def run(self):
+        try:
+
+            def progress_callback(message: str):
+                self.callback("progress", message)
+
+            success, message = self.service.create_module(
+                self.module_data, progress_callback=progress_callback
+            )
+            self.callback("create_finished", success, message, self.module_data)
+        except Exception as e:
+            self.callback("error", str(e))
+            self.callback("create_finished", False, str(e), self.module_data)
 
 
 class NewSemesterModuleDialog(wx.Dialog):
@@ -29,6 +60,10 @@ class NewSemesterModuleDialog(wx.Dialog):
         self._semester_id = semester_id
         self._semester_name = semester_name
         self._existing_semester_modules = existing_semester_modules
+
+        self._module_repository = ModuleRepository()
+        self._module_service = ModuleSyncService(self._module_repository)
+        self._create_module_worker: CreateModuleWorker | None = None
 
         self._selected_module_id: int | None = None
         self._selected_module_code: str | None = None
@@ -235,11 +270,115 @@ class NewSemesterModuleDialog(wx.Dialog):
             self.results_list.SetItemData(idx, int(getattr(module, "id")))
 
         if not results:
-            wx.MessageBox(
-                "No modules found.",
-                "Search",
-                wx.OK | wx.ICON_INFORMATION,
+            self._offer_create_module(query)
+
+    def _offer_create_module(self, search_term: str) -> None:
+        result = wx.MessageBox(
+            f"No modules found matching '{search_term}'.\n\nWould you like to create a new module?",
+            "Module Not Found",
+            wx.YES_NO | wx.ICON_QUESTION,
+        )
+
+        if result != wx.YES:
+            return
+
+        initial_code = ""
+        initial_name = ""
+        if len(search_term) <= 8:
+            initial_code = search_term.upper()
+        else:
+            initial_name = search_term
+
+        dialog = NewModuleFormDialog(
+            self,
+            initial_code=initial_code,
+            initial_name=initial_name,
+        )
+
+        if dialog.ShowModal() == wx.ID_OK:
+            new_data = dialog.get_new_data()
+            self._start_create_module(new_data)
+
+        dialog.Destroy()
+
+    def _start_create_module(self, module_data: dict) -> None:
+        self.search_input.Enable(False)
+        self.results_list.Enable(False)
+        self.ok_btn.Enable(False)
+
+        self._create_module_worker = CreateModuleWorker(
+            module_data,
+            self._module_service,
+            self._on_create_module_callback,
+        )
+        self._create_module_worker.start()
+
+    def _on_create_module_callback(self, event_type: str, *args) -> None:
+        wx.CallAfter(self._handle_create_module_event, event_type, *args)
+
+    def _handle_create_module_event(self, event_type: str, *args) -> None:
+        if event_type == "progress":
+            message = args[0] if args else ""
+            self.selected_module_label.SetLabel(f"Creating module: {message}")
+        elif event_type == "create_finished":
+            success, message, module_data = args[0], args[1], args[2]
+
+            self.search_input.Enable(True)
+            self.results_list.Enable(True)
+
+            if success:
+                self._populate_with_created_module(module_data)
+                wx.MessageBox(
+                    "Module created successfully. It has been selected for you.",
+                    "Success",
+                    wx.OK | wx.ICON_INFORMATION,
+                )
+            else:
+                self.selected_module_label.SetLabel("Selected module: (none)")
+                self.ok_btn.Enable(False)
+                wx.MessageBox(
+                    f"Failed to create module: {message}",
+                    "Error",
+                    wx.OK | wx.ICON_ERROR,
+                )
+        elif event_type == "error":
+            error_msg = args[0] if args else "Unknown error"
+            self.selected_module_label.SetLabel(f"Error: {error_msg}")
+
+    def _populate_with_created_module(self, module_data: dict) -> None:
+        code = module_data.get("code", "")
+
+        with Session(self._engine) as session:
+            module = session.query(Module).filter(Module.code == code).first()
+            if not module:
+                self.selected_module_label.SetLabel("Selected module: (none)")
+                self._set_form_enabled(False)
+                return
+
+            self._selected_module_id = module.id
+            self._selected_module_code = module.code
+            self._selected_module_name = module.name
+
+        label = f"Selected module: {self._selected_module_code} - {self._selected_module_name}"
+        self.selected_module_label.SetLabel(label)
+
+        self.results_list.DeleteAllItems()
+        self.results_list.InsertItem(0, str(self._selected_module_code or ""))
+        self.results_list.SetItem(0, 1, str(self._selected_module_name or ""))
+        self.results_list.SetItem(0, 2, "Active")
+        self.results_list.SetItemData(0, int(self._selected_module_id or 0))
+        self.results_list.Select(0)
+
+        self._type_manually_set = False
+        if self._selected_module_code:
+            inferred = self._extract_credits_from_module_code(
+                self._selected_module_code
             )
+            if inferred is not None:
+                self.credits_input.SetValue(inferred)  # type: ignore[arg-type]
+                self._auto_set_type_from_credits(inferred)
+
+        self._set_form_enabled(True)
 
     def _on_result_selected(self, event: wx.ListEvent) -> None:
         selected_idx = self.results_list.GetFirstSelected()

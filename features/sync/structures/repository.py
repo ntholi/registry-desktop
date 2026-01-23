@@ -8,8 +8,15 @@ from sqlalchemy import distinct
 from sqlalchemy.orm import Session
 
 from base import get_logger
-from database import (Module, Program, School, SemesterModule, Structure,
-                      StructureSemester, get_engine)
+from database import (
+    Module,
+    Program,
+    School,
+    SemesterModule,
+    Structure,
+    StructureSemester,
+    get_engine,
+)
 from database.models import ProgramLevel
 
 logger = get_logger(__name__)

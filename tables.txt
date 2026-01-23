@@ -1,0 +1,13 @@
+students
+student_education
+next_of_kins
+schools
+programs
+structures
+student_programs
+structure_semesters
+student_semesters
+modules
+semester_modules
+student_modules
+module_prerequisites

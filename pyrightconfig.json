@@ -1,0 +1,11 @@
+{
+  "venvPath": ".",
+  "venv": ".venv",
+  "pythonVersion": "3.12",
+  "pythonPlatform": "Windows",
+  "exclude": [
+    "build",
+    "__pycache__",
+    ".venv"
+  ]
+}

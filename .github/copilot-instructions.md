@@ -174,5 +174,5 @@ response = browser.post(url, form_data)
 
 
 **EXTREMELY IMPORTANT**: Always run this command on the terminal when finished:
-`python -c "print('Are we done? Yes')"` Note that it is in double quotes
+`echo "Are we done? Yes"` Note that it is in double quotes
 (No matter what! Do not combine it with other commands or outputs).

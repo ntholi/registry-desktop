@@ -15,25 +15,9 @@ This document maps all changes required across the codebase following the schema
 
 ---
 
-## 1. 🔴 P0 — StudentCardPrint FK to Removed Table
+## 1. ~~🔴 P0 — StudentCardPrint FK to Removed Table~~ ✅ RESOLVED
 
-**Problem**: `StudentCardPrint.receipt_id` has a `ForeignKey("payment_receipts.id")` but the `payment_receipts` table was removed.
-
-**File**: `database/models.py` (lines 1002–1006)
-
-**Current Code**:
-```python
-receipt_id: Mapped[str] = mapped_column(
-    String,
-    ForeignKey("payment_receipts.id", ondelete="CASCADE"),
-    nullable=False,
-)
-```
-
-**Fix**: Drop the FK constraint. Make `receipt_id` a plain `String` column:
-```python
-receipt_id: Mapped[str] = mapped_column(String, nullable=False)
-```
+**Resolution**: `StudentCardPrint` model was removed entirely (unused in codebase). No fix needed.
 
 ---
 
@@ -251,27 +235,50 @@ national_id=data.get("national_id"),
 
 **No code currently sets this field.** May need to be scraped from CMS or set manually.
 
-### 6c. `documents.file_url`
+### ~~6c. `documents.file_url`~~ ✅ RESOLVED
 
-**No code currently sets this field.** The old `std_no` FK was removed and `file_url` was added instead.
-
----
-
-## 7. 🟡 P2 — PermissionPreset Model Usage
-
-**Problem**: `PermissionPreset` model exists and `User.preset_id` FK references it, but no feature code interacts with this table.
-
-**Impact**: No breakage. The field is nullable (`ondelete=SET NULL`). If permission presets are managed from the web app, this may be read-only from the desktop app.
-
-**Potential update**: If the desktop app needs to display user permission info, add preset lookup logic.
+**Resolution**: `Document` model was removed entirely (unused in codebase). No fix needed.
 
 ---
 
-## 8. 🟡 P2 — GraduationRequest.graduation_date_id (New Required FK)
+## 7. ~~🟡 P2 — PermissionPreset Model Usage~~ ✅ RESOLVED
 
-**Problem**: `graduation_date_id` is a **non-nullable** FK to `graduation_dates.id` added to `GraduationRequest`.
+**Resolution**: `PermissionPreset` model was removed entirely (unused in codebase). `User.preset_id` changed from FK to plain `String, nullable=True` column.
 
-**Current impact**: No feature code creates `GraduationRequest` records in the desktop app, so no immediate breakage. If this feature is added later, the field must be provided.
+---
+
+## 8. ~~🟡 P2 — GraduationRequest.graduation_date_id~~ ✅ RESOLVED
+
+**Resolution**: `GraduationRequest` and `GraduationClearance` models were removed entirely (unused in codebase). No fix needed.
+
+---
+
+## 9. Completed Model Removals
+
+The following 13 unused models were removed from `database/models.py` and `database/__init__.py`:
+
+| Model | Reason for Removal |
+|-------|---------------------|
+| `PermissionPreset` | No feature code uses this model |
+| `ModulePrerequisite` | No feature code uses this model |
+| `GraduationRequest` | No feature code uses this model |
+| `GraduationClearance` | No feature code uses this model |
+| `SponsoredTerm` | No feature code uses this model |
+| `AssignedModule` | No feature code uses this model |
+| `UserSchool` | No feature code uses this model |
+| `StatementOfResultsPrint` | No feature code uses this model |
+| `TranscriptPrint` | No feature code uses this model |
+| `BlockedStudent` | No feature code uses this model |
+| `StudentCardPrint` | No feature code uses this model |
+| `Document` | No feature code uses this model |
+| `FortinetRegistration` | No feature code uses this model |
+
+Also removed 3 Literal types only used by removed models:
+- `BlockedStudentStatus`
+- `FortinetLevel`
+- `FortinetRegistrationStatus`
+
+Also changed `User.preset_id` from `ForeignKey("permission_presets.id")` to plain `String, nullable=True`.
 
 ---
 
@@ -281,7 +288,7 @@ national_id=data.get("national_id"),
 
 | File | Changes |
 |------|---------|
-| `database/models.py` | Drop `payment_receipts` FK on `StudentCardPrint.receipt_id` |
+| ~~`database/models.py`~~ | ~~Drop `payment_receipts` FK on `StudentCardPrint.receipt_id`~~ ✅ Model removed |
 | `features/enrollments/requests/repository.py` | Remove `registration_request_id` on StudentSemester; reverse relationship via `student_semester_id` |
 | `features/enrollments/requests/service.py` | Remove `registration_request_id` from data dicts passed to StudentSemester operations |
 | `features/sync/structures/scraper.py` | Return `cms_id` instead of `id` in all scrape functions |
@@ -306,7 +313,7 @@ national_id=data.get("national_id"),
 | File | Changes |
 |------|---------|
 | `features/sync/students/repository.py` | Allow `national_id=None` instead of empty string |
-| Various | Populate new fields: `zoho_contact_id`, `photo_key`, `short_name`, `file_url` when data sources available |
+| Various | Populate new fields: `zoho_contact_id`, `photo_key`, `short_name` when data sources available |
 
 ---
 
@@ -314,7 +321,7 @@ national_id=data.get("national_id"),
 
 Before deploying code changes, run a migration to:
 
-1. **Copy `id` → `cms_id`** for all 12 affected tables (School, Program, Structure, StructureSemester, Module, SemesterModule, StudentProgram, StudentSemester, StudentModule, StudentEducation, NextOfKin, ModulePrerequisite)
+1. **Copy `id` → `cms_id`** for all 11 affected tables (School, Program, Structure, StructureSemester, Module, SemesterModule, StudentProgram, StudentSemester, StudentModule, StudentEducation, NextOfKin)
 2. **Re-sequence `id`** columns to auto-increment if needed
 3. **Update all FK references** to point to new auto-generated `id` values
 4. **Verify FK integrity** after migration

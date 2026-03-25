@@ -24,6 +24,7 @@ from database import (
     Term,
     get_engine,
 )
+from database.models import Grade
 
 logger = get_logger(__name__)
 
@@ -260,7 +261,7 @@ class ModuleGradesRepository:
         self,
         student_module_id: int,
         marks: str,
-        grade: str,
+        grade: Grade,
     ) -> bool:
         with self._session() as session:
             try:

@@ -7,7 +7,7 @@ import urllib3
 from bs4 import BeautifulSoup, Tag
 from requests import Response
 from requests.adapters import HTTPAdapter
-from selenium import webdriver
+from selenium.webdriver.chrome.webdriver import WebDriver as ChromeWebDriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions
 from selenium.webdriver.support.wait import WebDriverWait
@@ -88,7 +88,7 @@ class Browser:
 
     def login(self):
         logger.info("Logging in...")
-        driver = webdriver.Chrome()
+        driver = ChromeWebDriver()
         url = f"{BASE_URL}/login.php"
         logger.info(f"Fetching {url}")
         driver.get(url)

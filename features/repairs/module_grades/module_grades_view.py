@@ -168,7 +168,7 @@ class BuildPreviewWorker(threading.Thread):
                         old_marks=sm.marks or "",
                         old_grade=sm.grade or "",
                         new_marks="",
-                        new_grade="",
+                        new_grade=None,
                         student_module=sm,
                         skip_reason=f"Grade is {current_grade}",
                     )
@@ -185,7 +185,7 @@ class BuildPreviewWorker(threading.Thread):
                         old_marks=sm.marks or "",
                         old_grade=sm.grade or "",
                         new_marks="",
-                        new_grade="",
+                        new_grade=None,
                         student_module=sm,
                         skip_reason="No term found",
                     )
@@ -206,7 +206,7 @@ class BuildPreviewWorker(threading.Thread):
                         old_marks=sm.marks or "",
                         old_grade=sm.grade or "",
                         new_marks="",
-                        new_grade="",
+                        new_grade=None,
                         student_module=sm,
                         skip_reason="No assessments found",
                     )
@@ -227,7 +227,7 @@ class BuildPreviewWorker(threading.Thread):
                         old_marks=sm.marks or "",
                         old_grade=sm.grade or "",
                         new_marks="",
-                        new_grade="",
+                        new_grade=None,
                         student_module=sm,
                         skip_reason="No assessment marks",
                     )
@@ -246,7 +246,7 @@ class BuildPreviewWorker(threading.Thread):
                         old_marks=sm.marks or "",
                         old_grade=sm.grade or "",
                         new_marks="",
-                        new_grade="",
+                        new_grade=None,
                         student_module=sm,
                         skip_reason="No marks available",
                     )
@@ -308,7 +308,7 @@ class ApplyGradesWorker(threading.Thread):
             success = self.repository.update_student_module_grade(
                 item.student_module.student_module_id,
                 item.new_marks,
-                item.new_grade,
+                item.new_grade if item.new_grade is not None else "F",
             )
 
             if success:

@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import Any
 
+from database.models import Grade
 from utils.normalizers import normalize_grade_symbol, normalize_module_name
 
 
@@ -12,7 +13,7 @@ class MarksRange:
 
 @dataclass
 class GradeDefinition:
-    grade: str
+    grade: Grade
     points: float | None
     description: str
     marks_range: MarksRange | None = None
@@ -35,7 +36,7 @@ GRADES = [
     GradeDefinition("PX", 2.0, "Pass (supplementary work submitted)"),
     GradeDefinition("AP", 2.0, "Aegrotat Pass"),
     GradeDefinition("X", 0.0, "Outstanding Supplementary Assessment"),
-    GradeDefinition("Def", None, "Deferred"),
+    GradeDefinition("DEF", None, "Deferred"),
     GradeDefinition("GNS", 0.0, "Grade Not Submitted"),
     GradeDefinition("ANN", 0.0, "Result Annulled Due To Misconduct"),
     GradeDefinition("FIN", 0.0, "Fail Incomplete"),
@@ -73,7 +74,7 @@ def get_grade_by_marks(marks: float) -> GradeDefinition | None:
     return None
 
 
-def get_letter_grade(marks: float) -> str:
+def get_letter_grade(marks: float) -> Grade:
     grade_def = get_grade_by_marks(marks)
     return grade_def.grade if grade_def else "F"
 

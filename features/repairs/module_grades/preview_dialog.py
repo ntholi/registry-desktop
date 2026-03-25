@@ -3,6 +3,8 @@ from typing import Optional
 
 import wx
 
+from database.models import Grade
+
 from .repository import StudentModuleGradeRow
 
 
@@ -26,7 +28,7 @@ class GradePreviewItem:
     old_marks: str
     old_grade: str
     new_marks: str
-    new_grade: str
+    new_grade: Grade | None
     student_module: StudentModuleGradeRow
     skip_reason: Optional[str] = None
 
@@ -182,7 +184,7 @@ class RecalculatePreviewDialog(wx.Dialog):
                 else ""
             )
             new_grade_display = (
-                f"{item.new_marks}/{item.new_grade}"
+                f"{item.new_marks}/{item.new_grade or ''}"
                 if item.new_marks or item.new_grade
                 else ""
             )

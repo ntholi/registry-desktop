@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Callable, Optional
 
 from base import get_logger
+from database.models import Grade
 from utils.grades import get_letter_grade
 
 from .repository import (
@@ -21,7 +22,7 @@ SKIP_GRADES = {"ANN", "DNS", "EXP", "DEF"}
 @dataclass
 class GradeCalculation:
     weighted_total: int
-    grade: str
+    grade: Grade
     has_marks: bool
     has_passed: bool
 

@@ -6,7 +6,6 @@ from sqlalchemy import (
     BigInteger,
     Boolean,
     DateTime,
-    Enum,
     Float,
     ForeignKey,
     Index,
@@ -15,7 +14,6 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy.dialects.postgresql import JSON as PostgreSQLJSON
 from sqlalchemy.orm import Mapped, declarative_base, mapped_column
 
 DashboardUser = Literal[
@@ -36,14 +34,6 @@ UserRole = Literal[
     "resource",
     "academic",
     "student_services",
-    "admin",
-]
-UserPosition = Literal[
-    "manager",
-    "program_leader",
-    "principal_lecturer",
-    "year_leader",
-    "lecturer",
     "admin",
 ]
 
@@ -172,7 +162,6 @@ RegistrationRequestStatus = Literal[
 ]
 RequestedModuleStatus = Literal["pending", "registered", "rejected"]
 ClearanceRequestStatus = Literal["pending", "approved", "rejected"]
-PaymentType = Literal["graduation_gown", "graduation_fee"]
 
 BlockedStudentStatus = Literal["blocked", "unblocked"]
 
@@ -193,8 +182,6 @@ AssessmentNumber = Literal[
     "CW14",
     "CW15",
 ]
-AssessmentMarksAuditAction = Literal["create", "update", "delete"]
-AssessmentsAuditAction = Literal["create", "update", "delete"]
 FortinetLevel = Literal["nse1", "nse2", "nse3", "nse4", "nse5", "nse6", "nse7", "nse8"]
 FortinetRegistrationStatus = Literal["pending", "approved", "rejected", "completed"]
 
@@ -214,74 +201,71 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_nanoid)
-    name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
     role: Mapped[UserRole] = mapped_column(String, nullable=False, default="user")
-    position: Mapped[UserPosition | None] = mapped_column(String, nullable=True)
-    email: Mapped[str | None] = mapped_column(String, unique=True, nullable=True)
-    emailVerified: Mapped[datetime | None] = mapped_column(
-        "email_verified", DateTime, nullable=True
-    )
+    email: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    email_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     image: Mapped[str | None] = mapped_column(Text, nullable=True)
-    lms_user_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    lms_token: Mapped[str | None] = mapped_column(Text, nullable=True)
+    preset_id: Mapped[str | None] = mapped_column(
+        String,
+        ForeignKey("permission_presets.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utc_now, nullable=False
+    )
+    banned: Mapped[bool | None] = mapped_column(Boolean, default=False, nullable=True)
+    ban_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ban_expires: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 class Account(Base):
     __tablename__ = "accounts"
 
+    id: Mapped[str] = mapped_column(String, primary_key=True)
     user_id: Mapped[str] = mapped_column(
         String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    type: Mapped[str] = mapped_column(String, nullable=False)
-    provider: Mapped[str] = mapped_column(String, nullable=False, primary_key=True)
-    provider_account_id: Mapped[str] = mapped_column(
-        String, nullable=False, primary_key=True
-    )
+    account_id: Mapped[str] = mapped_column(String, nullable=False)
+    provider_id: Mapped[str] = mapped_column(String, nullable=False)
     refresh_token: Mapped[str | None] = mapped_column(Text, nullable=True)
     access_token: Mapped[str | None] = mapped_column(Text, nullable=True)
-    expires_at: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    token_type: Mapped[str | None] = mapped_column(Text, nullable=True)
     scope: Mapped[str | None] = mapped_column(Text, nullable=True)
     id_token: Mapped[str | None] = mapped_column(Text, nullable=True)
-    session_state: Mapped[str | None] = mapped_column(Text, nullable=True)
+    access_token_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime, nullable=True
+    )
+    refresh_token_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime, nullable=True
+    )
+    password: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime, default=utc_now, nullable=True
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 class Session(Base):
     __tablename__ = "sessions"
 
-    session_token: Mapped[str] = mapped_column(String, primary_key=True)
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    token: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     user_id: Mapped[str] = mapped_column(
         String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    expires: Mapped[datetime] = mapped_column(DateTime, nullable=False)
-
-
-class VerificationToken(Base):
-    __tablename__ = "verification_tokens"
-
-    identifier: Mapped[str] = mapped_column(String, nullable=False, primary_key=True)
-    token: Mapped[str] = mapped_column(String, nullable=False, primary_key=True)
-    expires: Mapped[datetime] = mapped_column(DateTime, nullable=False)
-
-
-class Authenticator(Base):
-    __tablename__ = "authenticators"
-
-    credential_id: Mapped[str] = mapped_column(
-        String, nullable=False, unique=True, primary_key=True
+    ip_address: Mapped[str | None] = mapped_column(Text, nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utc_now, nullable=False
     )
-    user_id: Mapped[str] = mapped_column(
-        String,
-        ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
-        primary_key=True,
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utc_now, nullable=False
     )
-    provider_account_id: Mapped[str] = mapped_column(String, nullable=False)
-    credential_public_key: Mapped[str] = mapped_column(Text, nullable=False)
-    counter: Mapped[int] = mapped_column(Integer, nullable=False)
-    credential_device_type: Mapped[str] = mapped_column(String, nullable=False)
-    credential_backed_up: Mapped[bool] = mapped_column(Boolean, nullable=False)
-    transports: Mapped[str | None] = mapped_column(Text, nullable=True)
+    impersonated_by: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class Student(Base):
@@ -289,7 +273,7 @@ class Student(Base):
 
     std_no: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     name: Mapped[str] = mapped_column(Text, nullable=False)
-    national_id: Mapped[str] = mapped_column(String, nullable=False)
+    national_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[StudentStatus] = mapped_column(
         String, nullable=False, default="Active"
     )
@@ -309,6 +293,8 @@ class Student(Base):
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime, default=utc_now, nullable=True
     )
+    zoho_contact_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    photo_key: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     __table_args__ = (
         Index(
@@ -336,6 +322,7 @@ class StudentEducation(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=utc_now, nullable=False
     )
+    cms_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     __table_args__ = (
         Index("fk_student_education_std_no", "std_no"),
@@ -360,6 +347,7 @@ class NextOfKin(Base):
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime, default=utc_now, nullable=True
     )
+    cms_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     __table_args__ = (Index("fk_next_of_kins_std_no", "std_no"),)
 
@@ -374,6 +362,8 @@ class School(Base):
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime, default=utc_now, nullable=True
     )
+    cms_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    short_name: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class Program(Base):
@@ -389,6 +379,7 @@ class Program(Base):
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime, default=utc_now, nullable=True
     )
+    cms_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     __table_args__ = (Index("fk_programs_school_id", "school_id"),)
 
@@ -405,6 +396,7 @@ class Structure(Base):
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime, default=utc_now, nullable=True
     )
+    cms_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     __table_args__ = (Index("fk_structures_program_id", "program_id"),)
 
@@ -429,6 +421,7 @@ class StudentProgram(Base):
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime, default=utc_now, nullable=True
     )
+    cms_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     __table_args__ = (
         Index("fk_student_programs_std_no", "std_no"),
@@ -451,6 +444,7 @@ class StructureSemester(Base):
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime, default=utc_now, nullable=True
     )
+    cms_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class StudentSemester(Base):
@@ -467,16 +461,12 @@ class StudentSemester(Base):
     student_program_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("student_programs.id", ondelete="CASCADE"), nullable=False
     )
-    registration_request_id: Mapped[int | None] = mapped_column(
-        Integer,
-        ForeignKey("registration_requests.id", ondelete="SET NULL"),
-        nullable=True,
-    )
     sponsor_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     caf_date: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime, default=utc_now, nullable=True
     )
+    cms_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     __table_args__ = (
         Index("fk_student_semesters_student_program_id", "student_program_id"),
@@ -484,9 +474,6 @@ class StudentSemester(Base):
         Index("idx_student_semesters_term", "term_code"),
         Index("idx_student_semesters_status", "status"),
         Index("fk_student_semesters_sponsor_id", "sponsor_id"),
-        Index(
-            "fk_student_semesters_registration_request_id", "registration_request_id"
-        ),
     )
 
 
@@ -501,6 +488,7 @@ class Module(Base):
     )
     remark: Mapped[str | None] = mapped_column(Text, nullable=True)
     timestamp: Mapped[str | None] = mapped_column(Text, nullable=True)
+    cms_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class SemesterModule(Base):
@@ -521,6 +509,7 @@ class SemesterModule(Base):
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime, default=utc_now, nullable=True
     )
+    cms_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     __table_args__ = (
         Index("fk_semester_modules_module_id", "module_id"),
@@ -545,6 +534,7 @@ class StudentModule(Base):
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime, default=utc_now, nullable=True
     )
+    cms_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     __table_args__ = (
         Index("fk_student_modules_student_semester_id", "student_semester_id"),
@@ -566,6 +556,7 @@ class ModulePrerequisite(Base):
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime, default=utc_now, nullable=True
     )
+    cms_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     __table_args__ = (UniqueConstraint("semester_module_id", "prerequisite_id"),)
 
@@ -624,9 +615,17 @@ class RegistrationRequest(Base):
     )
     updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     date_registered: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    deleted_by: Mapped[str | None] = mapped_column(
+        String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    student_semester_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("student_semesters.id", ondelete="SET NULL"),
+        nullable=True,
+    )
 
     __table_args__ = (
-        UniqueConstraint("std_no", "term_id"),
         Index("fk_registration_requests_std_no", "std_no"),
         Index("fk_registration_requests_term_id", "term_id"),
         Index("idx_registration_requests_status", "status"),
@@ -673,7 +672,6 @@ class Clearance(Base):
         String, nullable=False, default="pending"
     )
     message: Mapped[str | None] = mapped_column(Text, nullable=True)
-    email_sent: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     responded_by: Mapped[str | None] = mapped_column(
         String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True
     )
@@ -724,6 +722,11 @@ class GraduationRequest(Base):
         unique=True,
         nullable=False,
     )
+    graduation_date_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("graduation_dates.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
     information_confirmed: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False
     )
@@ -761,54 +764,6 @@ class GraduationClearance(Base):
     )
 
 
-class PaymentReceipt(Base):
-    __tablename__ = "payment_receipts"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    graduation_request_id: Mapped[int] = mapped_column(
-        Integer,
-        ForeignKey("graduation_requests.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    payment_type: Mapped[PaymentType] = mapped_column(String, nullable=False)
-    receipt_no: Mapped[str] = mapped_column(String, nullable=False, unique=True)
-    created_at: Mapped[datetime | None] = mapped_column(
-        DateTime, default=utc_now, nullable=True
-    )
-
-    __table_args__ = (
-        Index("fk_payment_receipts_graduation_request_id", "graduation_request_id"),
-    )
-
-
-class ClearanceAudit(Base):
-    __tablename__ = "clearance_audit"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    clearance_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("clearance.id", ondelete="CASCADE"), nullable=False
-    )
-    previous_status: Mapped[RegistrationRequestStatus | None] = mapped_column(
-        String, nullable=True
-    )
-    new_status: Mapped[RegistrationRequestStatus] = mapped_column(
-        String, nullable=False
-    )
-    created_by: Mapped[str] = mapped_column(
-        String, ForeignKey("users.id", ondelete="SET NULL"), nullable=False
-    )
-    date: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
-    message: Mapped[str | None] = mapped_column(Text, nullable=True)
-    modules: Mapped[list[str]] = mapped_column(
-        PostgreSQLJSON, nullable=False, default=list
-    )
-
-    __table_args__ = (
-        Index("fk_clearance_audit_clearance_id", "clearance_id"),
-        Index("fk_clearance_audit_created_by", "created_by"),
-    )
-
-
 class SponsoredStudent(Base):
     __tablename__ = "sponsored_students"
 
@@ -822,9 +777,6 @@ class SponsoredStudent(Base):
     borrower_no: Mapped[str | None] = mapped_column(Text, nullable=True)
     bank_name: Mapped[str | None] = mapped_column(Text, nullable=True)
     account_number: Mapped[str | None] = mapped_column(Text, nullable=True)
-    confirmed: Mapped[bool | None] = mapped_column(
-        Boolean, default=False, nullable=True
-    )
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime, default=utc_now, nullable=True
     )
@@ -958,58 +910,6 @@ class AssessmentMark(Base):
     )
 
 
-class AssessmentMarksAudit(Base):
-    __tablename__ = "assessment_marks_audit"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    assessment_mark_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("assessment_marks.id", ondelete="SET NULL"), nullable=True
-    )
-    action: Mapped[AssessmentMarksAuditAction] = mapped_column(String, nullable=False)
-    previous_marks: Mapped[float | None] = mapped_column(Float, nullable=True)
-    new_marks: Mapped[float | None] = mapped_column(Float, nullable=True)
-    created_by: Mapped[str] = mapped_column(
-        String, ForeignKey("users.id", ondelete="SET NULL"), nullable=False
-    )
-    date: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
-
-    __table_args__ = (
-        Index("fk_assessment_marks_audit_assessment_mark_id", "assessment_mark_id"),
-        Index("fk_assessment_marks_audit_created_by", "created_by"),
-    )
-
-
-class AssessmentsAudit(Base):
-    __tablename__ = "assessments_audit"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    assessment_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("assessments.id", ondelete="SET NULL"), nullable=True
-    )
-    action: Mapped[AssessmentsAuditAction] = mapped_column(String, nullable=False)
-    previous_assessment_number: Mapped[AssessmentNumber | None] = mapped_column(
-        String, nullable=True
-    )
-    new_assessment_number: Mapped[AssessmentNumber | None] = mapped_column(
-        String, nullable=True
-    )
-    previous_assessment_type: Mapped[str | None] = mapped_column(Text, nullable=True)
-    new_assessment_type: Mapped[str | None] = mapped_column(Text, nullable=True)
-    previous_total_marks: Mapped[float | None] = mapped_column(Float, nullable=True)
-    new_total_marks: Mapped[float | None] = mapped_column(Float, nullable=True)
-    previous_weight: Mapped[float | None] = mapped_column(Float, nullable=True)
-    new_weight: Mapped[float | None] = mapped_column(Float, nullable=True)
-    created_by: Mapped[str] = mapped_column(
-        String, ForeignKey("users.id", ondelete="SET NULL"), nullable=False
-    )
-    date: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
-
-    __table_args__ = (
-        Index("fk_assessments_audit_assessment_id", "assessment_id"),
-        Index("fk_assessments_audit_created_by", "created_by"),
-    )
-
-
 class StatementOfResultsPrint(Base):
     __tablename__ = "statement_of_results_prints"
 
@@ -1085,7 +985,11 @@ class StudentCardPrint(Base):
     __tablename__ = "student_card_prints"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_nanoid)
-    receipt_no: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    receipt_id: Mapped[str] = mapped_column(
+        String,
+        ForeignKey("payment_receipts.id", ondelete="CASCADE"),
+        nullable=False,
+    )
     std_no: Mapped[int] = mapped_column(
         BigInteger, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
     )
@@ -1108,14 +1012,10 @@ class Document(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_nanoid)
     file_name: Mapped[str] = mapped_column(Text, nullable=False)
     type: Mapped[str | None] = mapped_column(Text, nullable=True)
-    std_no: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
-    )
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime, default=utc_now, nullable=True
     )
-
-    __table_args__ = (Index("fk_documents_std_no", "std_no"),)
+    file_url: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class FortinetRegistration(Base):
@@ -1143,134 +1043,4 @@ class FortinetRegistration(Base):
         Index("fk_fortinet_registrations_std_no", "std_no"),
         Index("fk_fortinet_registrations_school_id", "school_id"),
         Index("idx_fortinet_registrations_status", "status"),
-    )
-
-
-OperationType = Literal["create", "update"]
-
-
-class StudentAuditLog(Base):
-    __tablename__ = "student_audit_logs"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    std_no: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
-    )
-    old_values: Mapped[dict] = mapped_column(PostgreSQLJSON, nullable=False)
-    new_values: Mapped[dict] = mapped_column(PostgreSQLJSON, nullable=False)
-    operation: Mapped[OperationType] = mapped_column(
-        String, nullable=False, default="update"
-    )
-    reasons: Mapped[str | None] = mapped_column(Text, nullable=True)
-    updated_by: Mapped[str] = mapped_column(
-        String, ForeignKey("users.id", ondelete="SET NULL"), nullable=False
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=utc_now, nullable=False
-    )
-    synced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    created_at: Mapped[datetime | None] = mapped_column(
-        DateTime, default=utc_now, nullable=True
-    )
-
-    __table_args__ = (
-        Index("fk_student_audit_logs_std_no", "std_no"),
-        Index("fk_student_audit_logs_updated_by", "updated_by"),
-        Index("idx_student_audit_logs_synced_at", "synced_at"),
-    )
-
-
-class StudentModuleAuditLog(Base):
-    __tablename__ = "student_module_audit_logs"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    student_module_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("student_modules.id", ondelete="CASCADE"), nullable=False
-    )
-    old_values: Mapped[dict] = mapped_column(PostgreSQLJSON, nullable=False)
-    new_values: Mapped[dict] = mapped_column(PostgreSQLJSON, nullable=False)
-    operation: Mapped[OperationType] = mapped_column(
-        String, nullable=False, default="update"
-    )
-    reasons: Mapped[str | None] = mapped_column(Text, nullable=True)
-    updated_by: Mapped[str] = mapped_column(
-        String, ForeignKey("users.id", ondelete="SET NULL"), nullable=False
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=utc_now, nullable=False
-    )
-    synced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    created_at: Mapped[datetime | None] = mapped_column(
-        DateTime, default=utc_now, nullable=True
-    )
-
-    __table_args__ = (
-        Index("fk_student_module_audit_logs_student_module_id", "student_module_id"),
-        Index("fk_student_module_audit_logs_updated_by", "updated_by"),
-        Index("idx_student_module_audit_logs_synced_at", "synced_at"),
-    )
-
-
-class StudentProgramAuditLog(Base):
-    __tablename__ = "student_program_audit_logs"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    student_program_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("student_programs.id", ondelete="CASCADE"), nullable=False
-    )
-    old_values: Mapped[dict] = mapped_column(PostgreSQLJSON, nullable=False)
-    new_values: Mapped[dict] = mapped_column(PostgreSQLJSON, nullable=False)
-    operation: Mapped[OperationType] = mapped_column(
-        String, nullable=False, default="update"
-    )
-    reasons: Mapped[str | None] = mapped_column(Text, nullable=True)
-    updated_by: Mapped[str] = mapped_column(
-        String, ForeignKey("users.id", ondelete="SET NULL"), nullable=False
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=utc_now, nullable=False
-    )
-    synced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    created_at: Mapped[datetime | None] = mapped_column(
-        DateTime, default=utc_now, nullable=True
-    )
-
-    __table_args__ = (
-        Index("fk_student_program_audit_logs_student_program_id", "student_program_id"),
-        Index("fk_student_program_audit_logs_updated_by", "updated_by"),
-        Index("idx_student_program_audit_logs_synced_at", "synced_at"),
-    )
-
-
-class StudentSemesterAuditLog(Base):
-    __tablename__ = "student_semester_audit_logs"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    student_semester_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("student_semesters.id", ondelete="CASCADE"), nullable=False
-    )
-    old_values: Mapped[dict] = mapped_column(PostgreSQLJSON, nullable=False)
-    new_values: Mapped[dict] = mapped_column(PostgreSQLJSON, nullable=False)
-    operation: Mapped[OperationType] = mapped_column(
-        String, nullable=False, default="update"
-    )
-    reasons: Mapped[str | None] = mapped_column(Text, nullable=True)
-    updated_by: Mapped[str] = mapped_column(
-        String, ForeignKey("users.id", ondelete="SET NULL"), nullable=False
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=utc_now, nullable=False
-    )
-    synced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    created_at: Mapped[datetime | None] = mapped_column(
-        DateTime, default=utc_now, nullable=True
-    )
-
-    __table_args__ = (
-        Index(
-            "fk_student_semester_sync_records_student_semester_id",
-            "student_semester_id",
-        ),
-        Index("fk_student_semester_sync_records_updated_by", "updated_by"),
-        Index("idx_student_semester_sync_records_synced_at", "synced_at"),
     )

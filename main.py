@@ -204,15 +204,15 @@ class MainWindow(wx.Frame):
 
 
 def check_existing_session() -> User | None:
-    session_token = SessionManager.get_session_token()
-    if not session_token:
+    token = SessionManager.get_token()
+    if not token:
         return None
 
     try:
         engine = get_engine()
         with DBSession(engine) as db_session:
             auth_repo = AuthRepository(db_session)
-            user = auth_repo.get_user_by_session_token(session_token)
+            user = auth_repo.get_user_by_token(token)
 
             if user:
                 logger.info(f"Valid session found for user: {user.email}")

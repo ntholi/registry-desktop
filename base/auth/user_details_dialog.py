@@ -22,7 +22,7 @@ class UserDetailsDialog(wx.Dialog):
 
         main_sizer.AddSpacer(15)
 
-        details_sizer = wx.FlexGridSizer(4, 2, 10, 15)
+        details_sizer = wx.FlexGridSizer(3, 2, 10, 15)
         details_sizer.AddGrowableCol(1, 1)
 
         name_label = wx.StaticText(panel, label="Name:")
@@ -41,11 +41,6 @@ class UserDetailsDialog(wx.Dialog):
         details_sizer.Add(role_label, 0, wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL)
         role_value = user.role.upper() if user.role else "N/A"
         details_sizer.Add(wx.StaticText(panel, label=role_value), 0, wx.EXPAND)
-
-        position_label = wx.StaticText(panel, label="Position:")
-        position_label.SetFont(name_font)
-        details_sizer.Add(position_label, 0, wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL)
-        details_sizer.Add(wx.StaticText(panel, label=user.position or "N/A"), 0, wx.EXPAND)
 
         main_sizer.Add(details_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 30)
 

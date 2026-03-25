@@ -12,20 +12,19 @@ class SessionManager:
     SESSION_FILE = Path.home() / ".registry-desktop" / "session.json"
 
     @classmethod
-    def save_session(cls, session_token: str, user: User):
+    def save_session(cls, token: str, user: User):
         try:
             cls.SESSION_FILE.parent.mkdir(parents=True, exist_ok=True)
 
             session_data = {
-                "session_token": session_token,
+                "token": token,
                 "user": {
                     "id": user.id,
                     "email": user.email,
                     "name": user.name,
                     "image": user.image,
                     "role": user.role,
-                    "position": user.position,
-                }
+                },
             }
 
             with open(cls.SESSION_FILE, "w") as f:
@@ -59,10 +58,10 @@ class SessionManager:
             logger.exception(f"Error clearing session: {e}")
 
     @classmethod
-    def get_session_token(cls) -> Optional[str]:
+    def get_token(cls) -> Optional[str]:
         session_data = cls.load_session()
         if session_data:
-            return session_data.get("session_token")
+            return session_data.get("token")
         return None
 
     @classmethod

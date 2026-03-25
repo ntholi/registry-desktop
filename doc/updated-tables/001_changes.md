@@ -15,6 +15,12 @@
 | `student_semester_audit_logs` | `StudentSemesterAuditLog` | Table no longer exists in DB |
 | `payment_receipts` | `PaymentReceipt` | Removed per user request (table restructured) |
 
+## Tables Added
+
+| Table | Model Class | Reason |
+|-------|-------------|--------|
+| `permission_presets` | `PermissionPreset` | Required by `users.preset_id` FK. Columns: `id` (Text PK), `name` (Text), `role` (Text), `description` (Text, nullable), `created_at`, `updated_at` |
+
 ## Literal Types Removed
 
 | Type | Previously Used By |
@@ -209,14 +215,62 @@
 | REMOVED INDEX | `fk_documents_std_no` | Associated index removed |
 | ADDED | `file_url` | `Text, nullable=True` |
 
-## Codebase Impact Notes
+## Auth Code Updates (completed)
 
-These model changes will require updating any code that references:
+### `base/auth/repository.py`
 
-1. **Auth-related code**: `User.position`, `User.lms_user_id`, `User.lms_token`, `User.emailVerified`, `Account.provider`, `Account.provider_account_id`, `Session.session_token`, `Session.expires`
-2. **Removed models**: `VerificationToken`, `Authenticator`, `ClearanceAudit`, `AssessmentMarksAudit`, `AssessmentsAudit`, `StudentAuditLog`, `StudentModuleAuditLog`, `StudentProgramAuditLog`, `StudentSemesterAuditLog`, `PaymentReceipt`
-3. **Removed Literal types**: `UserPosition`, `PaymentType`, `AssessmentMarksAuditAction`, `AssessmentsAuditAction`, `OperationType`
-4. **Removed import**: `PostgreSQLJSON`
-5. **Changed fields**: `Student.national_id` is now nullable, `StudentCardPrint.receipt_no` → `receipt_id`, `Document.std_no` removed
-6. **Removed constraint**: `registration_requests` no longer has unique constraint on `(std_no, term_id)`
-7. **Removed columns**: `student_semesters.registration_request_id`, `clearance.email_sent`, `sponsored_students.confirmed`
+| Method | Change |
+|--------|--------|
+| `create_user()` | `emailVerified=datetime.utcnow()` → `email_verified=True` |
+| `create_account()` | `provider` → `provider_id`, `provider_account_id` → `account_id`, removed `type`/`token_type` params, `expires_at: int` → `access_token_expires_at: datetime`, added `id` generation |
+| `get_account()` | `provider` → `provider_id`, `provider_account_id` → `account_id` |
+| `update_account_tokens()` | Same param renames, `expires_at` → `access_token_expires_at` |
+| `create_session()` | `session_token` → `token`, `expires` → `expires_at`, added `id` generation |
+| `get_session()` | `session_token` → `token`, `session.expires` → `session.expires_at` |
+| `delete_session()` | `session_token` → `token` |
+| `get_user_by_session_token()` | Renamed to `get_user_by_token()` |
+
+### `base/auth/session_manager.py`
+
+| Method | Change |
+|--------|--------|
+| `save_session()` | Param `session_token` → `token`, stored key `"session_token"` → `"token"`, removed `"position"` from stored user data |
+| `get_session_token()` | Renamed to `get_token()`, reads `"token"` key |
+
+### `base/auth/login_view.py`
+
+| Change | Details |
+|--------|---------|
+| `create_account()` call | `provider=` → `provider_id=`, `provider_account_id=` → `account_id=`, removed `token_type=`, `expires_at=int(...)` → `access_token_expires_at=credentials.expiry` |
+| `update_account_tokens()` call | Same param renames |
+| `save_session()` call | `session.session_token` → `session.token` |
+
+### `main.py`
+
+| Change | Details |
+|--------|---------|
+| `check_existing_session()` | `SessionManager.get_session_token()` → `SessionManager.get_token()`, `get_user_by_session_token()` → `get_user_by_token()` |
+
+### `base/auth/user_details_dialog.py`
+
+| Change | Details |
+|--------|---------|
+| Removed Position row | `FlexGridSizer(4, 2, ...)` → `FlexGridSizer(3, 2, ...)`, removed `user.position` display |
+
+### `utils/permissions.py`
+
+| Change | Details |
+|--------|---------|
+| `can_edit_grades()` | Removed `position == "manager"` check, now admin-only (`role == "admin"`) |
+| `get_current_user_position()` | Removed entirely |
+
+## Remaining Codebase Impact Notes
+
+These model changes may still require updating code that references:
+
+1. **Removed models**: `VerificationToken`, `Authenticator`, `ClearanceAudit`, `AssessmentMarksAudit`, `AssessmentsAudit`, `StudentAuditLog`, `StudentModuleAuditLog`, `StudentProgramAuditLog`, `StudentSemesterAuditLog`, `PaymentReceipt`
+2. **Removed Literal types**: `UserPosition`, `PaymentType`, `AssessmentMarksAuditAction`, `AssessmentsAuditAction`, `OperationType`
+3. **Removed import**: `PostgreSQLJSON`
+4. **Changed fields**: `Student.national_id` is now nullable, `StudentCardPrint.receipt_no` → `receipt_id`, `Document.std_no` removed
+5. **Removed constraint**: `registration_requests` no longer has unique constraint on `(std_no, term_id)`
+6. **Removed columns**: `student_semesters.registration_request_id`, `clearance.email_sent`, `sponsored_students.confirmed`

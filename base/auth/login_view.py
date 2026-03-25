@@ -124,9 +124,9 @@ class LoginWindow(wx.Frame):
                 account = auth_repo.get_account("google", google_id)
 
                 if not account:
-                    expires_at = None
+                    access_token_expires_at = None
                     if credentials.expiry:
-                        expires_at = int(credentials.expiry.timestamp())
+                        access_token_expires_at = credentials.expiry
 
                     actual_scopes = (
                         " ".join(credentials.scopes)
@@ -136,12 +136,11 @@ class LoginWindow(wx.Frame):
 
                     account = auth_repo.create_account(
                         user_id=user.id,
-                        provider="google",
-                        provider_account_id=google_id,
+                        provider_id="google",
+                        account_id=google_id,
                         access_token=credentials.token,
                         refresh_token=credentials.refresh_token,
-                        expires_at=expires_at,
-                        token_type="Bearer",
+                        access_token_expires_at=access_token_expires_at,
                         scope=actual_scopes,
                         id_token=(
                             credentials.id_token
@@ -153,16 +152,16 @@ class LoginWindow(wx.Frame):
                         wx.CallAfter(self._show_error, "Failed to link Google account.")
                         return
                 else:
-                    expires_at = None
+                    access_token_expires_at = None
                     if credentials.expiry:
-                        expires_at = int(credentials.expiry.timestamp())
+                        access_token_expires_at = credentials.expiry
 
                     account = auth_repo.update_account_tokens(
-                        provider="google",
-                        provider_account_id=google_id,
+                        provider_id="google",
+                        account_id=google_id,
                         access_token=credentials.token,
                         refresh_token=credentials.refresh_token,
-                        expires_at=expires_at,
+                        access_token_expires_at=access_token_expires_at,
                     )
                     if not account:
                         wx.CallAfter(
@@ -175,7 +174,7 @@ class LoginWindow(wx.Frame):
                     wx.CallAfter(self._show_error, "Failed to create session.")
                     return
 
-                SessionManager.save_session(session.session_token, user)
+                SessionManager.save_session(session.token, user)
 
                 wx.CallAfter(self._on_success, user)
 

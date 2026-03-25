@@ -6,7 +6,9 @@ import nanoid
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from database.models import Account, Session as SessionModel, User
+from database.models import Account
+from database.models import Session as SessionModel
+from database.models import User
 
 logger = logging.getLogger(__name__)
 
@@ -35,15 +37,17 @@ class AuthRepository:
             logger.exception(f"Error fetching user by id: {e}")
             return None
 
-    def create_user(self, email: str, name: str, image: Optional[str] = None) -> Optional[User]:
+    def create_user(
+        self, email: str, name: str, image: Optional[str] = None
+    ) -> Optional[User]:
         try:
             user = User(
                 id=nanoid.generate(),
                 email=email,
                 name=name,
                 image=image,
-                emailVerified=datetime.utcnow(),
-                role="user"
+                email_verified=True,
+                role="user",
             )
             self.db.add(user)
             self.db.commit()
@@ -54,7 +58,9 @@ class AuthRepository:
             logger.exception(f"Error creating user: {e}")
             return None
 
-    def update_user(self, user_id: str, name: Optional[str] = None, image: Optional[str] = None) -> Optional[User]:
+    def update_user(
+        self, user_id: str, name: Optional[str] = None, image: Optional[str] = None
+    ) -> Optional[User]:
         try:
             user = self.get_user_by_id(user_id)
             if not user:
@@ -76,25 +82,23 @@ class AuthRepository:
     def create_account(
         self,
         user_id: str,
-        provider: str,
-        provider_account_id: str,
+        provider_id: str,
+        account_id: str,
         access_token: Optional[str] = None,
         refresh_token: Optional[str] = None,
-        expires_at: Optional[int] = None,
-        token_type: Optional[str] = None,
+        access_token_expires_at: Optional[datetime] = None,
         scope: Optional[str] = None,
         id_token: Optional[str] = None,
     ) -> Optional[Account]:
         try:
             account = Account(
+                id=nanoid.generate(),
                 user_id=user_id,
-                type="oauth",
-                provider=provider,
-                provider_account_id=provider_account_id,
+                provider_id=provider_id,
+                account_id=account_id,
                 access_token=access_token,
                 refresh_token=refresh_token,
-                expires_at=expires_at,
-                token_type=token_type,
+                access_token_expires_at=access_token_expires_at,
                 scope=scope,
                 id_token=id_token,
             )
@@ -107,11 +111,10 @@ class AuthRepository:
             logger.exception(f"Error creating account: {e}")
             return None
 
-    def get_account(self, provider: str, provider_account_id: str) -> Optional[Account]:
+    def get_account(self, provider_id: str, account_id: str) -> Optional[Account]:
         try:
             stmt = select(Account).where(
-                Account.provider == provider,
-                Account.provider_account_id == provider_account_id
+                Account.provider_id == provider_id, Account.account_id == account_id
             )
             result = self.db.execute(stmt)
             return result.scalar_one_or_none()
@@ -122,14 +125,14 @@ class AuthRepository:
 
     def update_account_tokens(
         self,
-        provider: str,
-        provider_account_id: str,
+        provider_id: str,
+        account_id: str,
         access_token: Optional[str] = None,
         refresh_token: Optional[str] = None,
-        expires_at: Optional[int] = None,
+        access_token_expires_at: Optional[datetime] = None,
     ) -> Optional[Account]:
         try:
-            account = self.get_account(provider, provider_account_id)
+            account = self.get_account(provider_id, account_id)
             if not account:
                 return None
 
@@ -137,8 +140,8 @@ class AuthRepository:
                 account.access_token = access_token
             if refresh_token:
                 account.refresh_token = refresh_token
-            if expires_at:
-                account.expires_at = expires_at
+            if access_token_expires_at:
+                account.access_token_expires_at = access_token_expires_at
 
             self.db.commit()
             self.db.refresh(account)
@@ -148,15 +151,18 @@ class AuthRepository:
             logger.exception(f"Error updating account tokens: {e}")
             return None
 
-    def create_session(self, user_id: str, expires_days: int = 30) -> Optional[SessionModel]:
+    def create_session(
+        self, user_id: str, expires_days: int = 30
+    ) -> Optional[SessionModel]:
         try:
-            session_token = nanoid.generate(size=32)
-            expires = datetime.utcnow() + timedelta(days=expires_days)
+            token = nanoid.generate(size=32)
+            expires_at = datetime.utcnow() + timedelta(days=expires_days)
 
             session = SessionModel(
-                session_token=session_token,
+                id=nanoid.generate(),
+                token=token,
                 user_id=user_id,
-                expires=expires
+                expires_at=expires_at,
             )
             self.db.add(session)
             self.db.commit()
@@ -167,14 +173,14 @@ class AuthRepository:
             logger.exception(f"Error creating session: {e}")
             return None
 
-    def get_session(self, session_token: str) -> Optional[SessionModel]:
+    def get_session(self, token: str) -> Optional[SessionModel]:
         try:
-            stmt = select(SessionModel).where(SessionModel.session_token == session_token)
+            stmt = select(SessionModel).where(SessionModel.token == token)
             result = self.db.execute(stmt)
             session = result.scalar_one_or_none()
 
-            if session and session.expires < datetime.utcnow():
-                self.delete_session(session_token)
+            if session and session.expires_at < datetime.utcnow():
+                self.delete_session(token)
                 return None
 
             return session
@@ -183,9 +189,9 @@ class AuthRepository:
             logger.exception(f"Error fetching session: {e}")
             return None
 
-    def delete_session(self, session_token: str) -> bool:
+    def delete_session(self, token: str) -> bool:
         try:
-            stmt = select(SessionModel).where(SessionModel.session_token == session_token)
+            stmt = select(SessionModel).where(SessionModel.token == token)
             result = self.db.execute(stmt)
             session = result.scalar_one_or_none()
 
@@ -199,9 +205,9 @@ class AuthRepository:
             logger.exception(f"Error deleting session: {e}")
             return False
 
-    def get_user_by_session_token(self, session_token: str) -> Optional[User]:
+    def get_user_by_token(self, token: str) -> Optional[User]:
         try:
-            session = self.get_session(session_token)
+            session = self.get_session(token)
             if not session:
                 return None
 

@@ -5,6 +5,7 @@ import wx
 from .add_school_dialog import AddSchoolDialog
 from .import_structures_dialog import ImportStructuresDialog
 from .repository import StructureRepository
+from .service import SchoolSyncService
 from .structure_detail_panel import StructureDetailPanel
 
 
@@ -79,6 +80,32 @@ class LoadStructuresWorker(threading.Thread):
         self.should_stop = True
 
 
+class ImportAllWorker(threading.Thread):
+    def __init__(self, service, callback):
+        super().__init__(daemon=True)
+        self.service = service
+        self.callback = callback
+        self.should_stop = False
+
+    def run(self):
+        try:
+            if self.should_stop:
+                return
+            self.service.import_all_schools_structures(
+                self._progress_callback,
+                fetch_semesters=True,
+            )
+            self.callback("finished")
+        except Exception as e:
+            self.callback("error", str(e))
+
+    def _progress_callback(self, message, current, total):
+        self.callback("progress", message, current, total)
+
+    def stop(self):
+        self.should_stop = True
+
+
 class StructuresView(wx.Panel):
     def __init__(self, parent, status_bar=None):
         super().__init__(parent)
@@ -93,6 +120,7 @@ class StructuresView(wx.Panel):
         self.filter_worker = None
         self.programs_worker = None
         self.structures_worker = None
+        self.import_worker = None
         self.pending_load_structures = False
 
         self.init_ui()
@@ -404,12 +432,47 @@ class StructuresView(wx.Panel):
         dialog.Destroy()
 
     def on_import_structures(self, event):
-        dialog = ImportStructuresDialog(self, self.status_bar)
-        if dialog.ShowModal() == wx.ID_OK:
+        result = wx.MessageBox(
+            "This will import all schools, their programs, structures, "
+            "semesters, and modules from the CMS.\n\n"
+            "This may take a significant amount of time.\n\n"
+            "Do you want to continue?",
+            "Import All",
+            wx.YES_NO | wx.ICON_QUESTION,
+        )
+        if result != wx.YES:
+            return
+
+        self.import_button.Enable(False)
+        service = SchoolSyncService(self.repository)
+        self.import_worker = ImportAllWorker(service, self.on_import_callback)
+        self.import_worker.start()
+
+    def on_import_callback(self, event_type, *args):
+        wx.CallAfter(self._handle_import_event, event_type, *args)
+
+    def _handle_import_event(self, event_type, *args):
+        if event_type == "progress":
+            message, current, total = args
+            if self.status_bar:
+                self.status_bar.show_progress(message, current, total)
+        elif event_type == "finished":
+            self.import_button.Enable(True)
+            if self.status_bar:
+                self.status_bar.clear()
             self.load_filter_options()
             self.load_structures()
-
-        dialog.Destroy()
+            wx.MessageBox(
+                "Import completed successfully.",
+                "Import Complete",
+                wx.OK | wx.ICON_INFORMATION,
+            )
+        elif event_type == "error":
+            self.import_button.Enable(True)
+            error_msg = args[0]
+            if self.status_bar:
+                self.status_bar.clear()
+            wx.MessageBox(f"Import failed: {error_msg}", "Error", wx.OK | wx.ICON_ERROR)
 
     def on_filter_options_callback(self, event_type, *args):
         wx.CallAfter(self._handle_filter_options_event, event_type, *args)

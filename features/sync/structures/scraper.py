@@ -31,7 +31,11 @@ def _normalize_program_level(category: str) -> ProgramLevel:
         return "diploma"
     if normalized in {"degree", "deg"}:
         return "degree"
-    if "degree" in normalized or "bachelor" in normalized or "undergraduate" in normalized:
+    if (
+        "degree" in normalized
+        or "bachelor" in normalized
+        or "undergraduate" in normalized
+    ):
         return "degree"
 
     logger.warning(f"Unknown program category '{category}', defaulting to 'degree'")
@@ -196,50 +200,54 @@ def scrape_semester_modules(
     return semester_modules
 
 
-def scrape_school_details(school_code: str) -> dict[str, str | int] | None:
+def scrape_all_schools() -> list[dict[str, str | int]]:
     browser = Browser()
-    url = f"{BASE_URL}/f_schoollist.php"
+    url = f"{BASE_URL}/f_schoollist.php?cmd=resetall"
     response = browser.fetch(url)
     page = BeautifulSoup(response.text, "lxml")
 
+    schools = []
     rows = page.select("table#ewlistmain tr")
     for row in rows:
         cells = row.select("td")
-        if len(cells) > 1:
-            code_cell = cells[0].get_text(strip=True)
-            if code_cell.upper() == school_code.upper():
-                name_cell = cells[1].get_text(strip=True)
-                view_link = row.select_one("a[href*='f_schoolview.php']")
-                if view_link and "href" in view_link.attrs:
-                    href = str(view_link["href"])
-                    if "SchoolID=" in href:
-                        school_id = href.split("SchoolID=")[1]
-                        return {
-                            "id": int(school_id),
-                            "code": code_cell,
-                            "name": name_cell,
-                        }
+        if len(cells) < 2:
+            continue
+
+        code_cell = cells[0].get_text(strip=True)
+        name_cell = cells[1].get_text(strip=True)
+
+        if not code_cell or not name_cell:
+            continue
+
+        view_link = row.select_one("a[href*='f_schoolview.php']")
+        if view_link and "href" in view_link.attrs:
+            href = str(view_link["href"])
+            if "SchoolID=" in href:
+                school_id = href.split("SchoolID=")[1].split("&")[0]
+                schools.append(
+                    {
+                        "id": int(school_id),
+                        "code": code_cell,
+                        "name": name_cell,
+                    }
+                )
+
+    return schools
+
+
+def scrape_school_details(school_code: str) -> dict[str, str | int] | None:
+    schools = scrape_all_schools()
+    for school in schools:
+        if str(school["code"]).upper() == school_code.upper():
+            return school
     return None
 
 
 def scrape_school_id(school_code: str) -> int | None:
-    browser = Browser()
-    url = f"{BASE_URL}/f_schoollist.php"
-    response = browser.fetch(url)
-    page = BeautifulSoup(response.text, "lxml")
-
-    rows = page.select("table#ewlistmain tr")
-    for row in rows:
-        cells = row.select("td")
-        if len(cells) > 0:
-            code_cell = cells[0].get_text(strip=True)
-            if code_cell.upper() == school_code.upper():
-                view_link = row.select_one("a[href*='f_schoolview.php']")
-                if view_link and "href" in view_link.attrs:
-                    href = str(view_link["href"])
-                    if "SchoolID=" in href:
-                        school_id = href.split("SchoolID=")[1]
-                        return int(school_id)
+    schools = scrape_all_schools()
+    for school in schools:
+        if str(school["code"]).upper() == school_code.upper():
+            return int(school["id"])
     return None
 
 

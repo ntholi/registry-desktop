@@ -5,13 +5,19 @@ from bs4 import BeautifulSoup
 
 from base import get_logger
 from base.browser import BASE_URL, Browser, get_form_payload
+from database.models import ProgramLevel
 from features.common.cms_utils import post_cms_form
 from utils.normalizers import normalize_module_type
 
 from .repository import StructureRepository
-from .scraper import (scrape_programs, scrape_school_details,
-                      scrape_semester_modules, scrape_semesters,
-                      scrape_structures)
+from .scraper import (
+    scrape_all_schools,
+    scrape_programs,
+    scrape_school_details,
+    scrape_semester_modules,
+    scrape_semesters,
+    scrape_structures,
+)
 
 logger = get_logger(__name__)
 
@@ -275,20 +281,41 @@ class SchoolSyncService:
         progress_callback: Callable[[str, int, int], None],
         fetch_semesters: bool = False,
     ):
-        schools = self.repository.list_active_schools()
+        progress_callback("Fetching schools from CMS...", 0, 1)
+        schools = scrape_all_schools()
         total_schools = len(schools)
 
-        logger.info(f"Starting import for {total_schools} schools")
+        logger.info(f"Found {total_schools} schools on CMS")
 
         for idx, school in enumerate(schools, 1):
+            school_id = int(school["id"])
+            school_code = str(school["code"])
+            school_name = str(school["name"])
+
             progress_callback(
-                f"Processing school {idx}/{total_schools}: {school.name}...",
+                f"Saving school {idx}/{total_schools}: {school_name}...",
                 idx,
                 total_schools,
             )
+            self.repository.save_school(school_id, school_code, school_name)
 
-            programs = scrape_programs(school.id)
-            logger.info(f"Found {len(programs)} programs for {school.name}")
+            progress_callback(
+                f"Fetching programs for {school_name}...",
+                idx,
+                total_schools,
+            )
+            programs = scrape_programs(school_id)
+            logger.info(f"Found {len(programs)} programs for {school_name}")
+
+            for program in programs:
+                level: ProgramLevel = str(program.get("level", "degree"))  # type: ignore[assignment]
+                self.repository.save_program(
+                    int(program["id"]),
+                    str(program["code"]),
+                    str(program["name"]),
+                    school_id,
+                    level,
+                )
 
             if programs:
                 self._import_structures(
@@ -318,7 +345,19 @@ class SchoolSyncService:
             progress_callback("No programs found for this school", 2, 2)
             return
 
-        progress_callback(f"Importing structures for {len(programs)} programs...", 2, 2)
+        progress_callback(
+            f"Saving {len(programs)} programs and importing structures...", 2, 2
+        )
+
+        for program in programs:
+            level: ProgramLevel = str(program.get("level", "degree"))  # type: ignore[assignment]
+            self.repository.save_program(
+                int(program["id"]),
+                str(program["code"]),
+                str(program["name"]),
+                school_id,
+                level,
+            )
 
         self._import_structures(
             programs,

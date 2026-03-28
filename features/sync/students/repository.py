@@ -776,11 +776,12 @@ class StudentRepository:
                 .first()
             )
             if semester_module:
-                logger.info(
+                logger.warning(
                     f"Found semester module in another structure - "
-                    f"module_code={module_code}, structure_id={structure_id}"
+                    f"module_code={module_code}, structure_id={structure_id}, "
+                    f"will auto-create in correct structure"
                 )
-                return semester_module[0]
+                return None
 
             return None
 

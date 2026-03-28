@@ -508,7 +508,7 @@ def extract_student_module_ids(std_semester_id: str) -> list[str]:
     table = page.select_one("table#ewlistmain")
 
     if not table:
-        logger.warning(f"No module table found for student semester {std_semester_id}")
+        logger.info(f"No module table found for student semester {std_semester_id}")
         return []
 
     module_ids = []

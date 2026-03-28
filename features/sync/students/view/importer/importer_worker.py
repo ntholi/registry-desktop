@@ -3,6 +3,7 @@ from typing import Callable
 
 from base import get_logger
 
+from ...service import SponsorResolutionError
 from .importer_project import ImporterProject, ImporterProjectManager
 
 logger = get_logger(__name__)
@@ -22,6 +23,22 @@ class ImporterWorker(threading.Thread):
 
     def is_stopped(self) -> bool:
         return self._stop_flag.is_set()
+
+    def _request_missing_sponsor(
+        self, sponsor_code: str, semester_id: str, term: str | None
+    ) -> bool:
+        response_holder = {"create": False}
+        response_event = threading.Event()
+        self.callback(
+            "missing_sponsor",
+            sponsor_code,
+            semester_id,
+            term,
+            response_holder,
+            response_event,
+        )
+        response_event.wait()
+        return bool(response_holder["create"])
 
     def run(self):
         logger.info(
@@ -70,7 +87,10 @@ class ImporterWorker(threading.Thread):
                     )
 
                 was_updated = self.sync_service.fetch_student(
-                    std_no, progress_callback, self.project.import_options
+                    std_no,
+                    progress_callback,
+                    self.project.import_options,
+                    self._request_missing_sponsor,
                 )
 
                 if was_updated:
@@ -84,6 +104,17 @@ class ImporterWorker(threading.Thread):
 
                 student_started = False
 
+            except SponsorResolutionError as e:
+                logger.warning(
+                    f"Import stopped while syncing student {std_no}: {str(e)}"
+                )
+                self.project.failed_count += 1
+                if self.project.failed_students is not None:
+                    self.project.failed_students.append(std_no)
+                self.project.status = "paused"
+                ImporterProjectManager.save_project(self.project)
+                self.callback("cancelled", self.project, str(e))
+                return
             except Exception as e:
                 logger.error(
                     f"Error importing student {std_no}: {str(e)}",

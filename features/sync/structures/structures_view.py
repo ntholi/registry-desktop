@@ -145,7 +145,7 @@ class StructuresView(wx.Panel):
         self.add_school_button.Bind(wx.EVT_BUTTON, self.on_add_school)
         filters_sizer.Add(self.add_school_button, 0, wx.RIGHT, 10)
 
-        self.import_button = wx.Button(self, label="Import")
+        self.import_button = wx.Button(self, label="Import All")
         self.import_button.Bind(wx.EVT_BUTTON, self.on_import_structures)
         filters_sizer.Add(self.import_button, 0)
 
@@ -289,7 +289,9 @@ class StructuresView(wx.Panel):
         self.selected_program_id = None
         self.detail_panel.set_program_context(None, None)
         self.current_page = 1
-        self.load_programs_for_school(self.selected_school_id, trigger_load_structures=True)
+        self.load_programs_for_school(
+            self.selected_school_id, trigger_load_structures=True
+        )
 
     def on_filter_changed(self, event):
         sel = self.school_filter.GetSelection()

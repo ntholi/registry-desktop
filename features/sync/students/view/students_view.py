@@ -5,7 +5,7 @@ import wx
 import wx.dataview as dv
 
 from ..repository import StudentRepository
-from ..service import StudentSyncService
+from ..service import SponsorResolutionError, StudentSyncService
 from .fetch_options_dialog import FetchOptionsDialog
 from .importer import ImporterDialog
 from .student_detail_panel import StudentDetailPanel
@@ -37,7 +37,10 @@ class FetchStudentsWorker(threading.Thread):
                     self.callback("progress", message, overall_progress, overall_total)
 
                 was_updated = self.sync_service.fetch_student(
-                    std_no, progress_callback, self.import_options
+                    std_no,
+                    progress_callback,
+                    self.import_options,
+                    self._request_missing_sponsor,
                 )
 
                 if was_updated:
@@ -45,11 +48,31 @@ class FetchStudentsWorker(threading.Thread):
                 else:
                     failed_count += 1
 
+            except SponsorResolutionError as e:
+                failed_count += 1
+                self.callback("cancelled", str(e), success_count, failed_count)
+                return
             except Exception as e:
                 self.callback("error", f"Error pulling student {std_no}: {str(e)}")
                 failed_count += 1
 
         self.callback("finished", success_count, failed_count)
+
+    def _request_missing_sponsor(
+        self, sponsor_code: str, semester_id: str, term: str | None
+    ) -> bool:
+        response_holder = {"create": False}
+        response_event = threading.Event()
+        self.callback(
+            "missing_sponsor",
+            sponsor_code,
+            semester_id,
+            term,
+            response_holder,
+            response_event,
+        )
+        response_event.wait()
+        return bool(response_holder["create"])
 
     def stop(self):
         self.should_stop = True
@@ -569,7 +592,9 @@ class StudentsView(wx.Panel):
         self.selected_term = None
         self.selected_semester_number = None
         self.current_page = 1
-        self.load_programs_for_school(self.selected_school_id, trigger_load_students=True)
+        self.load_programs_for_school(
+            self.selected_school_id, trigger_load_students=True
+        )
 
     def on_filter_changed(self, event):
         sel = self.school_filter.GetSelection()
@@ -713,7 +738,9 @@ class StudentsView(wx.Panel):
         has_row_selection = self.selected_student_item is not None
 
         self.fetch_button.Enable(selected_count > 0 or has_row_selection)
-        self.edit_button.Enable(selected_count == 1 or (selected_count == 0 and has_row_selection))
+        self.edit_button.Enable(
+            selected_count == 1 or (selected_count == 0 and has_row_selection)
+        )
 
         total_items = self.list_ctrl.GetItemCount()
         should_check_all = total_items > 0 and selected_count == total_items
@@ -734,7 +761,10 @@ class StudentsView(wx.Panel):
             self.edit_button.Enable(False)
 
             self.fetch_worker = FetchStudentsWorker(
-                selected_students, self.sync_service, self.on_worker_callback, import_options
+                selected_students,
+                self.sync_service,
+                self.on_worker_callback,
+                import_options,
             )
             self.fetch_worker.start()
         else:
@@ -760,7 +790,9 @@ class StudentsView(wx.Panel):
 
     def on_import_students(self, event):
         if self.import_dialog is None:
-            self.import_dialog = ImporterDialog(self, self.sync_service, self.status_bar)
+            self.import_dialog = ImporterDialog(
+                self, self.sync_service, self.status_bar
+            )
         else:
             self.import_dialog.load_project_state()
 
@@ -769,6 +801,22 @@ class StudentsView(wx.Panel):
 
     def on_worker_callback(self, event_type, *args):
         wx.CallAfter(self._handle_worker_event, event_type, *args)
+
+    def _confirm_missing_sponsor(
+        self, sponsor_code: str, semester_id: str, term: str | None
+    ) -> bool:
+        term_suffix = f" (term {term})" if term else ""
+        dialog = wx.MessageDialog(
+            self,
+            f"Sponsor '{sponsor_code}' was not found for semester {semester_id}{term_suffix}.\n\n"
+            f"Select Yes to create it automatically and continue.\n"
+            f"Select No to stop the current sync.",
+            "Missing Sponsor",
+            wx.YES_NO | wx.NO_DEFAULT | wx.ICON_WARNING,
+        )
+        result = dialog.ShowModal() == wx.ID_YES
+        dialog.Destroy()
+        return result
 
     def on_import_callback(self, event_type, *args):
         wx.CallAfter(self._handle_import_event, event_type, *args)
@@ -790,6 +838,30 @@ class StudentsView(wx.Panel):
             message, current, total = args
             if self.status_bar:
                 self.status_bar.show_progress(message, current, total)
+        elif event_type == "missing_sponsor":
+            sponsor_code, semester_id, term, response_holder, response_event = args
+            try:
+                if self.status_bar:
+                    self.status_bar.show_message(
+                        f"Sponsor {sponsor_code} was not found. Waiting for confirmation..."
+                    )
+                response_holder["create"] = self._confirm_missing_sponsor(
+                    sponsor_code, semester_id, term
+                )
+            finally:
+                response_event.set()
+        elif event_type == "cancelled":
+            error_msg, success_count, failed_count = args
+            if self.status_bar:
+                self.status_bar.clear()
+            self.fetch_button.Enable(True)
+            self.edit_button.Enable(True)
+            wx.MessageBox(
+                f"{error_msg}\n\nSuccessfully fetched: {success_count}\nFailed: {failed_count}",
+                "Fetch Stopped",
+                wx.OK | wx.ICON_WARNING,
+            )
+            self.load_students()
         elif event_type == "finished":
             success_count, failed_count = args
             if self.status_bar:

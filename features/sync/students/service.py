@@ -30,6 +30,10 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
+class SponsorResolutionError(RuntimeError):
+    pass
+
+
 def today() -> str:
     return datetime.date.today().strftime("%Y-%m-%d")
 
@@ -47,11 +51,46 @@ class StudentSyncService:
             self._enrollment_service = SemesterEnrollmentService()
         return self._enrollment_service
 
+    def _resolve_missing_sponsor(
+        self,
+        sponsor_code: str,
+        semester_id: str,
+        term: Optional[str],
+        missing_sponsor_prompt: Optional[Callable[[str, str, Optional[str]], bool]],
+    ) -> int:
+        existing_sponsor_id = self._repository.lookup_sponsor_by_code(sponsor_code)
+        if existing_sponsor_id:
+            return existing_sponsor_id
+
+        term_suffix = f" for term {term}" if term else ""
+
+        if missing_sponsor_prompt is None:
+            raise SponsorResolutionError(
+                f"Sponsor '{sponsor_code}' was not found for semester {semester_id}{term_suffix}."
+            )
+
+        should_create = missing_sponsor_prompt(sponsor_code, semester_id, term)
+        if not should_create:
+            raise SponsorResolutionError(
+                f"Student sync stopped because sponsor '{sponsor_code}' was not created."
+            )
+
+        sponsor_id = self._repository.create_sponsor(sponsor_code)
+        if sponsor_id:
+            return sponsor_id
+
+        raise SponsorResolutionError(
+            f"Student sync stopped because sponsor '{sponsor_code}' could not be created."
+        )
+
     def fetch_student(
         self,
         student_number: str,
         progress_callback: Callable[[str, int, int], None],
         import_options: Optional[dict] = None,
+        missing_sponsor_prompt: Optional[
+            Callable[[str, str, Optional[str]], bool]
+        ] = None,
     ) -> bool:
         if import_options is None:
             import_options = {
@@ -76,6 +115,16 @@ class StudentSyncService:
                 logger.info(f"Will skip semesters for active term: {active_term_code}")
 
         self._repository.preload_all_sponsors()
+
+        def resolve_missing_sponsor(
+            sponsor_code: str, semester_id: str, term: Optional[str]
+        ) -> Optional[int]:
+            return self._resolve_missing_sponsor(
+                sponsor_code,
+                semester_id,
+                term,
+                missing_sponsor_prompt,
+            )
 
         total_steps = 3
         student_updated = False
@@ -248,7 +297,14 @@ class StudentSyncService:
 
                             try:
                                 semester_data = scrape_student_semester_data(
-                                    sem_id, structure_id, self._repository
+                                    sem_id,
+                                    structure_id,
+                                    self._repository,
+                                    (
+                                        resolve_missing_sponsor
+                                        if missing_sponsor_prompt
+                                        else None
+                                    ),
                                 )
                                 if semester_data and semester_data.get("term"):
                                     semester_term = semester_data.get("term")
@@ -332,6 +388,8 @@ class StudentSyncService:
                                             f"data={semester_data}"
                                         )
                                         semesters_failed += 1
+                            except SponsorResolutionError:
+                                raise
                             except Exception as e:
                                 logger.error(
                                     f"Error syncing semester - student_number={student_number}, "
@@ -390,6 +448,8 @@ class StudentSyncService:
                             f"program_id={program_id}, error={msg}, data={program_data}"
                         )
                         programs_failed += 1
+            except SponsorResolutionError:
+                raise
             except Exception as e:
                 logger.error(
                     f"Error syncing program - student_number={student_number}, "

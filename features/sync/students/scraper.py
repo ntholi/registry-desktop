@@ -1,7 +1,7 @@
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
-from typing import Optional
+from typing import Callable, Optional
 
 from bs4 import BeautifulSoup, Tag
 
@@ -395,6 +395,9 @@ def scrape_student_semester_data(
     std_semester_id: str,
     structure_id: Optional[int] = None,
     repository=None,
+    missing_sponsor_callback: Optional[
+        Callable[[str, str, Optional[str]], Optional[int]]
+    ] = None,
 ) -> dict:
     browser = Browser()
     url = f"{BASE_URL}/r_stdsemesterview.php?StdSemesterID={std_semester_id}"
@@ -461,6 +464,17 @@ def scrape_student_semester_data(
         sponsor_id = repository.lookup_sponsor_by_code(assist_provider)
         if sponsor_id:
             data["sponsor_id"] = sponsor_id
+        elif missing_sponsor_callback:
+            sponsor_id = missing_sponsor_callback(
+                assist_provider, std_semester_id, data.get("term")
+            )
+            if sponsor_id:
+                data["sponsor_id"] = sponsor_id
+            else:
+                logger.error(
+                    f"Could not find sponsor - semester_id={std_semester_id}, "
+                    f"sponsor_code={assist_provider}, term={data.get('term')}"
+                )
         else:
             logger.error(
                 f"Could not find sponsor - semester_id={std_semester_id}, "

@@ -173,6 +173,4 @@ response = browser.post(url, form_data)
 - `samples/pages/`: Sample .php pages from the CMS for reference when scraping/posting (forms, views, etc.)
 
 
-**EXTREMELY IMPORTANT**: Always run this command on the terminal when finished:
-`echo "Are we done? Yes"` Note that it is in double quotes
-(No matter what! Do not combine it with other commands or outputs).
+**EXTREMELY IMPORTANT**:  Always use the `ask_questions` tool to get whether the job was done correctly or if there are any issues that need to be dealt with, so ask me if the job is done with an option to state if it is done or enter any issues which need to be fixed, then you will fix them.

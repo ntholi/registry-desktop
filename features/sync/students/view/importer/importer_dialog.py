@@ -639,6 +639,23 @@ class ImporterDialog(wx.Dialog):
             self.progress_bar.SetValue(0)
             self.progress_text.SetLabel("0 of 0 students")
 
+    def _confirm_missing_sponsor(
+        self, sponsor_code: str, semester_id: str, term: str | None
+    ) -> bool:
+        owner = self if self.IsShown() else self.GetParent()
+        term_suffix = f" (term {term})" if term else ""
+        dialog = wx.MessageDialog(
+            owner,
+            f"Sponsor '{sponsor_code}' was not found for semester {semester_id}{term_suffix}.\n\n"
+            f"Select Yes to create it automatically and continue.\n"
+            f"Select No to stop the current import.",
+            "Missing Sponsor",
+            wx.YES_NO | wx.NO_DEFAULT | wx.ICON_WARNING,
+        )
+        result = dialog.ShowModal() == wx.ID_YES
+        dialog.Destroy()
+        return result
+
     def on_worker_callback(self, event_type, *args):
         wx.CallAfter(self._handle_worker_event, event_type, *args)
 
@@ -652,6 +669,45 @@ class ImporterDialog(wx.Dialog):
 
             if self.IsShown():
                 self.update_progress_display()
+
+        elif event_type == "missing_sponsor":
+            sponsor_code, semester_id, term, response_holder, response_event = args
+            try:
+                if self.status_bar:
+                    self.status_bar.show_message(
+                        f"Sponsor {sponsor_code} was not found. Waiting for confirmation..."
+                    )
+                response_holder["create"] = self._confirm_missing_sponsor(
+                    sponsor_code, semester_id, term
+                )
+            finally:
+                response_event.set()
+
+        elif event_type == "cancelled":
+            project, error_msg = args
+            self.project = project
+            self.worker = None
+
+            if self.status_bar:
+                self.status_bar.clear()
+
+            if self.IsShown():
+                self.update_progress_display()
+                self.pause_resume_button.SetLabel("Resume")
+                self.pause_resume_button.Enable(True)
+                self.stop_button.Enable(True)
+                self.stop_button.SetLabel("Stop")
+                self.hide_button.Enable(False)
+
+            owner = self if self.IsShown() else self.GetParent()
+            dialog = wx.MessageDialog(
+                owner,
+                error_msg,
+                "Import Stopped",
+                wx.OK | wx.ICON_WARNING,
+            )
+            dialog.ShowModal()
+            dialog.Destroy()
 
         elif event_type == "finished":
             project = args[0]
@@ -707,3 +763,4 @@ class ImporterDialog(wx.Dialog):
         elif event_type == "error":
             error_msg = args[0]
             logger.error(f"Worker error: {error_msg}")
+            return

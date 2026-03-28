@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import datetime
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Optional, cast
 
 from sqlalchemy import String, distinct, or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from base import get_logger
@@ -972,6 +974,70 @@ class StudentRepository:
             _sponsor_cache[sponsor_code] = sponsor_id
 
             return sponsor_id
+
+    def create_sponsor(
+        self, sponsor_code: str, sponsor_name: Optional[str] = None
+    ) -> Optional[int]:
+        if not sponsor_code or not sponsor_code.strip():
+            return None
+
+        sponsor_code = sponsor_code.strip()
+
+        existing_sponsor_id = self.lookup_sponsor_by_code(sponsor_code)
+        if existing_sponsor_id:
+            return existing_sponsor_id
+
+        with self._session() as session:
+            base_name = (
+                sponsor_name.strip()
+                if sponsor_name and sponsor_name.strip()
+                else sponsor_code
+            )
+            candidate_name = base_name
+            suffix = 1
+
+            while (
+                session.query(Sponsor.id).filter(Sponsor.name == candidate_name).first()
+            ):
+                candidate_name = f"{base_name} {suffix}"
+                suffix += 1
+
+            sponsor = Sponsor(
+                name=candidate_name,
+                code=sponsor_code,
+                updated_at=datetime.datetime.utcnow(),
+            )
+            session.add(sponsor)
+
+            try:
+                session.commit()
+                session.refresh(sponsor)
+                _sponsor_cache[sponsor_code] = sponsor.id
+                logger.warning(
+                    f"Created missing sponsor - sponsor_id={sponsor.id}, "
+                    f"sponsor_code={sponsor_code}, sponsor_name={candidate_name}"
+                )
+                return sponsor.id
+            except IntegrityError:
+                session.rollback()
+                result = (
+                    session.query(Sponsor.id)
+                    .filter(Sponsor.code == sponsor_code)
+                    .first()
+                )
+                if result:
+                    _sponsor_cache[sponsor_code] = result[0]
+                    return result[0]
+                logger.error(
+                    f"Failed to create sponsor due to integrity error - sponsor_code={sponsor_code}"
+                )
+                return None
+            except Exception as e:
+                session.rollback()
+                logger.error(
+                    f"Failed to create sponsor - sponsor_code={sponsor_code}, error={str(e)}"
+                )
+                return None
 
     def preload_structure_semesters(self, structure_id: int) -> int:
         logger.info(f"Preloading structure semesters for structure {structure_id}")

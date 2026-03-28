@@ -180,7 +180,7 @@ class ImporterDialog(wx.Dialog):
             panel,
             label="Skip active term semester (don't import semester data for the active term)",
         )
-        self.skip_active_term_checkbox.SetValue(True)
+        self.skip_active_term_checkbox.SetValue(False)
         advanced_sizer.Add(self.skip_active_term_checkbox, 0, wx.BOTTOM, 5)
 
         self.delete_programs_checkbox = wx.CheckBox(
@@ -604,6 +604,8 @@ class ImporterDialog(wx.Dialog):
         self.personal_info_checkbox.SetValue(True)
         self.education_history_checkbox.SetValue(True)
         self.enrollment_data_checkbox.SetValue(True)
+        self.skip_active_term_checkbox.SetValue(False)
+        self.delete_programs_checkbox.SetValue(False)
         self.select_all_checkbox.Set3StateValue(wx.CHK_CHECKED)
 
     def update_progress_display(self):

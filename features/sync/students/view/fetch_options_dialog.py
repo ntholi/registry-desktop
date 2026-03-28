@@ -112,7 +112,7 @@ class FetchOptionsDialog(wx.Dialog):
                 self,
                 label="Skip active term semester (don't import semester data for the active term)",
             )
-            self.skip_active_term_checkbox.SetValue(True)
+            self.skip_active_term_checkbox.SetValue(False)
             advanced_sizer.Add(self.skip_active_term_checkbox, 0, wx.BOTTOM, 5)
 
             self.delete_programs_checkbox = wx.CheckBox(

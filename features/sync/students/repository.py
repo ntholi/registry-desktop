@@ -678,8 +678,12 @@ class StudentRepository:
             semester_module = (
                 session.query(SemesterModule.id)
                 .join(Module, SemesterModule.module_id == Module.id)
-                .join(Structure, Structure.id == structure_id)
+                .join(
+                    StructureSemester,
+                    SemesterModule.semester_id == StructureSemester.id,
+                )
                 .filter(Module.code == module_code)
+                .filter(StructureSemester.structure_id == structure_id)
                 .first()
             )
             return semester_module[0] if semester_module else None
@@ -744,9 +748,27 @@ class StudentRepository:
                                     f"std_module_id={std_module_id}"
                                 )
 
+                if not semester_module_id and student_semester_id:
+                    logger.error(
+                        f"Missing semester module - "
+                        f"std_module_id={std_module_id}, "
+                        f"student_semester_id={student_semester_id}, "
+                        f"module_code={data.get('module_code')}, "
+                        f"module_name={data.get('module_name')}"
+                    )
+                    return False, "Semester module not found in database"
+
+                if not semester_module_id:
+                    logger.error(
+                        f"Cannot resolve semester_module_id - "
+                        f"std_module_id={std_module_id}, "
+                        f"student_semester_id={student_semester_id}, "
+                        f"module_code={data.get('module_code')}, data={data}"
+                    )
+                    return False, "Cannot resolve semester_module_id"
+
                 if existing:
-                    if semester_module_id:
-                        existing.semester_module_id = semester_module_id  # type: ignore
+                    existing.semester_module_id = semester_module_id  # type: ignore
                     if "status" in data:
                         existing.status = normalize_student_module_status(
                             data["status"]  # type: ignore
@@ -764,17 +786,9 @@ class StudentRepository:
                     logger.info(f"Updated student module {std_module_id}")
                     return True, "Student module updated"
                 else:
-                    if not semester_module_id:
-                        logger.error(
-                            f"Creating student module without semester_module_id - "
-                            f"std_module_id={std_module_id}, "
-                            f"student_semester_id={student_semester_id}, "
-                            f"module_code={data.get('module_code')}, data={data}"
-                        )
-
                     new_module = StudentModule(
                         id=std_module_id,
-                        semester_module_id=semester_module_id or 0,
+                        semester_module_id=semester_module_id,
                         status=normalize_student_module_status(data.get("status")),
                         credits=float(data.get("credits", 0)),
                         marks=data.get("marks", "NM"),

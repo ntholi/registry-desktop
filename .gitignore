@@ -22,3 +22,4 @@ local.db
 logs/
 *.log
 /.windsurf
+/backup_db

@@ -4,7 +4,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Optional
 
-from sqlalchemy import distinct
+from sqlalchemy import distinct, or_
 from sqlalchemy.orm import Session
 
 from base import get_logger
@@ -24,7 +24,7 @@ logger = get_logger(__name__)
 
 @dataclass(frozen=True)
 class StructureRow:
-    id: int
+    cms_id: int
     code: str
     desc: Optional[str]
     school_code: Optional[str]
@@ -33,7 +33,7 @@ class StructureRow:
 
 @dataclass(frozen=True)
 class SemesterRow:
-    id: int
+    cms_id: int
     semester_number: str
     name: str
     total_credits: float
@@ -41,7 +41,7 @@ class SemesterRow:
 
 @dataclass(frozen=True)
 class SemesterModuleRow:
-    id: int
+    cms_id: int
     module_code: str
     module_name: str
     type: str
@@ -58,33 +58,92 @@ class StructureRepository:
         with Session(self._engine) as session:
             yield session
 
+    def _resolve_program_db_id(
+        self, session: Session, program_id: int
+    ) -> Optional[int]:
+        result = session.query(Program.id).filter(Program.id == program_id).first()
+        if result:
+            return int(result[0])
+
+        result = session.query(Program.id).filter(Program.cms_id == program_id).first()
+        if result:
+            return int(result[0])
+
+        return None
+
+    def _resolve_structure_db_id(
+        self, session: Session, structure_id: int
+    ) -> Optional[int]:
+        result = (
+            session.query(Structure.id).filter(Structure.id == structure_id).first()
+        )
+        if result:
+            return int(result[0])
+
+        result = (
+            session.query(Structure.id).filter(Structure.cms_id == structure_id).first()
+        )
+        if result:
+            return int(result[0])
+
+        return None
+
+    def _resolve_structure_semester_db_id(
+        self, session: Session, structure_semester_id: int
+    ) -> Optional[int]:
+        result = (
+            session.query(StructureSemester.id)
+            .filter(StructureSemester.id == structure_semester_id)
+            .first()
+        )
+        if result:
+            return int(result[0])
+
+        result = (
+            session.query(StructureSemester.id)
+            .filter(StructureSemester.cms_id == structure_semester_id)
+            .first()
+        )
+        if result:
+            return int(result[0])
+
+        return None
+
     def list_active_schools(self):
         with self._session() as session:
             return (
-                session.query(School.id, School.name)
+                session.query(School.cms_id.label("cms_id"), School.name)
                 .filter(School.is_active == True)
+                .filter(School.cms_id.isnot(None))
                 .order_by(School.name)
                 .all()
             )
 
     def list_programs(self, school_id: Optional[int] = None):
         with self._session() as session:
-            query = session.query(Program.id, Program.name)
+            query = session.query(Program.cms_id.label("cms_id"), Program.name).filter(
+                Program.cms_id.isnot(None)
+            )
             if school_id:
-                query = query.filter(Program.school_id == school_id)
+                query = query.join(School, Program.school_id == School.id).filter(
+                    School.cms_id == school_id
+                )
             return query.order_by(Program.name).all()
 
     def get_program_for_structure(self, structure_id: int) -> tuple[int, str] | None:
         with self._session() as session:
             result = (
-                session.query(Program.id, Program.name)
+                session.query(Program.cms_id.label("cms_id"), Program.name)
                 .join(Structure, Structure.program_id == Program.id)
-                .filter(Structure.id == structure_id)
+                .filter(
+                    or_(Structure.id == structure_id, Structure.cms_id == structure_id)
+                )
+                .filter(Program.cms_id.isnot(None))
                 .first()
             )
             if not result:
                 return None
-            return int(result.id), str(result.name)
+            return int(result.cms_id), str(result.name)
 
     def fetch_structures(
         self,
@@ -98,7 +157,7 @@ class StructureRepository:
         with self._session() as session:
             query = (
                 session.query(
-                    Structure.id,
+                    Structure.cms_id.label("cms_id"),
                     Structure.code,
                     Structure.desc,
                     School.code.label("school_code"),
@@ -106,13 +165,14 @@ class StructureRepository:
                 )
                 .join(Program, Structure.program_id == Program.id)
                 .join(School, Program.school_id == School.id)
+                .filter(Structure.cms_id.isnot(None))
             )
 
             if school_id:
-                query = query.filter(Program.school_id == school_id)
+                query = query.filter(School.cms_id == school_id)
 
             if program_id:
-                query = query.filter(Program.id == program_id)
+                query = query.filter(Program.cms_id == program_id)
 
             query = query.order_by(Structure.code)
             total = query.count()
@@ -120,7 +180,7 @@ class StructureRepository:
 
         rows = [
             StructureRow(
-                id=result.id,
+                cms_id=result.cms_id,
                 code=result.code,
                 desc=result.desc,
                 school_code=result.school_code,
@@ -134,19 +194,23 @@ class StructureRepository:
         with self._session() as session:
             results = (
                 session.query(
-                    StructureSemester.id,
+                    StructureSemester.cms_id.label("cms_id"),
                     StructureSemester.semester_number,
                     StructureSemester.name,
                     StructureSemester.total_credits,
                 )
-                .filter(StructureSemester.structure_id == structure_id)
+                .join(Structure, StructureSemester.structure_id == Structure.id)
+                .filter(
+                    or_(Structure.id == structure_id, Structure.cms_id == structure_id)
+                )
+                .filter(StructureSemester.cms_id.isnot(None))
                 .order_by(StructureSemester.semester_number)
                 .all()
             )
 
         return [
             SemesterRow(
-                id=result.id,
+                cms_id=result.cms_id,
                 semester_number=result.semester_number,
                 name=result.name,
                 total_credits=result.total_credits,
@@ -158,7 +222,7 @@ class StructureRepository:
         with self._session() as session:
             results = (
                 session.query(
-                    SemesterModule.id,
+                    SemesterModule.cms_id.label("cms_id"),
                     Module.code,
                     Module.name,
                     SemesterModule.type,
@@ -166,14 +230,24 @@ class StructureRepository:
                     SemesterModule.hidden,
                 )
                 .join(Module, SemesterModule.module_id == Module.id)
-                .filter(SemesterModule.semester_id == semester_id)
+                .join(
+                    StructureSemester,
+                    SemesterModule.semester_id == StructureSemester.id,
+                )
+                .filter(
+                    or_(
+                        StructureSemester.id == semester_id,
+                        StructureSemester.cms_id == semester_id,
+                    )
+                )
+                .filter(SemesterModule.cms_id.isnot(None))
                 .order_by(Module.code)
                 .all()
             )
 
         return [
             SemesterModuleRow(
-                id=result.id,
+                cms_id=result.cms_id,
                 module_code=result.code,
                 module_name=result.name,
                 type=result.type,
@@ -258,6 +332,10 @@ class StructureRepository:
         program_id: int,
     ) -> Structure:
         with self._session() as session:
+            resolved_program_id = self._resolve_program_db_id(session, program_id)
+            if resolved_program_id is None:
+                raise ValueError(f"Program not found for ID {program_id}")
+
             existing_structure = (
                 session.query(Structure).filter(Structure.cms_id == cms_id).first()
             )
@@ -268,7 +346,7 @@ class StructureRepository:
             if existing_structure:
                 existing_structure.code = code  # type: ignore
                 existing_structure.desc = desc  # type: ignore
-                existing_structure.program_id = program_id  # type: ignore
+                existing_structure.program_id = resolved_program_id  # type: ignore
                 existing_structure.cms_id = cms_id  # type: ignore
                 session.commit()
                 session.refresh(existing_structure)
@@ -278,7 +356,7 @@ class StructureRepository:
                     cms_id=cms_id,
                     code=code,
                     desc=desc,
-                    program_id=program_id,
+                    program_id=resolved_program_id,
                 )
                 session.add(new_structure)
                 session.commit()
@@ -294,6 +372,10 @@ class StructureRepository:
         structure_id: int,
     ) -> StructureSemester:
         with self._session() as session:
+            resolved_structure_id = self._resolve_structure_db_id(session, structure_id)
+            if resolved_structure_id is None:
+                raise ValueError(f"Structure not found for ID {structure_id}")
+
             existing_semester = (
                 session.query(StructureSemester)
                 .filter(StructureSemester.cms_id == cms_id)
@@ -302,7 +384,7 @@ class StructureRepository:
             if not existing_semester:
                 existing_semester = (
                     session.query(StructureSemester)
-                    .filter(StructureSemester.structure_id == structure_id)
+                    .filter(StructureSemester.structure_id == resolved_structure_id)
                     .filter(StructureSemester.semester_number == semester_number)
                     .first()
                 )
@@ -310,7 +392,7 @@ class StructureRepository:
                 existing_semester.semester_number = semester_number  # type: ignore
                 existing_semester.name = name  # type: ignore
                 existing_semester.total_credits = total_credits  # type: ignore
-                existing_semester.structure_id = structure_id  # type: ignore
+                existing_semester.structure_id = resolved_structure_id  # type: ignore
                 existing_semester.cms_id = cms_id  # type: ignore
                 session.commit()
                 session.refresh(existing_semester)
@@ -321,7 +403,7 @@ class StructureRepository:
                     semester_number=semester_number,
                     name=name,
                     total_credits=total_credits,
-                    structure_id=structure_id,
+                    structure_id=resolved_structure_id,
                 )
                 session.add(new_semester)
                 session.commit()
@@ -339,6 +421,12 @@ class StructureRepository:
         hidden: bool = False,
     ) -> SemesterModule:
         with self._session() as session:
+            resolved_semester_id = self._resolve_structure_semester_db_id(
+                session, semester_id
+            )
+            if resolved_semester_id is None:
+                raise ValueError(f"Semester not found for ID {semester_id}")
+
             module = session.query(Module).filter(Module.code == module_code).first()
             if not module:
                 module = Module(
@@ -359,14 +447,14 @@ class StructureRepository:
                 existing_sem_module = (
                     session.query(SemesterModule)
                     .filter(SemesterModule.module_id == module.id)
-                    .filter(SemesterModule.semester_id == semester_id)
+                    .filter(SemesterModule.semester_id == resolved_semester_id)
                     .first()
                 )
             if existing_sem_module:
                 existing_sem_module.module_id = module.id  # type: ignore
                 existing_sem_module.type = module_type  # type: ignore
                 existing_sem_module.credits = credits  # type: ignore
-                existing_sem_module.semester_id = semester_id  # type: ignore
+                existing_sem_module.semester_id = resolved_semester_id  # type: ignore
                 existing_sem_module.hidden = hidden  # type: ignore
                 existing_sem_module.cms_id = cms_id  # type: ignore
                 session.commit()
@@ -378,7 +466,7 @@ class StructureRepository:
                     module_id=module.id,
                     type=module_type,
                     credits=credits,
-                    semester_id=semester_id,
+                    semester_id=resolved_semester_id,
                     hidden=hidden,
                 )
                 session.add(new_sem_module)

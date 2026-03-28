@@ -113,10 +113,10 @@ class StructuresView(wx.Panel):
         self.current_page = 1
         self.page_size = 30
         self.total_structures = 0
-        self.selected_school_id = None
-        self.selected_program_id = None
+        self.selected_school_cms_id = None
+        self.selected_program_cms_id = None
         self.repository = StructureRepository()
-        self.selected_structure_id = None
+        self.selected_structure_cms_id = None
         self.filter_worker = None
         self.programs_worker = None
         self.structures_worker = None
@@ -311,39 +311,41 @@ class StructuresView(wx.Panel):
 
     def on_school_changed(self, event):
         sel = self.school_filter.GetSelection()
-        self.selected_school_id = (
+        self.selected_school_cms_id = (
             self.school_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
         )
-        self.selected_program_id = None
+        self.selected_program_cms_id = None
         self.detail_panel.set_program_context(None, None)
         self.current_page = 1
         self.load_programs_for_school(
-            self.selected_school_id, trigger_load_structures=True
+            self.selected_school_cms_id, trigger_load_structures=True
         )
 
     def on_filter_changed(self, event):
         sel = self.school_filter.GetSelection()
-        self.selected_school_id = (
+        self.selected_school_cms_id = (
             self.school_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
         )
 
         sel = self.program_filter.GetSelection()
-        self.selected_program_id = (
+        self.selected_program_cms_id = (
             self.program_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
         )
 
         program_name = None
-        if self.selected_program_id is not None and sel != wx.NOT_FOUND:
+        if self.selected_program_cms_id is not None and sel != wx.NOT_FOUND:
             program_name = self.program_filter.GetString(sel)
-        self.detail_panel.set_program_context(self.selected_program_id, program_name)
+        self.detail_panel.set_program_context(
+            self.selected_program_cms_id, program_name
+        )
 
         self.current_page = 1
         if self.status_bar:
             self.status_bar.show_message("Loading structures...")
         self.structures_worker = LoadStructuresWorker(
             self.repository,
-            self.selected_school_id,
-            self.selected_program_id,
+            self.selected_school_cms_id,
+            self.selected_program_cms_id,
             self.current_page,
             self.page_size,
             self.on_structures_callback,
@@ -355,8 +357,8 @@ class StructuresView(wx.Panel):
             self.status_bar.show_message("Loading structures...")
         self.structures_worker = LoadStructuresWorker(
             self.repository,
-            self.selected_school_id,
-            self.selected_program_id,
+            self.selected_school_cms_id,
+            self.selected_program_cms_id,
             self.current_page,
             self.page_size,
             self.on_structures_callback,
@@ -384,8 +386,8 @@ class StructuresView(wx.Panel):
                 self.status_bar.show_message("Loading structures...")
             self.structures_worker = LoadStructuresWorker(
                 self.repository,
-                self.selected_school_id,
-                self.selected_program_id,
+                self.selected_school_cms_id,
+                self.selected_program_cms_id,
                 self.current_page,
                 self.page_size,
                 self.on_structures_callback,
@@ -400,8 +402,8 @@ class StructuresView(wx.Panel):
                 self.status_bar.show_message("Loading structures...")
             self.structures_worker = LoadStructuresWorker(
                 self.repository,
-                self.selected_school_id,
-                self.selected_program_id,
+                self.selected_school_cms_id,
+                self.selected_program_cms_id,
                 self.current_page,
                 self.page_size,
                 self.on_structures_callback,
@@ -410,14 +412,14 @@ class StructuresView(wx.Panel):
 
     def on_structure_selected(self, event):
         item = event.GetIndex()
-        structure_id = self.list_ctrl.GetItemData(item)
+        structure_cms_id = self.list_ctrl.GetItemData(item)
         structure_code = self.list_ctrl.GetItemText(item, 0)
         structure_desc = self.list_ctrl.GetItemText(item, 1)
         structure_program = self.list_ctrl.GetItemText(item, 3)
 
-        self.selected_structure_id = structure_id
+        self.selected_structure_cms_id = structure_cms_id
         self.detail_panel.load_structure_details(
-            structure_id, structure_code, structure_desc, structure_program
+            structure_cms_id, structure_code, structure_desc, structure_program
         )
 
     def clear_detail_panel(self):
@@ -491,7 +493,7 @@ class StructuresView(wx.Panel):
                 self.school_filter.Delete(1)
             self.school_filter.SetString(0, "All Schools")
             for school in schools:
-                self.school_filter.Append(str(school.name), school.id)
+                self.school_filter.Append(str(school.name), school.cms_id)
             self.school_filter.SetSelection(0)
             self.school_filter.Enable(True)
 
@@ -499,7 +501,7 @@ class StructuresView(wx.Panel):
                 self.program_filter.Delete(1)
             self.program_filter.SetString(0, "All Programs")
             for program in programs:
-                self.program_filter.Append(str(program.name), program.id)
+                self.program_filter.Append(str(program.name), program.cms_id)
             self.program_filter.SetSelection(0)
             self.program_filter.Enable(True)
         elif event_type == "filters_error":
@@ -520,11 +522,11 @@ class StructuresView(wx.Panel):
                 self.program_filter.Delete(1)
             self.program_filter.SetString(0, "All Programs")
             for program in programs:
-                self.program_filter.Append(str(program.name), program.id)
+                self.program_filter.Append(str(program.name), program.cms_id)
             self.program_filter.SetSelection(0)
             self.program_filter.Enable(True)
 
-            self.selected_program_id = None
+            self.selected_program_cms_id = None
             self.detail_panel.set_program_context(None, None)
 
             if self.pending_load_structures:
@@ -536,7 +538,7 @@ class StructuresView(wx.Panel):
             self.program_filter.SetString(0, "All Programs")
             self.program_filter.Enable(True)
 
-            self.selected_program_id = None
+            self.selected_program_cms_id = None
             self.detail_panel.set_program_context(None, None)
 
         if self.status_bar:
@@ -553,7 +555,7 @@ class StructuresView(wx.Panel):
                 self.list_ctrl.SetItem(index, 1, structure.desc or "")
                 self.list_ctrl.SetItem(index, 2, structure.school_code or "")
                 self.list_ctrl.SetItem(index, 3, structure.program_name or "")
-                self.list_ctrl.SetItemData(index, structure.id)
+                self.list_ctrl.SetItemData(index, structure.cms_id)
 
             self.update_pagination_controls()
             self.update_total_label()

@@ -12,9 +12,9 @@ class ApprovedView(wx.Panel):
         self.page_size = 30
         self.total_requests = 0
         self.search_query = ""
-        self.selected_school_id = None
-        self.selected_program_id = None
-        self.selected_term_id = None
+        self.selected_school_cms_id = None
+        self.selected_program_cms_id = None
+        self.selected_term_code = None
         self.selected_statuses = set()
         self.search_timer = None
         self.repository = EnrollmentRequestRepository()
@@ -303,53 +303,53 @@ class ApprovedView(wx.Panel):
         try:
             schools = self.repository.list_active_schools()
             for school in schools:
-                self.school_filter.Append(str(school.name), school.id)
+                self.school_filter.Append(str(school.name), school.cms_id)
 
             self.load_programs_for_school(None)
 
             terms = self.repository.list_terms()
             for term in terms:
-                self.term_filter.Append(str(term.code), term.id)
+                self.term_filter.Append(str(term.code), term.code)
 
         except Exception as e:
             print(f"Error loading filter options: {str(e)}")
 
-    def load_programs_for_school(self, school_id):
+    def load_programs_for_school(self, school_cms_id):
         try:
             while self.program_filter.GetCount() > 1:
                 self.program_filter.Delete(1)
 
-            programs = self.repository.list_programs(school_id)
+            programs = self.repository.list_programs(school_cms_id)
 
             for program in programs:
-                self.program_filter.Append(str(program.name), program.id)
+                self.program_filter.Append(str(program.name), program.cms_id)
         except Exception as e:
             print(f"Error loading programs: {str(e)}")
 
     def on_school_changed(self, event):
         sel = self.school_filter.GetSelection()
-        self.selected_school_id = (
+        self.selected_school_cms_id = (
             self.school_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
         )
-        self.load_programs_for_school(self.selected_school_id)
+        self.load_programs_for_school(self.selected_school_cms_id)
         self.program_filter.SetSelection(0)
-        self.selected_program_id = None
+        self.selected_program_cms_id = None
         self.current_page = 1
         self.load_registration_requests()
 
     def on_filter_changed(self, event):
         sel = self.school_filter.GetSelection()
-        self.selected_school_id = (
+        self.selected_school_cms_id = (
             self.school_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
         )
 
         sel = self.program_filter.GetSelection()
-        self.selected_program_id = (
+        self.selected_program_cms_id = (
             self.program_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
         )
 
         sel = self.term_filter.GetSelection()
-        self.selected_term_id = (
+        self.selected_term_code = (
             self.term_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
         )
 
@@ -393,9 +393,9 @@ class ApprovedView(wx.Panel):
                 selected_status = None
 
             requests, total = self.repository.fetch_registration_requests(
-                school_id=self.selected_school_id,
-                program_id=self.selected_program_id,
-                term_id=self.selected_term_id,
+                school_cms_id=self.selected_school_cms_id,
+                program_cms_id=self.selected_program_cms_id,
+                term_code=self.selected_term_code,
                 status=selected_status if len(self.selected_statuses) == 1 else None,
                 search_query=self.search_query,
                 page=self.current_page,

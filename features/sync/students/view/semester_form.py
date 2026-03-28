@@ -12,19 +12,19 @@ logger = get_logger(__name__)
 
 
 class SemesterFormDialog(wx.Dialog):
-    def __init__(self, student_program_id, parent=None, status_bar=None):
+    def __init__(self, student_program_db_id, parent=None, status_bar=None):
         super().__init__(
             parent,
             title="Add Semester",
             size=wx.Size(500, 400),
             style=wx.DEFAULT_DIALOG_STYLE,
         )
-        self.student_program_id = student_program_id
+        self.student_program_db_id = student_program_db_id
         self.status_bar = status_bar
         self.repository = StudentRepository()
         self.service = StudentSyncService(self.repository)
         self.push_worker = None
-        self.structure_id = None
+        self.structure_db_id = None
 
         self.load_program_structure()
         self.init_ui()
@@ -33,13 +33,13 @@ class SemesterFormDialog(wx.Dialog):
     def load_program_structure(self):
         try:
             program_details = self.repository.get_student_program_details_by_id(
-                self.student_program_id
+                self.student_program_db_id
             )
             if program_details:
-                self.structure_id = program_details.get("structure_id")
+                self.structure_db_id = program_details.get("structure_db_id")
         except Exception as e:
             logger.error(f"Error loading program structure: {str(e)}")
-            self.structure_id = None
+            self.structure_db_id = None
 
     def init_ui(self):
         main_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -121,15 +121,20 @@ class SemesterFormDialog(wx.Dialog):
 
     def populate_semesters(self):
         try:
-            if not self.structure_id:
-                logger.warning("No structure_id available to load semesters")
+            if not self.structure_db_id:
+                logger.warning("No structure_db_id available to load semesters")
                 return
 
-            semesters = self.repository.get_structure_semesters(self.structure_id)
+            semesters = self.repository.get_structure_semesters(self.structure_db_id)
             for semester in semesters:
                 display_text = f"{int(semester.semester_number):02d} {semester.name}"
                 self.semester_number_combo.Append(
-                    display_text, (semester.id, semester.semester_number)
+                    display_text,
+                    (
+                        semester.structure_semester_db_id,
+                        semester.structure_semester_cms_id,
+                        semester.semester_number,
+                    ),
                 )
 
             if semesters:
@@ -158,7 +163,7 @@ class SemesterFormDialog(wx.Dialog):
             return
 
         semester_data = self.semester_number_combo.GetClientData(semester_idx)
-        structure_semester_id, _ = semester_data
+        structure_semester_db_id, structure_semester_cms_id, _ = semester_data
 
         if not status:
             wx.MessageBox(
@@ -167,9 +172,10 @@ class SemesterFormDialog(wx.Dialog):
             return
 
         data = {
-            "student_program_id": self.student_program_id,
+            "student_program_db_id": self.student_program_db_id,
             "term": term,
-            "structure_semester_id": structure_semester_id,
+            "structure_semester_db_id": structure_semester_db_id,
+            "structure_semester_cms_id": structure_semester_cms_id,
             "status": status,
             "caf_date": caf_date if caf_date else None,
         }

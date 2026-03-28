@@ -142,6 +142,7 @@ class BulkAddModuleWorker(threading.Thread):
             try:
 
                 if not student_semester.cms_id:
+                if not student_semester.student_semester_cms_id:
                     self.callback(
                         "error",
                         f"Skipping {student_semester.std_no}: Missing cms_id",
@@ -158,8 +159,8 @@ class BulkAddModuleWorker(threading.Thread):
                     )
 
                 success, message = self.service.push_student_module(
-                    student_semester.student_semester_id,
-                    self.module_data["semester_module_id"],
+                    student_semester.student_semester_db_id,
+                    self.module_data["semester_module_cms_id"],
                     self.module_data["status"],
                     self.module_data["module_code"],
                     progress_callback,
@@ -195,10 +196,10 @@ class StudentSemestersView(wx.Panel):
         self.student_repository = StudentRepository()
         self.sync_service = StudentSyncService(self.student_repository)
 
-        self.selected_school_id = None
-        self.selected_program_id = None
-        self.selected_structure_id = None
-        self.selected_semester_id = None
+        self.selected_school_cms_id = None
+        self.selected_program_cms_id = None
+        self.selected_structure_cms_id = None
+        self.selected_semester_cms_id = None
         self.selected_term = None
 
         self.current_students = []
@@ -371,7 +372,7 @@ class StudentSemestersView(wx.Panel):
             self.school_filter.Clear()
             self.school_filter.Append("Select School", None)
             for school in schools:
-                self.school_filter.Append(str(school.name), school.id)
+                self.school_filter.Append(str(school.name), school.cms_id)
             self.school_filter.SetSelection(0)
             self.school_filter.Enable(True)
         elif event_type == "filters_error":
@@ -387,7 +388,7 @@ class StudentSemestersView(wx.Panel):
 
     def on_school_changed(self, event):
         sel = self.school_filter.GetSelection()
-        self.selected_school_id = (
+        self.selected_school_cms_id = (
             self.school_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
         )
 
@@ -413,15 +414,15 @@ class StudentSemestersView(wx.Panel):
 
         self.clear_students()
 
-        self.selected_program_id = None
-        self.selected_structure_id = None
-        self.selected_semester_id = None
+        self.selected_program_cms_id = None
+        self.selected_structure_cms_id = None
+        self.selected_semester_cms_id = None
         self.selected_term = None
 
         self.update_add_module_button_state()
 
-        if self.selected_school_id:
-            self.load_programs(self.selected_school_id)
+        if self.selected_school_cms_id:
+            self.load_programs(self.selected_school_cms_id)
 
     def load_programs(self, school_id):
         self.program_filter.SetString(0, "Loading...")
@@ -441,7 +442,7 @@ class StudentSemestersView(wx.Panel):
             self.program_filter.Clear()
             self.program_filter.Append("Select Program", None)
             for program in programs:
-                self.program_filter.Append(str(program.name), program.id)
+                self.program_filter.Append(str(program.name), program.cms_id)
             self.program_filter.SetSelection(0)
             self.program_filter.Enable(True)
         elif event_type == "programs_error":
@@ -453,7 +454,7 @@ class StudentSemestersView(wx.Panel):
 
     def on_program_changed(self, event):
         sel = self.program_filter.GetSelection()
-        self.selected_program_id = (
+        self.selected_program_cms_id = (
             self.program_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
         )
 
@@ -474,14 +475,14 @@ class StudentSemestersView(wx.Panel):
 
         self.clear_students()
 
-        self.selected_structure_id = None
-        self.selected_semester_id = None
+        self.selected_structure_cms_id = None
+        self.selected_semester_cms_id = None
         self.selected_term = None
 
         self.update_add_module_button_state()
 
-        if self.selected_program_id:
-            self.load_structures(self.selected_program_id)
+        if self.selected_program_cms_id:
+            self.load_structures(self.selected_program_cms_id)
 
     def load_structures(self, program_id):
         self.structure_filter.SetString(0, "Loading...")
@@ -504,7 +505,7 @@ class StudentSemestersView(wx.Panel):
                 display = f"{structure.code}" + (
                     f" - {structure.desc}" if structure.desc else ""
                 )
-                self.structure_filter.Append(display, structure.id)
+                self.structure_filter.Append(display, structure.cms_id)
             self.structure_filter.SetSelection(0)
             self.structure_filter.Enable(True)
         elif event_type == "structures_error":
@@ -516,7 +517,7 @@ class StudentSemestersView(wx.Panel):
 
     def on_structure_changed(self, event):
         sel = self.structure_filter.GetSelection()
-        self.selected_structure_id = (
+        self.selected_structure_cms_id = (
             self.structure_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
         )
 
@@ -532,13 +533,13 @@ class StudentSemestersView(wx.Panel):
 
         self.clear_students()
 
-        self.selected_semester_id = None
+        self.selected_semester_cms_id = None
         self.selected_term = None
 
         self.update_add_module_button_state()
 
-        if self.selected_structure_id:
-            self.load_semesters(self.selected_structure_id)
+        if self.selected_structure_cms_id:
+            self.load_semesters(self.selected_structure_cms_id)
 
     def load_semesters(self, structure_id):
         self.semester_filter.SetString(0, "Loading...")
@@ -559,7 +560,7 @@ class StudentSemestersView(wx.Panel):
             self.semester_filter.Append("Select Semester", None)
             for semester in semesters:
                 sem_str = format_semester(semester.semester_number, type="short")
-                self.semester_filter.Append(sem_str, semester.id)
+                self.semester_filter.Append(sem_str, semester.cms_id)
             self.semester_filter.SetSelection(0)
             self.semester_filter.Enable(True)
 
@@ -578,13 +579,13 @@ class StudentSemestersView(wx.Panel):
 
     def on_semester_changed(self, event):
         sel = self.semester_filter.GetSelection()
-        self.selected_semester_id = (
+        self.selected_semester_cms_id = (
             self.semester_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
         )
 
         self.update_add_module_button_state()
 
-        if self.selected_semester_id and self.selected_term:
+        if self.selected_semester_cms_id and self.selected_term:
             self.load_students()
         else:
             self.clear_students()
@@ -597,23 +598,23 @@ class StudentSemestersView(wx.Panel):
 
         self.update_add_module_button_state()
 
-        if self.selected_semester_id and self.selected_term:
+        if self.selected_semester_cms_id and self.selected_term:
             self.load_students()
         else:
             self.clear_students()
 
     def update_add_module_button_state(self):
         all_filters_selected = (
-            self.selected_school_id is not None
-            and self.selected_program_id is not None
-            and self.selected_semester_id is not None
+            self.selected_school_cms_id is not None
+            and self.selected_program_cms_id is not None
+            and self.selected_semester_cms_id is not None
             and self.selected_term is not None
         )
         has_selection = len(self.checked_items) > 0
         self.add_module_button.Enable(all_filters_selected and has_selection)
 
     def load_students(self):
-        if not self.selected_semester_id or not self.selected_structure_id:
+        if not self.selected_semester_cms_id or not self.selected_structure_cms_id:
             return
 
         if self.status_bar:
@@ -621,8 +622,8 @@ class StudentSemestersView(wx.Panel):
 
         self.students_worker = LoadStudentsWorker(
             self.repository,
-            self.selected_semester_id,
-            self.selected_structure_id,
+            self.selected_semester_cms_id,
+            self.selected_structure_cms_id,
             self.selected_term,
             self.on_students_callback,
         )

@@ -175,7 +175,7 @@ class BuildPreviewWorker(threading.Thread):
                 )
                 continue
 
-            if not sm.term_id:
+            if not sm.term_db_id:
                 preview_items.append(
                     GradePreviewItem(
                         std_no=sm.std_no,
@@ -193,7 +193,7 @@ class BuildPreviewWorker(threading.Thread):
                 continue
 
             assessments = self.repository.get_assessments_for_module(
-                sm.module_id, sm.term_id
+                sm.module_db_id, sm.term_db_id
             )
 
             if not assessments:
@@ -214,7 +214,7 @@ class BuildPreviewWorker(threading.Thread):
                 continue
 
             assessment_marks = self.repository.get_assessment_marks_for_student_module(
-                sm.student_module_id
+                sm.student_module_db_id
             )
 
             if not assessment_marks:
@@ -306,7 +306,7 @@ class ApplyGradesWorker(threading.Thread):
             )
 
             success = self.repository.update_student_module_grade(
-                item.student_module.student_module_id,
+                item.student_module.student_module_db_id,
                 item.new_marks,
                 item.new_grade if item.new_grade is not None else "F",
             )
@@ -330,10 +330,10 @@ class ModuleGradesView(wx.Panel):
         self.repository = ModuleGradesRepository()
         self.service = ModuleGradesService(self.repository)
 
-        self.selected_school_id = None
-        self.selected_program_id = None
-        self.selected_structure_id = None
-        self.selected_module_id = None
+        self.selected_school_cms_id = None
+        self.selected_program_cms_id = None
+        self.selected_structure_cms_id = None
+        self.selected_semester_module_cms_id = None
         self.selected_term = None
 
         self.current_students: list[StudentModuleGradeRow] = []
@@ -510,7 +510,7 @@ class ModuleGradesView(wx.Panel):
             self.school_filter.Clear()
             self.school_filter.Append("Select School", None)
             for school in schools:
-                self.school_filter.Append(str(school.name), school.id)
+                self.school_filter.Append(str(school.name), school.cms_id)
             self.school_filter.SetSelection(0)
             self.school_filter.Enable(True)
         elif event_type == "filters_error":
@@ -526,7 +526,7 @@ class ModuleGradesView(wx.Panel):
 
     def on_school_changed(self, event):
         sel = self.school_filter.GetSelection()
-        self.selected_school_id = (
+        self.selected_school_cms_id = (
             self.school_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
         )
 
@@ -552,13 +552,13 @@ class ModuleGradesView(wx.Panel):
 
         self.clear_students()
 
-        self.selected_program_id = None
-        self.selected_structure_id = None
-        self.selected_module_id = None
+        self.selected_program_cms_id = None
+        self.selected_structure_cms_id = None
+        self.selected_semester_module_cms_id = None
         self.selected_term = None
 
-        if self.selected_school_id:
-            self.load_programs(self.selected_school_id)
+        if self.selected_school_cms_id:
+            self.load_programs(self.selected_school_cms_id)
 
     def load_programs(self, school_id):
         self.program_filter.SetString(0, "Loading...")
@@ -578,7 +578,7 @@ class ModuleGradesView(wx.Panel):
             self.program_filter.Clear()
             self.program_filter.Append("Select Program", None)
             for program in programs:
-                self.program_filter.Append(str(program.name), program.id)
+                self.program_filter.Append(str(program.name), program.cms_id)
             self.program_filter.SetSelection(0)
             self.program_filter.Enable(True)
         elif event_type == "programs_error":
@@ -590,7 +590,7 @@ class ModuleGradesView(wx.Panel):
 
     def on_program_changed(self, event):
         sel = self.program_filter.GetSelection()
-        self.selected_program_id = (
+        self.selected_program_cms_id = (
             self.program_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
         )
 
@@ -611,12 +611,12 @@ class ModuleGradesView(wx.Panel):
 
         self.clear_students()
 
-        self.selected_structure_id = None
-        self.selected_module_id = None
+        self.selected_structure_cms_id = None
+        self.selected_semester_module_cms_id = None
         self.selected_term = None
 
-        if self.selected_program_id:
-            self.load_structures(self.selected_program_id)
+        if self.selected_program_cms_id:
+            self.load_structures(self.selected_program_cms_id)
 
     def load_structures(self, program_id):
         self.structure_filter.SetString(0, "Loading...")
@@ -639,7 +639,7 @@ class ModuleGradesView(wx.Panel):
                 display = f"{structure.code}" + (
                     f" - {structure.desc}" if structure.desc else ""
                 )
-                self.structure_filter.Append(display, structure.id)
+                self.structure_filter.Append(display, structure.cms_id)
             self.structure_filter.SetSelection(0)
             self.structure_filter.Enable(True)
         elif event_type == "structures_error":
@@ -651,7 +651,7 @@ class ModuleGradesView(wx.Panel):
 
     def on_structure_changed(self, event):
         sel = self.structure_filter.GetSelection()
-        self.selected_structure_id = (
+        self.selected_structure_cms_id = (
             self.structure_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
         )
 
@@ -667,11 +667,11 @@ class ModuleGradesView(wx.Panel):
 
         self.clear_students()
 
-        self.selected_module_id = None
+        self.selected_semester_module_cms_id = None
         self.selected_term = None
 
-        if self.selected_structure_id:
-            self.load_modules(self.selected_structure_id)
+        if self.selected_structure_cms_id:
+            self.load_modules(self.selected_structure_cms_id)
 
     def load_modules(self, structure_id):
         self.module_filter.SetString(0, "Loading...")
@@ -693,7 +693,7 @@ class ModuleGradesView(wx.Panel):
             for module in modules:
                 sem_str = format_semester(module.semester_number, type="short")
                 display = f"{module.module_code} - {module.module_name} ({sem_str})"
-                self.module_filter.Append(display, module.semester_module_id)
+                self.module_filter.Append(display, module.semester_module_cms_id)
             self.module_filter.SetSelection(0)
             self.module_filter.Enable(True)
 
@@ -712,7 +712,7 @@ class ModuleGradesView(wx.Panel):
 
     def on_module_changed(self, event):
         sel = self.module_filter.GetSelection()
-        self.selected_module_id = (
+        self.selected_semester_module_cms_id = (
             self.module_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
         )
         self.try_load_students()
@@ -725,17 +725,17 @@ class ModuleGradesView(wx.Panel):
         self.try_load_students()
 
     def try_load_students(self):
-        if not self.selected_structure_id:
+        if not self.selected_structure_cms_id:
             return
 
-        if not self.selected_term and not self.selected_module_id:
+        if not self.selected_term and not self.selected_semester_module_cms_id:
             self.clear_students()
             return
 
         self.load_students()
 
     def load_students(self):
-        if not self.selected_structure_id:
+        if not self.selected_structure_cms_id:
             return
 
         if self.status_bar:
@@ -743,8 +743,8 @@ class ModuleGradesView(wx.Panel):
 
         self.students_worker = LoadStudentsWorker(
             self.repository,
-            self.selected_structure_id,
-            self.selected_module_id,
+            self.selected_structure_cms_id,
+            self.selected_semester_module_cms_id,
             self.selected_term,
             self.on_students_callback,
         )

@@ -519,16 +519,22 @@ class StudentSyncService:
             )
 
             if program_details:
-                if program_details.get("school_id"):
-                    form_data["x_SchoolID"] = str(program_details["school_id"])
-                    form_data["x_opSchoolID"] = str(program_details["school_id"])
+                if program_details.get("school_cms_id"):
+                    form_data["x_SchoolID"] = str(program_details["school_cms_id"])
+                    form_data["x_opSchoolID"] = str(
+                        program_details["school_cms_id"]
+                    )
 
-                if program_details.get("program_id"):
-                    form_data["x_ProgramID"] = str(program_details["program_id"])
-                    form_data["x_opProgramID"] = str(program_details["program_id"])
+                if program_details.get("program_cms_id"):
+                    form_data["x_ProgramID"] = str(program_details["program_cms_id"])
+                    form_data["x_opProgramID"] = str(
+                        program_details["program_cms_id"]
+                    )
 
-                if program_details.get("structure_id"):
-                    form_data["x_StructureID"] = str(program_details["structure_id"])
+                if program_details.get("structure_cms_id"):
+                    form_data["x_StructureID"] = str(
+                        program_details["structure_cms_id"]
+                    )
 
                 if program_details.get("intake_date"):
                     form_data["x_IntakeDateCode"] = program_details["intake_date"]
@@ -627,8 +633,8 @@ class StudentSyncService:
             if "grade" in data and data["grade"]:
                 form_data["x_AlterGrade"] = str(data["grade"])
 
-            if "semester_module_id" in data and data["semester_module_id"]:
-                form_data["x_SemModuleID"] = str(data["semester_module_id"])
+            if "semester_module_cms_id" in data and data["semester_module_cms_id"]:
+                form_data["x_SemModuleID"] = str(data["semester_module_cms_id"])
 
             progress_callback(f"Pushing module {std_module_id} to CMS...")
 
@@ -671,15 +677,15 @@ class StudentSyncService:
 
     def push_student_module(
         self,
-        student_semester_id: int,
-        semester_module_id: int,
+        student_semester_db_id: int,
+        semester_module_cms_id: int,
         module_status: str,
         module_code: str,
         progress_callback: Callable[[str], None],
     ) -> tuple[bool, str]:
         return self._get_enrollment_service().add_module_to_semester(
-            student_semester_id,
-            semester_module_id,
+            student_semester_db_id,
+            semester_module_cms_id,
             module_status,
             module_code,
             progress_callback,

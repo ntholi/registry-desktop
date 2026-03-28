@@ -40,7 +40,7 @@ class FetchSemesterModulesWorker(threading.Thread):
 
             for sem_module in semester_modules:
                 self.repository.save_semester_module(
-                    int(sem_module["id"]),
+                    int(sem_module["cms_id"]),
                     str(sem_module["module_code"]),
                     str(sem_module["module_name"]),
                     str(sem_module["type"]),
@@ -194,7 +194,7 @@ class FetchStructureDataWorker(threading.Thread):
                 return
 
             self.service._import_semesters(
-                [{"id": self.structure_id, "code": self.structure_code}],
+                [{"cms_id": self.structure_id, "code": self.structure_code}],
                 self.structure_code,
                 self._progress_callback,
             )
@@ -217,11 +217,11 @@ class StructureDetailPanel(wx.Panel):
         self.repository = repository
         self.status_bar = status_bar
         self.service = SchoolSyncService(repository)
-        self.selected_program_id: int | None = None
+        self.selected_program_cms_id: int | None = None
         self.selected_program_name: str | None = None
-        self.selected_structure_id: int | None = None
+        self.selected_structure_cms_id: int | None = None
         self.selected_structure_code: str | None = None
-        self.selected_semester_id: int | None = None
+        self.selected_semester_cms_id: int | None = None
         self.selected_semester_name: str | None = None
         self.fetch_worker = None
         self.fetch_modules_worker = None
@@ -342,16 +342,16 @@ class StructureDetailPanel(wx.Panel):
     def set_program_context(
         self, program_id: int | None, program_name: str | None
     ) -> None:
-        self.selected_program_id = program_id
+        self.selected_program_cms_id = program_id
         self.selected_program_name = program_name
         self.new_button.Enable(program_id is not None)
         self.Layout()
 
     def load_structure_details(self, structure_id, code, desc, program):
         try:
-            self.selected_structure_id = structure_id
+            self.selected_structure_cms_id = structure_id
             self.selected_structure_code = code
-            self.selected_semester_id = None
+            self.selected_semester_cms_id = None
             self.selected_semester_name = None
             self.detail_title.SetLabel(code)
             self.fetch_button.Enable(True)
@@ -386,12 +386,12 @@ class StructureDetailPanel(wx.Panel):
             index = self.semesters_list.InsertItem(row, semester.semester_number)
             self.semesters_list.SetItem(index, 1, semester.name)
             self.semesters_list.SetItem(index, 2, f"{semester.total_credits:.1f}")
-            self.semesters_list.SetItemData(index, semester.id)
+            self.semesters_list.SetItemData(index, semester.cms_id)
 
         self.Layout()
 
     def on_fetch(self, event):
-        if not self.selected_structure_id or not self.selected_structure_code:
+        if not self.selected_structure_cms_id or not self.selected_structure_code:
             wx.MessageBox(
                 "No structure selected.",
                 "Missing Structure",
@@ -402,7 +402,7 @@ class StructureDetailPanel(wx.Panel):
         self.fetch_button.Enable(False)
 
         self.fetch_worker = FetchStructureDataWorker(
-            self.selected_structure_id,
+            self.selected_structure_cms_id,
             self.selected_structure_code,
             self.service,
             self.on_fetch_callback,
@@ -410,12 +410,12 @@ class StructureDetailPanel(wx.Panel):
         self.fetch_worker.start()
 
     def on_new(self, event):
-        program_id: int | None = self.selected_program_id
+        program_id: int | None = self.selected_program_cms_id
         program_name: str | None = self.selected_program_name
 
-        if program_id is None and self.selected_structure_id is not None:
+        if program_id is None and self.selected_structure_cms_id is not None:
             program_info = self.repository.get_program_for_structure(
-                int(self.selected_structure_id)
+                int(self.selected_structure_cms_id)
             )
             if program_info:
                 program_id, program_name = program_info
@@ -461,7 +461,10 @@ class StructureDetailPanel(wx.Panel):
         self.create_structure_worker.start()
 
     def on_add_semester(self, event):
-        if self.selected_structure_id is None or self.selected_structure_code is None:
+        if (
+            self.selected_structure_cms_id is None
+            or self.selected_structure_code is None
+        ):
             wx.MessageBox(
                 "Please select a structure first.",
                 "Missing Structure",
@@ -469,11 +472,11 @@ class StructureDetailPanel(wx.Panel):
             )
             return
 
-        program_id: int | None = self.selected_program_id
+        program_id: int | None = self.selected_program_cms_id
         program_name: str | None = self.selected_program_name
         if program_id is None or program_name is None:
             program_info = self.repository.get_program_for_structure(
-                int(self.selected_structure_id)
+                int(self.selected_structure_cms_id)
             )
             if program_info:
                 program_id, program_name = program_info
@@ -517,7 +520,7 @@ class StructureDetailPanel(wx.Panel):
         self.add_semester_button.Enable(False)
 
         self.create_semester_worker = CreateSemesterWorker(
-            int(self.selected_structure_id),
+            int(self.selected_structure_cms_id),
             data,
             self.service,
             self.on_create_semester_callback,
@@ -538,7 +541,7 @@ class StructureDetailPanel(wx.Panel):
 
             self.add_semester_button.Enable(True)
 
-            structure_id = self.selected_structure_id
+            structure_id = self.selected_structure_cms_id
             if structure_id is not None:
 
                 def load_data():
@@ -616,12 +619,12 @@ class StructureDetailPanel(wx.Panel):
 
             self.fetch_button.Enable(True)
 
-            if self.selected_structure_id:
+            if self.selected_structure_cms_id:
                 self.modules_list.DeleteAllItems()
 
                 def load_data():
                     return self.repository.get_structure_semesters(
-                        self.selected_structure_id
+                        self.selected_structure_cms_id
                     )
 
                 self.semesters_loader.load_async(load_data, "Loading semesters...")
@@ -645,14 +648,14 @@ class StructureDetailPanel(wx.Panel):
         item = event.GetIndex()
         semester_id = self.semesters_list.GetItemData(item)
         semester_name = self.semesters_list.GetItemText(item, 0)
-        self.selected_semester_id = semester_id
+        self.selected_semester_cms_id = semester_id
         self.selected_semester_name = semester_name
         self.fetch_modules_button.Enable(True)
         self.new_semester_module_button.Enable(True)
         self.load_semester_modules(semester_id)
 
     def on_new_semester_module(self, event):
-        if self.selected_semester_id is None or self.selected_semester_name is None:
+        if self.selected_semester_cms_id is None or self.selected_semester_name is None:
             wx.MessageBox(
                 "Please select a semester first.",
                 "Missing Semester",
@@ -660,7 +663,7 @@ class StructureDetailPanel(wx.Panel):
             )
             return
 
-        semester_id = int(self.selected_semester_id)
+        semester_id = int(self.selected_semester_cms_id)
         existing_modules = self.repository.get_semester_modules(semester_id)
 
         dialog = NewSemesterModuleDialog(
@@ -737,8 +740,8 @@ class StructureDetailPanel(wx.Panel):
             self.new_semester_module_button.Enable(True)
             self.fetch_modules_button.Enable(True)
 
-            if self.selected_semester_id:
-                self.load_semester_modules(int(self.selected_semester_id))
+            if self.selected_semester_cms_id:
+                self.load_semester_modules(int(self.selected_semester_cms_id))
 
             wx.MessageBox(
                 "Module added to semester successfully.",
@@ -760,7 +763,7 @@ class StructureDetailPanel(wx.Panel):
             )
 
     def on_fetch_modules(self, event):
-        if not self.selected_semester_id or not self.selected_semester_name:
+        if not self.selected_semester_cms_id or not self.selected_semester_name:
             wx.MessageBox(
                 "No semester selected.",
                 "Missing Semester",
@@ -771,7 +774,7 @@ class StructureDetailPanel(wx.Panel):
         self.fetch_modules_button.Enable(False)
 
         self.fetch_modules_worker = FetchSemesterModulesWorker(
-            self.selected_semester_id,
+            self.selected_semester_cms_id,
             self.selected_semester_name,
             self.service,
             self.repository,
@@ -794,8 +797,8 @@ class StructureDetailPanel(wx.Panel):
 
             self.fetch_modules_button.Enable(True)
 
-            if self.selected_semester_id:
-                self.load_semester_modules(self.selected_semester_id)
+            if self.selected_semester_cms_id:
+                self.load_semester_modules(self.selected_semester_cms_id)
 
             wx.MessageBox(
                 f"Successfully fetched {modules_count} module(s) for {self.selected_semester_name}.",
@@ -840,14 +843,14 @@ class StructureDetailPanel(wx.Panel):
         self.Layout()
 
     def clear(self):
-        self.selected_structure_id = None
+        self.selected_structure_cms_id = None
         self.selected_structure_code = None
-        self.selected_semester_id = None
+        self.selected_semester_cms_id = None
         self.selected_semester_name = None
         self.detail_title.SetLabel("Structure Details")
         self.desc_label.SetLabel("Select a structure to view details")
         self.program_label.SetLabel("")
-        self.new_button.Enable(self.selected_program_id is not None)
+        self.new_button.Enable(self.selected_program_cms_id is not None)
         self.fetch_button.Enable(False)
         self.fetch_modules_button.Enable(False)
         self.new_semester_module_button.Enable(False)

@@ -56,22 +56,31 @@ class EnrollmentRequestRepository:
     def list_active_schools(self):
         with self._session() as session:
             return (
-                session.query(School.id, School.name)
+                session.query(School.cms_id.label("cms_id"), School.name)
                 .filter(School.is_active == True)
+                .filter(School.cms_id.isnot(None))
                 .order_by(School.name)
                 .all()
             )
 
-    def list_programs(self, school_id: Optional[int] = None):
+    def list_programs(self, school_cms_id: Optional[int] = None):
         with self._session() as session:
-            query = session.query(Program.id, Program.name)
-            if school_id:
-                query = query.filter(Program.school_id == school_id)
+            query = session.query(Program.cms_id.label("cms_id"), Program.name).filter(
+                Program.cms_id.isnot(None)
+            )
+            if school_cms_id:
+                query = query.join(School, Program.school_id == School.id).filter(
+                    School.cms_id == school_cms_id
+                )
             return query.order_by(Program.name).all()
 
     def list_terms(self):
         with self._session() as session:
-            rows = session.query(Term.id, Term.code).order_by(Term.code.desc()).all()
+            rows = (
+                session.query(distinct(Term.code).label("code"))
+                .order_by(Term.code.desc())
+                .all()
+            )
             return rows
 
     def list_statuses(self):
@@ -85,9 +94,9 @@ class EnrollmentRequestRepository:
     def fetch_registration_requests(
         self,
         *,
-        school_id: Optional[int] = None,
-        program_id: Optional[int] = None,
-        term_id: Optional[int] = None,
+        school_cms_id: Optional[int] = None,
+        program_cms_id: Optional[int] = None,
+        term_code: Optional[str] = None,
         status: Optional[str] = None,
         search_query: str = "",
         page: int = 1,
@@ -128,14 +137,14 @@ class EnrollmentRequestRepository:
                 .outerjoin(School, Program.school_id == School.id)
             )
 
-            if school_id:
-                base_query = base_query.filter(School.id == school_id)
+            if school_cms_id:
+                base_query = base_query.filter(School.cms_id == school_cms_id)
 
-            if program_id:
-                base_query = base_query.filter(Program.id == program_id)
+            if program_cms_id:
+                base_query = base_query.filter(Program.cms_id == program_cms_id)
 
-            if term_id:
-                base_query = base_query.filter(Term.id == term_id)
+            if term_code:
+                base_query = base_query.filter(Term.code == term_code)
 
             if search_query:
                 search_term = f"%{search_query}%"
@@ -300,8 +309,10 @@ class EnrollmentRequestRepository:
                     Term.code.label("term_code"),
                     RegistrationRequest.semester_number,
                     RegistrationRequest.semester_status,
-                    StudentProgram.id.label("student_program_id"),
-                    StudentProgram.structure_id,
+                    StudentProgram.id.label("student_program_db_id"),
+                    StudentProgram.cms_id.label("student_program_cms_id"),
+                    StudentProgram.structure_id.label("structure_db_id"),
+                    Structure.cms_id.label("structure_cms_id"),
                 )
                 .join(Student, RegistrationRequest.std_no == Student.std_no)
                 .join(Term, RegistrationRequest.term_id == Term.id)
@@ -310,6 +321,7 @@ class EnrollmentRequestRepository:
                     (StudentProgram.std_no == Student.std_no)
                     & (StudentProgram.status == "Active"),
                 )
+                .outerjoin(Structure, StudentProgram.structure_id == Structure.id)
                 .filter(RegistrationRequest.id == registration_request_id)
                 .first()
             )
@@ -321,7 +333,8 @@ class EnrollmentRequestRepository:
                 session.query(
                     Module.code.label("module_code"),
                     RequestedModule.module_status,
-                    RequestedModule.semester_module_id,
+                    RequestedModule.semester_module_id.label("semester_module_db_id"),
+                    SemesterModule.cms_id.label("semester_module_cms_id"),
                     SemesterModule.credits,
                 )
                 .join(
@@ -342,8 +355,10 @@ class EnrollmentRequestRepository:
                 "term_code": result.term_code,
                 "semester_number": result.semester_number,
                 "semester_status": result.semester_status,
-                "student_program_id": result.student_program_id,
-                "structure_id": result.structure_id,
+                "student_program_db_id": result.student_program_db_id,
+                "student_program_cms_id": result.student_program_cms_id,
+                "structure_db_id": result.structure_db_id,
+                "structure_cms_id": result.structure_cms_id,
                 "modules": modules,
             }
 
@@ -378,10 +393,13 @@ class EnrollmentRequestRepository:
 
             program = (
                 session.query(
-                    StudentProgram.id,
-                    StudentProgram.structure_id,
+                    StudentProgram.id.label("student_program_db_id"),
+                    StudentProgram.cms_id.label("student_program_cms_id"),
+                    StudentProgram.structure_id.label("structure_db_id"),
+                    Structure.cms_id.label("structure_cms_id"),
                     StudentProgram.std_no,
                 )
+                .join(Structure, StudentProgram.structure_id == Structure.id)
                 .filter(StudentProgram.std_no == std_no)
                 .filter(StudentProgram.status == "Active")
                 .first()
@@ -391,18 +409,25 @@ class EnrollmentRequestRepository:
                 return None
 
             return {
-                "id": program.id,
-                "structure_id": program.structure_id,
+                "student_program_db_id": program.student_program_db_id,
+                "student_program_cms_id": program.student_program_cms_id,
+                "structure_db_id": program.structure_db_id,
+                "structure_cms_id": program.structure_cms_id,
                 "std_no": program.std_no,
             }
 
-    def get_structure_semester_by_number(self, structure_id: int, semester_number: str):
+    def get_structure_semester_by_number(
+        self, structure_db_id: int, semester_number: str
+    ):
         with self._session() as session:
             from database import StructureSemester
 
             semester = (
-                session.query(StructureSemester.id)
-                .filter(StructureSemester.structure_id == structure_id)
+                session.query(
+                    StructureSemester.id.label("structure_semester_db_id"),
+                    StructureSemester.cms_id.label("structure_semester_cms_id"),
+                )
+                .filter(StructureSemester.structure_id == structure_db_id)
                 .filter(StructureSemester.semester_number == semester_number)
                 .first()
             )
@@ -410,10 +435,24 @@ class EnrollmentRequestRepository:
             if not semester:
                 return None
 
-            return semester[0]
+            return {
+                "structure_semester_db_id": semester.structure_semester_db_id,
+                "structure_semester_cms_id": semester.structure_semester_cms_id,
+            }
+
+    def get_semester_module_db_id_by_cms_id(
+        self, semester_module_cms_id: int
+    ) -> Optional[int]:
+        with self._session() as session:
+            semester_module = (
+                session.query(SemesterModule.id)
+                .filter(SemesterModule.cms_id == semester_module_cms_id)
+                .first()
+            )
+            return semester_module[0] if semester_module else None
 
     def upsert_student_semester(
-        self, student_program_id: int, data: dict
+        self, student_program_db_id: int, data: dict
     ) -> tuple[bool, Optional[int]]:
         with self._session() as session:
             from database import StudentSemester
@@ -432,7 +471,8 @@ class EnrollmentRequestRepository:
                         existing = (
                             session.query(StudentSemester)
                             .filter(
-                                StudentSemester.student_program_id == student_program_id
+                                StudentSemester.student_program_id
+                                == student_program_db_id
                             )
                             .filter(StudentSemester.term_code == data.get("term"))
                             .first()
@@ -466,13 +506,13 @@ class EnrollmentRequestRepository:
                         ):
                             logger.error(
                                 f"Cannot create student semester without structure_semester_id - "
-                                f"student_program_id={student_program_id}, data={data}"
+                                f"student_program_id={student_program_db_id}, data={data}"
                             )
                             return False, None
 
                         new_semester = StudentSemester(
                             cms_id=semester_id,
-                            student_program_id=student_program_id,
+                            student_program_id=student_program_db_id,
                             term_code=data.get("term"),
                             structure_semester_id=data["structure_semester_id"],
                             status=data.get("status", "Active"),
@@ -500,8 +540,23 @@ class EnrollmentRequestRepository:
 
             try:
                 module_id = data.get("cms_id")
+                student_semester_db_id = data.get("student_semester_db_id") or data.get(
+                    "student_semester_id"
+                )
+                semester_module_db_id = data.get("semester_module_db_id")
+                if not semester_module_db_id and data.get("semester_module_cms_id"):
+                    semester_module_db_id = self.get_semester_module_db_id_by_cms_id(
+                        int(data["semester_module_cms_id"])
+                    )
+
                 if not module_id:
                     logger.error("Cannot create student module without ID")
+                    return False
+
+                if not student_semester_db_id or not semester_module_db_id:
+                    logger.error(
+                        f"Cannot create student module without resolved database references: {data}"
+                    )
                     return False
 
                 existing = (
@@ -510,26 +565,21 @@ class EnrollmentRequestRepository:
                     .first()
                 )
 
-                if not existing and data.get("student_semester_id") and data.get(
-                    "semester_module_id"
-                ):
+                if not existing:
                     existing = (
                         session.query(StudentModule)
                         .filter(
-                            StudentModule.student_semester_id
-                            == data["student_semester_id"]
+                            StudentModule.student_semester_id == student_semester_db_id
                         )
                         .filter(
-                            StudentModule.semester_module_id
-                            == data["semester_module_id"]
+                            StudentModule.semester_module_id == semester_module_db_id
                         )
                         .first()
                     )
 
                 if existing:
                     existing.cms_id = module_id  # type: ignore
-                    if "semester_module_id" in data:
-                        existing.semester_module_id = data["semester_module_id"]
+                    existing.semester_module_id = semester_module_db_id
                     if "status" in data:
                         existing.status = data["status"]
                     if "credits" in data:
@@ -538,8 +588,7 @@ class EnrollmentRequestRepository:
                         existing.marks = data["marks"]
                     if "grade" in data:
                         existing.grade = data["grade"]
-                    if "student_semester_id" in data:
-                        existing.student_semester_id = data["student_semester_id"]
+                    existing.student_semester_id = student_semester_db_id
 
                     session.commit()
                     logger.info(f"Updated student module {module_id}")
@@ -547,12 +596,12 @@ class EnrollmentRequestRepository:
                 else:
                     new_module = StudentModule(
                         cms_id=module_id,
-                        semester_module_id=data.get("semester_module_id"),
+                        semester_module_id=semester_module_db_id,
                         status=data.get("status", ""),
                         credits=float(data.get("credits", 0)),
                         marks=data.get("marks", "NM"),
                         grade=data.get("grade", "NM"),
-                        student_semester_id=data.get("student_semester_id"),
+                        student_semester_id=student_semester_db_id,
                     )
                     session.add(new_module)
                     session.commit()

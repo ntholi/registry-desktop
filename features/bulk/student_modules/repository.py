@@ -29,16 +29,17 @@ logger = get_logger(__name__)
 class StudentModuleRow:
     std_no: str
     name: Optional[str]
-    student_module_id: int
-    cms_id: Optional[int]
-    semester_module_id: int
+    student_module_db_id: int
+    student_module_cms_id: Optional[int]
+    semester_module_db_id: int
+    semester_module_cms_id: Optional[int]
     module_code: str
     module_name: str
     status: str
     credits: Optional[float]
     marks: Optional[str]
     grade: Optional[str]
-    student_semester_id: int
+    student_semester_db_id: int
 
 
 class BulkStudentModulesRepository:
@@ -53,32 +54,40 @@ class BulkStudentModulesRepository:
     def list_active_schools(self):
         with self._session() as session:
             return (
-                session.query(School.id, School.name)
+                session.query(School.cms_id.label("cms_id"), School.name)
                 .filter(School.is_active == True)
+                .filter(School.cms_id.isnot(None))
                 .order_by(School.name)
                 .all()
             )
 
-    def list_programs(self, school_id: Optional[int] = None):
+    def list_programs(self, school_cms_id: Optional[int] = None):
         with self._session() as session:
-            query = session.query(Program.id, Program.name)
-            if school_id:
-                query = query.filter(Program.school_id == school_id)
+            query = session.query(Program.cms_id.label("cms_id"), Program.name).filter(
+                Program.cms_id.isnot(None)
+            )
+            if school_cms_id:
+                query = query.join(School, Program.school_id == School.id).filter(
+                    School.cms_id == school_cms_id
+                )
             return query.order_by(Program.name).all()
 
-    def list_structures(self, program_id: Optional[int] = None):
+    def list_structures(self, program_cms_id: Optional[int] = None):
         with self._session() as session:
-            query = session.query(Structure.id, Structure.code, Structure.desc)
-            if program_id:
-                query = query.filter(Structure.program_id == program_id)
+            query = session.query(
+                Structure.cms_id.label("cms_id"), Structure.code, Structure.desc
+            ).filter(Structure.cms_id.isnot(None))
+            if program_cms_id:
+                query = query.join(Program, Structure.program_id == Program.id).filter(
+                    Program.cms_id == program_cms_id
+                )
             return query.order_by(Structure.code.desc()).all()
 
-    def list_structure_modules(self, structure_id: int):
-        """List all modules available in a structure."""
+    def list_structure_modules(self, structure_cms_id: int):
         with self._session() as session:
             results = (
                 session.query(
-                    SemesterModule.id.label("semester_module_id"),
+                    SemesterModule.cms_id.label("semester_module_cms_id"),
                     Module.code.label("module_code"),
                     Module.name.label("module_name"),
                     SemesterModule.credits,
@@ -89,26 +98,27 @@ class BulkStudentModulesRepository:
                     StructureSemester,
                     SemesterModule.semester_id == StructureSemester.id,
                 )
-                .filter(StructureSemester.structure_id == structure_id)
+                .join(Structure, StructureSemester.structure_id == Structure.id)
+                .filter(Structure.cms_id == structure_cms_id)
+                .filter(SemesterModule.cms_id.isnot(None))
                 .order_by(StructureSemester.semester_number, Module.code)
                 .all()
             )
             return results
 
-    def list_semester_numbers(self, structure_id: int):
-        """List all semester numbers in a structure."""
+    def list_semester_numbers(self, structure_cms_id: int):
         with self._session() as session:
             results = (
                 session.query(StructureSemester.semester_number)
-                .filter(StructureSemester.structure_id == structure_id)
+                .join(Structure, StructureSemester.structure_id == Structure.id)
+                .filter(Structure.cms_id == structure_cms_id)
                 .distinct()
                 .order_by(StructureSemester.semester_number)
                 .all()
             )
             return [r[0] for r in results]
 
-    def list_terms(self, structure_id: int):
-        """List all unique terms for students enrolled in a structure."""
+    def list_terms(self, structure_cms_id: int):
         with self._session() as session:
             results = (
                 session.query(StudentSemester.term_code)
@@ -116,7 +126,8 @@ class BulkStudentModulesRepository:
                     StudentProgram,
                     StudentSemester.student_program_id == StudentProgram.id,
                 )
-                .filter(StudentProgram.structure_id == structure_id)
+                .join(Structure, StudentProgram.structure_id == Structure.id)
+                .filter(Structure.cms_id == structure_cms_id)
                 .distinct()
                 .order_by(StudentSemester.term_code.desc())
                 .all()
@@ -125,19 +136,19 @@ class BulkStudentModulesRepository:
 
     def fetch_students_with_module(
         self,
-        semester_module_id: int,
-        structure_id: int,
+        semester_module_cms_id: int,
+        structure_cms_id: int,
         term: Optional[str] = None,
     ) -> list[StudentModuleRow]:
-        """Fetch all students who have a specific module in their enrollment."""
         with self._session() as session:
             query = (
                 session.query(
                     Student.std_no,
                     Student.name,
-                    StudentModule.id.label("student_module_id"),
-                    StudentModule.cms_id,
-                    StudentModule.semester_module_id,
+                    StudentModule.id.label("student_module_db_id"),
+                    StudentModule.cms_id.label("student_module_cms_id"),
+                    StudentModule.semester_module_id.label("semester_module_db_id"),
+                    SemesterModule.cms_id.label("semester_module_cms_id"),
                     Module.code.label("module_code"),
                     Module.name.label("module_name"),
                     StudentModule.status,
@@ -164,8 +175,9 @@ class BulkStudentModulesRepository:
                     StructureSemester,
                     StudentSemester.structure_semester_id == StructureSemester.id,
                 )
-                .filter(StudentModule.semester_module_id == semester_module_id)
-                .filter(StudentProgram.structure_id == structure_id)
+                .join(Structure, StructureSemester.structure_id == Structure.id)
+                .filter(SemesterModule.cms_id == semester_module_cms_id)
+                .filter(Structure.cms_id == structure_cms_id)
                 .filter(
                     or_(
                         StudentProgram.status == "Active",
@@ -184,16 +196,17 @@ class BulkStudentModulesRepository:
                 StudentModuleRow(
                     std_no=str(r.std_no),
                     name=r.name,
-                    student_module_id=r.student_module_id,
-                    cms_id=r.cms_id,
-                    semester_module_id=r.semester_module_id,
+                    student_module_db_id=r.student_module_db_id,
+                    student_module_cms_id=r.student_module_cms_id,
+                    semester_module_db_id=r.semester_module_db_id,
+                    semester_module_cms_id=r.semester_module_cms_id,
                     module_code=r.module_code,
                     module_name=r.module_name,
                     status=r.status,
                     credits=r.credits,
                     marks=r.marks,
                     grade=r.grade,
-                    student_semester_id=r.student_semester_id,
+                    student_semester_db_id=r.student_semester_id,
                 )
                 for r in results
             ]
@@ -204,7 +217,8 @@ class BulkStudentModulesRepository:
 
             results = (
                 session.query(
-                    SemesterModule.id.label("semester_module_id"),
+                    SemesterModule.id.label("semester_module_db_id"),
+                    SemesterModule.cms_id.label("semester_module_cms_id"),
                     Module.code.label("module_code"),
                     Module.name.label("module_name"),
                     Program.name.label("program_name"),
@@ -224,13 +238,15 @@ class BulkStudentModulesRepository:
                         Module.name.like(search_pattern),
                     )
                 )
+                .filter(SemesterModule.cms_id.isnot(None))
                 .order_by(Module.code, Program.name)
                 .all()
             )
 
             return [
                 {
-                    "semester_module_id": r.semester_module_id,
+                    "semester_module_db_id": r.semester_module_db_id,
+                    "semester_module_cms_id": r.semester_module_cms_id,
                     "module_code": r.module_code,
                     "module_name": r.module_name,
                     "program_name": r.program_name,
@@ -242,7 +258,7 @@ class BulkStudentModulesRepository:
 
     def fetch_students_by_module_search(
         self,
-        structure_id: int,
+        structure_cms_id: int,
         search_query: str,
         term: Optional[str] = None,
     ) -> list[StudentModuleRow]:
@@ -253,9 +269,10 @@ class BulkStudentModulesRepository:
                 session.query(
                     Student.std_no,
                     Student.name,
-                    StudentModule.id.label("student_module_id"),
-                    StudentModule.cms_id,
-                    StudentModule.semester_module_id,
+                    StudentModule.id.label("student_module_db_id"),
+                    StudentModule.cms_id.label("student_module_cms_id"),
+                    StudentModule.semester_module_id.label("semester_module_db_id"),
+                    SemesterModule.cms_id.label("semester_module_cms_id"),
                     Module.code.label("module_code"),
                     Module.name.label("module_name"),
                     StudentModule.status,
@@ -282,7 +299,8 @@ class BulkStudentModulesRepository:
                     StructureSemester,
                     StudentSemester.structure_semester_id == StructureSemester.id,
                 )
-                .filter(StudentProgram.structure_id == structure_id)
+                .join(Structure, StructureSemester.structure_id == Structure.id)
+                .filter(Structure.cms_id == structure_cms_id)
                 .filter(
                     or_(
                         Module.code.like(search_pattern),
@@ -307,16 +325,17 @@ class BulkStudentModulesRepository:
                 StudentModuleRow(
                     std_no=str(r.std_no),
                     name=r.name,
-                    student_module_id=r.student_module_id,
-                    cms_id=r.cms_id,
-                    semester_module_id=r.semester_module_id,
+                    student_module_db_id=r.student_module_db_id,
+                    student_module_cms_id=r.student_module_cms_id,
+                    semester_module_db_id=r.semester_module_db_id,
+                    semester_module_cms_id=r.semester_module_cms_id,
                     module_code=r.module_code,
                     module_name=r.module_name,
                     status=r.status,
                     credits=r.credits,
                     marks=r.marks,
                     grade=r.grade,
-                    student_semester_id=r.student_semester_id,
+                    student_semester_db_id=r.student_semester_id,
                 )
                 for r in results
             ]

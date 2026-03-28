@@ -31,10 +31,10 @@ class LoadFilterOptionsWorker(threading.Thread):
 
 
 class LoadProgramsWorker(threading.Thread):
-    def __init__(self, repository, school_id, callback):
+    def __init__(self, repository, school_cms_id, callback):
         super().__init__(daemon=True)
         self.repository = repository
-        self.school_id = school_id
+        self.school_cms_id = school_cms_id
         self.callback = callback
         self.should_stop = False
 
@@ -42,7 +42,7 @@ class LoadProgramsWorker(threading.Thread):
         if self.should_stop:
             return
         try:
-            programs = self.repository.list_programs(self.school_id)
+            programs = self.repository.list_programs(self.school_cms_id)
             self.callback("programs_loaded", programs)
         except Exception as e:
             self.callback("programs_error", str(e))
@@ -52,10 +52,10 @@ class LoadProgramsWorker(threading.Thread):
 
 
 class LoadStructuresWorker(threading.Thread):
-    def __init__(self, repository, program_id, callback):
+    def __init__(self, repository, program_cms_id, callback):
         super().__init__(daemon=True)
         self.repository = repository
-        self.program_id = program_id
+        self.program_cms_id = program_cms_id
         self.callback = callback
         self.should_stop = False
 
@@ -63,7 +63,7 @@ class LoadStructuresWorker(threading.Thread):
         if self.should_stop:
             return
         try:
-            structures = self.repository.list_structures(self.program_id)
+            structures = self.repository.list_structures(self.program_cms_id)
             self.callback("structures_loaded", structures)
         except Exception as e:
             self.callback("structures_error", str(e))
@@ -73,10 +73,10 @@ class LoadStructuresWorker(threading.Thread):
 
 
 class LoadModulesWorker(threading.Thread):
-    def __init__(self, repository, structure_id, callback):
+    def __init__(self, repository, structure_cms_id, callback):
         super().__init__(daemon=True)
         self.repository = repository
-        self.structure_id = structure_id
+        self.structure_cms_id = structure_cms_id
         self.callback = callback
         self.should_stop = False
 
@@ -84,8 +84,8 @@ class LoadModulesWorker(threading.Thread):
         if self.should_stop:
             return
         try:
-            modules = self.repository.list_structure_modules(self.structure_id)
-            terms = self.repository.list_terms(self.structure_id)
+            modules = self.repository.list_structure_modules(self.structure_cms_id)
+            terms = self.repository.list_terms(self.structure_cms_id)
             self.callback("modules_loaded", modules, terms)
         except Exception as e:
             self.callback("modules_error", str(e))
@@ -95,11 +95,13 @@ class LoadModulesWorker(threading.Thread):
 
 
 class LoadStudentsWorker(threading.Thread):
-    def __init__(self, repository, semester_module_id, structure_id, term, callback):
+    def __init__(
+        self, repository, semester_module_cms_id, structure_cms_id, term, callback
+    ):
         super().__init__(daemon=True)
         self.repository = repository
-        self.semester_module_id = semester_module_id
-        self.structure_id = structure_id
+        self.semester_module_cms_id = semester_module_cms_id
+        self.structure_cms_id = structure_cms_id
         self.term = term
         self.callback = callback
         self.should_stop = False
@@ -109,8 +111,8 @@ class LoadStudentsWorker(threading.Thread):
             return
         try:
             students = self.repository.fetch_students_with_module(
-                self.semester_module_id,
-                self.structure_id,
+                self.semester_module_cms_id,
+                self.structure_cms_id,
                 self.term,
             )
             self.callback("students_loaded", students)
@@ -122,10 +124,10 @@ class LoadStudentsWorker(threading.Thread):
 
 
 class LoadStudentsByModuleSearchWorker(threading.Thread):
-    def __init__(self, repository, structure_id, search_query, term, callback):
+    def __init__(self, repository, structure_cms_id, search_query, term, callback):
         super().__init__(daemon=True)
         self.repository = repository
-        self.structure_id = structure_id
+        self.structure_cms_id = structure_cms_id
         self.search_query = search_query
         self.term = term
         self.callback = callback
@@ -136,7 +138,7 @@ class LoadStudentsByModuleSearchWorker(threading.Thread):
             return
         try:
             students = self.repository.fetch_students_by_module_search(
-                self.structure_id,
+                self.structure_cms_id,
                 self.search_query,
                 self.term,
             )
@@ -177,15 +179,15 @@ class BulkUpdateWorker(threading.Thread):
                     )
 
                 # Validate required fields
-                if not student_module.student_semester_id:
+                if not student_module.student_semester_db_id:
                     self.callback(
                         "error",
-                        f"Skipping student {student_module.std_no}: Missing student_semester_id",
+                        f"Skipping student {student_module.std_no}: Missing student_semester_db_id",
                     )
                     failed_count += 1
                     continue
 
-                if not student_module.cms_id:
+                if not student_module.student_module_cms_id:
                     self.callback(
                         "error",
                         f"Skipping student {student_module.std_no}: Missing cms_id",
@@ -194,8 +196,8 @@ class BulkUpdateWorker(threading.Thread):
                     continue
 
                 module_data = {
-                    "cms_id": student_module.cms_id,
-                    "student_semester_id": student_module.student_semester_id,
+                    "cms_id": student_module.student_module_cms_id,
+                    "student_semester_db_id": student_module.student_semester_db_id,
                 }
 
                 # Add only the fields that should be updated
@@ -205,18 +207,17 @@ class BulkUpdateWorker(threading.Thread):
                 if "credits" in self.update_data:
                     module_data["credits"] = self.update_data["credits"]
 
-                # Use updated semester_module_id if provided, otherwise keep existing
-                if "semester_module_id" in self.update_data:
-                    module_data["semester_module_id"] = self.update_data[
-                        "semester_module_id"
+                if "semester_module_cms_id" in self.update_data:
+                    module_data["semester_module_cms_id"] = self.update_data[
+                        "semester_module_cms_id"
                     ]
                 else:
-                    module_data["semester_module_id"] = (
-                        student_module.semester_module_id
+                    module_data["semester_module_cms_id"] = (
+                        student_module.semester_module_cms_id
                     )
 
                 success, message = self.service.push_module(
-                    student_module.cms_id,
+                    student_module.student_module_cms_id,
                     module_data,
                     progress_callback,
                 )
@@ -251,10 +252,10 @@ class StudentModulesView(wx.Panel):
         self.student_repository = StudentRepository()
         self.sync_service = StudentSyncService(self.student_repository)
 
-        self.selected_school_id = None
-        self.selected_program_id = None
-        self.selected_structure_id = None
-        self.selected_module_id = None
+        self.selected_school_cms_id = None
+        self.selected_program_cms_id = None
+        self.selected_structure_cms_id = None
+        self.selected_module_cms_id = None
         self.selected_term = None
 
         self.current_students = []
@@ -449,7 +450,7 @@ class StudentModulesView(wx.Panel):
             self.school_filter.Clear()
             self.school_filter.Append("Select School", None)
             for school in schools:
-                self.school_filter.Append(str(school.name), school.id)
+                self.school_filter.Append(str(school.name), school.cms_id)
             self.school_filter.SetSelection(0)
             self.school_filter.Enable(True)
         elif event_type == "filters_error":
@@ -465,7 +466,7 @@ class StudentModulesView(wx.Panel):
 
     def on_school_changed(self, event):
         sel = self.school_filter.GetSelection()
-        self.selected_school_id = (
+        self.selected_school_cms_id = (
             self.school_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
         )
 
@@ -497,20 +498,20 @@ class StudentModulesView(wx.Panel):
 
         self.clear_students()
 
-        self.selected_program_id = None
-        self.selected_structure_id = None
-        self.selected_module_id = None
+        self.selected_program_cms_id = None
+        self.selected_structure_cms_id = None
+        self.selected_module_cms_id = None
         self.selected_term = None
 
-        if self.selected_school_id:
-            self.load_programs(self.selected_school_id)
+        if self.selected_school_cms_id:
+            self.load_programs(self.selected_school_cms_id)
 
-    def load_programs(self, school_id):
+    def load_programs(self, school_cms_id):
         self.program_filter.SetString(0, "Loading...")
         if self.status_bar:
             self.status_bar.show_message("Loading programs...")
         self.programs_worker = LoadProgramsWorker(
-            self.repository, school_id, self.on_programs_callback
+            self.repository, school_cms_id, self.on_programs_callback
         )
         self.programs_worker.start()
 
@@ -523,7 +524,7 @@ class StudentModulesView(wx.Panel):
             self.program_filter.Clear()
             self.program_filter.Append("Select Program", None)
             for program in programs:
-                self.program_filter.Append(str(program.name), program.id)
+                self.program_filter.Append(str(program.name), program.cms_id)
             self.program_filter.SetSelection(0)
             self.program_filter.Enable(True)
         elif event_type == "programs_error":
@@ -535,7 +536,7 @@ class StudentModulesView(wx.Panel):
 
     def on_program_changed(self, event):
         sel = self.program_filter.GetSelection()
-        self.selected_program_id = (
+        self.selected_program_cms_id = (
             self.program_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
         )
 
@@ -561,19 +562,19 @@ class StudentModulesView(wx.Panel):
 
         self.clear_students()
 
-        self.selected_structure_id = None
-        self.selected_module_id = None
+        self.selected_structure_cms_id = None
+        self.selected_module_cms_id = None
         self.selected_term = None
 
-        if self.selected_program_id:
-            self.load_structures(self.selected_program_id)
+        if self.selected_program_cms_id:
+            self.load_structures(self.selected_program_cms_id)
 
-    def load_structures(self, program_id):
+    def load_structures(self, program_cms_id):
         self.structure_filter.SetString(0, "Loading...")
         if self.status_bar:
             self.status_bar.show_message("Loading structures...")
         self.structures_worker = LoadStructuresWorker(
-            self.repository, program_id, self.on_structures_callback
+            self.repository, program_cms_id, self.on_structures_callback
         )
         self.structures_worker.start()
 
@@ -589,7 +590,7 @@ class StudentModulesView(wx.Panel):
                 display = f"{structure.code}" + (
                     f" - {structure.desc}" if structure.desc else ""
                 )
-                self.structure_filter.Append(display, structure.id)
+                self.structure_filter.Append(display, structure.cms_id)
             self.structure_filter.SetSelection(0)
             self.structure_filter.Enable(True)
         elif event_type == "structures_error":
@@ -601,7 +602,7 @@ class StudentModulesView(wx.Panel):
 
     def on_structure_changed(self, event):
         sel = self.structure_filter.GetSelection()
-        self.selected_structure_id = (
+        self.selected_structure_cms_id = (
             self.structure_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
         )
 
@@ -622,18 +623,18 @@ class StudentModulesView(wx.Panel):
 
         self.clear_students()
 
-        self.selected_module_id = None
+        self.selected_module_cms_id = None
         self.selected_term = None
 
-        if self.selected_structure_id:
-            self.load_modules(self.selected_structure_id)
+        if self.selected_structure_cms_id:
+            self.load_modules(self.selected_structure_cms_id)
 
-    def load_modules(self, structure_id):
+    def load_modules(self, structure_cms_id):
         self.module_filter.SetString(0, "Loading...")
         if self.status_bar:
             self.status_bar.show_message("Loading modules...")
         self.modules_worker = LoadModulesWorker(
-            self.repository, structure_id, self.on_modules_callback
+            self.repository, structure_cms_id, self.on_modules_callback
         )
         self.modules_worker.start()
 
@@ -648,7 +649,7 @@ class StudentModulesView(wx.Panel):
             for module in modules:
                 sem_str = format_semester(module.semester_number, type="short")
                 display = f"{module.module_code} - {module.module_name} ({sem_str})"
-                self.module_filter.Append(display, module.semester_module_id)
+                self.module_filter.Append(display, module.semester_module_cms_id)
             self.module_filter.SetSelection(0)
             self.module_filter.Enable(True)
 
@@ -670,13 +671,13 @@ class StudentModulesView(wx.Panel):
 
     def on_module_changed(self, event):
         sel = self.module_filter.GetSelection()
-        self.selected_module_id = (
+        self.selected_module_cms_id = (
             self.module_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
         )
 
         self.update_module_search_state()
 
-        if self.selected_module_id:
+        if self.selected_module_cms_id:
             self.load_students_by_module()
         else:
             self.clear_students()
@@ -687,13 +688,13 @@ class StudentModulesView(wx.Panel):
             self.term_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
         )
 
-        if self.selected_module_id:
+        if self.selected_module_cms_id:
             self.load_students_by_module()
         elif self.module_search_text and len(self.module_search_text) >= 4:
             self.load_students_by_module_search()
 
     def update_module_search_state(self):
-        has_specific_module = self.selected_module_id is not None
+        has_specific_module = self.selected_module_cms_id is not None
         self.module_search_input.Enable(not has_specific_module)
         if has_specific_module:
             self.module_search_input.SetValue("")
@@ -701,12 +702,12 @@ class StudentModulesView(wx.Panel):
         self.update_filter_by_module_button_state()
 
     def update_filter_by_module_button_state(self):
-        has_specific_module = self.selected_module_id is not None
+        has_specific_module = self.selected_module_cms_id is not None
         search_text = self.module_search_input.GetValue().strip()
         can_search = (
             not has_specific_module
             and len(search_text) >= 4
-            and self.selected_structure_id is not None
+            and self.selected_structure_cms_id is not None
         )
         self.filter_by_module_button.Enable(can_search)
 
@@ -727,7 +728,7 @@ class StudentModulesView(wx.Panel):
         self.load_students_by_module_search()
 
     def load_students_by_module(self):
-        if not self.selected_module_id or not self.selected_structure_id:
+        if not self.selected_module_cms_id or not self.selected_structure_cms_id:
             return
 
         if self.status_bar:
@@ -735,15 +736,15 @@ class StudentModulesView(wx.Panel):
 
         self.students_worker = LoadStudentsWorker(
             self.repository,
-            self.selected_module_id,
-            self.selected_structure_id,
+            self.selected_module_cms_id,
+            self.selected_structure_cms_id,
             self.selected_term,
             self.on_students_callback,
         )
         self.students_worker.start()
 
     def load_students_by_module_search(self):
-        if not self.module_search_text or not self.selected_structure_id:
+        if not self.module_search_text or not self.selected_structure_cms_id:
             return
 
         if self.status_bar:
@@ -751,7 +752,7 @@ class StudentModulesView(wx.Panel):
 
         self.module_search_worker = LoadStudentsByModuleSearchWorker(
             self.repository,
-            self.selected_structure_id,
+            self.selected_structure_cms_id,
             self.module_search_text,
             self.selected_term,
             self.on_students_callback,
@@ -891,7 +892,6 @@ class StudentModulesView(wx.Panel):
             )
             return
 
-        # Get module info for the dialog (use first selected student's values as defaults)
         first_student = selected_students[0]
         module_info = {
             "module_code": first_student.module_code,
@@ -911,7 +911,6 @@ class StudentModulesView(wx.Panel):
                 dialog.Destroy()
                 return
 
-            # Compare update_data against database values to find actual changes
             db_status = first_student.status or ""
             db_credits = str(first_student.credits) if first_student.credits else ""
 
@@ -920,9 +919,10 @@ class StudentModulesView(wx.Panel):
                 actual_changes["status"] = update_data["status"]
             if "credits" in update_data and update_data["credits"] != db_credits:
                 actual_changes["credits"] = update_data["credits"]
-            if "semester_module_id" in update_data:
-                # semester_module_id change is always considered a real change
-                actual_changes["semester_module_id"] = update_data["semester_module_id"]
+            if "semester_module_cms_id" in update_data:
+                actual_changes["semester_module_cms_id"] = update_data[
+                    "semester_module_cms_id"
+                ]
 
             if not actual_changes:
                 wx.MessageBox(
@@ -933,7 +933,6 @@ class StudentModulesView(wx.Panel):
                 dialog.Destroy()
                 return
 
-            # Confirm bulk update with actual changes
             count = len(selected_students)
             message = (
                 f"You are about to update {count} student module(s).\n\n"
@@ -943,10 +942,8 @@ class StudentModulesView(wx.Panel):
                 message += f"  - Status: {db_status} → {actual_changes['status']}\n"
             if "credits" in actual_changes:
                 message += f"  - Credits: {db_credits} → {actual_changes['credits']}\n"
-            if "semester_module_id" in actual_changes:
-                message += (
-                    f"  - Semester Module ID: {actual_changes['semester_module_id']}\n"
-                )
+            if "semester_module_cms_id" in actual_changes:
+                message += f"  - Semester Module CMS ID: {actual_changes['semester_module_cms_id']}\n"
             message += "\nDo you want to proceed?"
 
             confirm_dlg = wx.MessageDialog(
@@ -998,9 +995,9 @@ class StudentModulesView(wx.Panel):
                     wx.OK | wx.ICON_INFORMATION,
                 )
 
-            if self.selected_module_id and self.selected_structure_id:
+            if self.selected_module_cms_id and self.selected_structure_cms_id:
                 self.load_students_by_module()
-            elif self.module_search_text and self.selected_structure_id:
+            elif self.module_search_text and self.selected_structure_cms_id:
                 self.load_students_by_module_search()
         elif event_type == "error":
             error_msg = args[0]

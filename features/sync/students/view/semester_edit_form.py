@@ -12,20 +12,21 @@ logger = get_logger(__name__)
 
 
 class SemesterEditFormDialog(wx.Dialog):
-    def __init__(self, student_semester_id, parent=None, status_bar=None):
+    def __init__(self, student_semester_db_id, parent=None, status_bar=None):
         super().__init__(
             parent,
             title="Edit Semester",
             size=wx.Size(500, 300),
             style=wx.DEFAULT_DIALOG_STYLE,
         )
-        self.student_semester_id = student_semester_id
+        self.student_semester_db_id = student_semester_db_id
         self.status_bar = status_bar
         self.repository = StudentRepository()
         self.service = StudentSyncService(self.repository)
         self.push_worker = None
-        self.structure_id = None
-        self.student_program_id = None
+        self.structure_db_id = None
+        self.student_program_db_id = None
+        self.student_semester_cms_id = None
 
         self.load_semester_data()
         self.init_ui()
@@ -34,18 +35,22 @@ class SemesterEditFormDialog(wx.Dialog):
     def load_semester_data(self):
         try:
             semester_data = self.repository.get_student_semester_by_id(
-                self.student_semester_id
+                self.student_semester_db_id
             )
             if semester_data:
-                self.structure_id = semester_data.get("structure_id")
-                self.student_program_id = semester_data.get("student_program_id")
+                self.structure_db_id = semester_data.get("structure_db_id")
+                self.student_program_db_id = semester_data.get("student_program_db_id")
+                self.student_semester_cms_id = semester_data.get(
+                    "student_semester_cms_id"
+                )
                 self.current_semester_number = semester_data.get("semester_number")
                 self.current_status = semester_data.get("status")
-                self.current_term = semester_data.get("term")
+                self.current_term = semester_data.get("term_code")
         except Exception as e:
             logger.error(f"Error loading semester data: {str(e)}")
-            self.structure_id = None
-            self.student_program_id = None
+            self.structure_db_id = None
+            self.student_program_db_id = None
+            self.student_semester_cms_id = None
             self.current_semester_number = None
             self.current_status = None
             self.current_term = None
@@ -59,7 +64,7 @@ class SemesterEditFormDialog(wx.Dialog):
 
         semester_id_label = wx.StaticText(form_panel, label="Semester ID:")
         semester_id_text = wx.StaticText(
-            form_panel, label=str(self.student_semester_id)
+            form_panel, label=str(self.student_semester_cms_id or "")
         )
         semester_id_font = semester_id_text.GetFont()
         semester_id_font.PointSize += 1
@@ -138,15 +143,20 @@ class SemesterEditFormDialog(wx.Dialog):
 
     def populate_semesters(self):
         try:
-            if not self.structure_id:
-                logger.warning("No structure_id available to load semesters")
+            if not self.structure_db_id:
+                logger.warning("No structure_db_id available to load semesters")
                 return
 
-            semesters = self.repository.get_structure_semesters(self.structure_id)
+            semesters = self.repository.get_structure_semesters(self.structure_db_id)
             for semester in semesters:
                 display_text = f"{semester.semester_number.zfill(2)} {semester.name}"
                 self.semester_number_combo.Append(
-                    display_text, (semester.id, semester.semester_number)
+                    display_text,
+                    (
+                        semester.structure_semester_db_id,
+                        semester.structure_semester_cms_id,
+                        semester.semester_number,
+                    ),
                 )
 
             if semesters and self.current_semester_number:
@@ -154,7 +164,7 @@ class SemesterEditFormDialog(wx.Dialog):
                     semester_data = self.semester_number_combo.GetClientData(i)
                     if (
                         semester_data
-                        and semester_data[1] == self.current_semester_number
+                        and semester_data[2] == self.current_semester_number
                     ):
                         self.semester_number_combo.SetSelection(i)
                         break
@@ -176,7 +186,7 @@ class SemesterEditFormDialog(wx.Dialog):
             return
 
         semester_data = self.semester_number_combo.GetClientData(semester_idx)
-        structure_semester_id, _ = semester_data
+        structure_semester_db_id, structure_semester_cms_id, _ = semester_data
 
         if not status:
             wx.MessageBox(
@@ -185,8 +195,9 @@ class SemesterEditFormDialog(wx.Dialog):
             return
 
         data = {
-            "student_semester_id": self.student_semester_id,
-            "structure_semester_id": structure_semester_id,
+            "student_semester_db_id": self.student_semester_db_id,
+            "structure_semester_db_id": structure_semester_db_id,
+            "structure_semester_cms_id": structure_semester_cms_id,
             "status": status,
         }
 

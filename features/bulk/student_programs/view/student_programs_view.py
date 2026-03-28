@@ -95,13 +95,10 @@ class LoadStudentsWorker(threading.Thread):
 
 
 class BulkUpdateStructureWorker(threading.Thread):
-    def __init__(
-        self, student_programs, new_structure_id, new_structure_code, service, callback
-    ):
+    def __init__(self, student_programs, new_structure, service, callback):
         super().__init__(daemon=True)
         self.student_programs = student_programs
-        self.new_structure_id = new_structure_id
-        self.new_structure_code = new_structure_code
+        self.new_structure = new_structure
         self.service = service
         self.callback = callback
         self.should_stop = False
@@ -127,8 +124,7 @@ class BulkUpdateStructureWorker(threading.Thread):
 
                 success, message = self.service.update_student_program_structure(
                     student_program,
-                    self.new_structure_id,
-                    self.new_structure_code,
+                    self.new_structure,
                     progress_callback,
                 )
 
@@ -161,8 +157,8 @@ class StudentProgramsView(wx.Panel):
         self.repository = BulkStudentProgramsRepository()
         self.service = StudentProgramService(self.repository)
 
-        self.selected_school_id = None
-        self.selected_program_id = None
+        self.selected_school_cms_id = None
+        self.selected_program_cms_id = None
         self.selected_term = None
 
         self.current_students = []
@@ -315,7 +311,7 @@ class StudentProgramsView(wx.Panel):
             self.school_filter.Clear()
             self.school_filter.Append("Select School", None)
             for school in schools:
-                self.school_filter.Append(str(school.name), school.id)
+                self.school_filter.Append(str(school.name), school.cms_id)
             self.school_filter.SetSelection(0)
             self.school_filter.Enable(True)
         elif event_type == "filters_error":
@@ -331,7 +327,7 @@ class StudentProgramsView(wx.Panel):
 
     def on_school_changed(self, event):
         sel = self.school_filter.GetSelection()
-        self.selected_school_id = (
+        self.selected_school_cms_id = (
             self.school_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
         )
 
@@ -347,13 +343,13 @@ class StudentProgramsView(wx.Panel):
 
         self.clear_students()
 
-        self.selected_program_id = None
+        self.selected_program_cms_id = None
         self.selected_term = None
 
         self.update_update_button_state()
 
-        if self.selected_school_id:
-            self.load_programs(self.selected_school_id)
+        if self.selected_school_cms_id:
+            self.load_programs(self.selected_school_cms_id)
 
     def load_programs(self, school_id):
         self.program_filter.SetString(0, "Loading...")
@@ -373,7 +369,7 @@ class StudentProgramsView(wx.Panel):
             self.program_filter.Clear()
             self.program_filter.Append("Select Program", None)
             for program in programs:
-                self.program_filter.Append(str(program.name), program.id)
+                self.program_filter.Append(str(program.name), program.cms_id)
             self.program_filter.SetSelection(0)
             self.program_filter.Enable(True)
         elif event_type == "programs_error":
@@ -385,7 +381,7 @@ class StudentProgramsView(wx.Panel):
 
     def on_program_changed(self, event):
         sel = self.program_filter.GetSelection()
-        self.selected_program_id = (
+        self.selected_program_cms_id = (
             self.program_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
         )
 
@@ -400,8 +396,8 @@ class StudentProgramsView(wx.Panel):
 
         self.update_update_button_state()
 
-        if self.selected_program_id:
-            self.load_terms(self.selected_program_id)
+        if self.selected_program_cms_id:
+            self.load_terms(self.selected_program_cms_id)
 
     def load_terms(self, program_id):
         self.term_filter.SetString(0, "Loading...")
@@ -446,15 +442,15 @@ class StudentProgramsView(wx.Panel):
 
     def update_update_button_state(self):
         all_filters_selected = (
-            self.selected_school_id is not None
-            and self.selected_program_id is not None
+            self.selected_school_cms_id is not None
+            and self.selected_program_cms_id is not None
             and self.selected_term is not None
         )
         has_selection = len(self.checked_items) > 0
         self.update_button.Enable(all_filters_selected and has_selection)
 
     def load_students(self):
-        if not self.selected_program_id:
+        if not self.selected_program_cms_id:
             return
 
         if self.status_bar:
@@ -462,7 +458,7 @@ class StudentProgramsView(wx.Panel):
 
         self.students_worker = LoadStudentsWorker(
             self.repository,
-            self.selected_program_id,
+            self.selected_program_cms_id,
             self.selected_term,
             self.on_students_callback,
         )
@@ -597,7 +593,7 @@ class StudentProgramsView(wx.Panel):
             )
             return
 
-        if self.selected_program_id is None:
+        if self.selected_program_cms_id is None:
             wx.MessageBox(
                 "Please select a program first",
                 "No Program Selected",
@@ -607,7 +603,7 @@ class StudentProgramsView(wx.Panel):
 
         dialog = UpdateStructureDialog(
             len(selected_students),
-            self.selected_program_id,
+            self.selected_program_cms_id,
             self.repository,
             parent=self,
         )
@@ -643,8 +639,7 @@ class StudentProgramsView(wx.Panel):
 
                 self.update_worker = BulkUpdateStructureWorker(
                     selected_students,
-                    selected_structure.id,
-                    selected_structure.code,
+                    selected_structure,
                     self.service,
                     self.on_update_callback,
                 )
@@ -681,7 +676,7 @@ class StudentProgramsView(wx.Panel):
                     wx.OK | wx.ICON_INFORMATION,
                 )
 
-            if self.selected_program_id and self.selected_term:
+            if self.selected_program_cms_id and self.selected_term:
                 self.load_students()
         elif event_type == "error":
             error_msg = args[0]

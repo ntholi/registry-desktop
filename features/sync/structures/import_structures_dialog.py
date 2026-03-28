@@ -92,7 +92,9 @@ class ImportStructuresDialog(wx.Dialog):
 
         self.school_choice = wx.Choice(self)
         self.school_choice.Bind(wx.EVT_CHOICE, self.on_school_changed)
-        scope_sizer.Add(self.school_choice, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
+        scope_sizer.Add(
+            self.school_choice, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 5
+        )
 
         scope_sizer.AddSpacer(5)
 
@@ -100,7 +102,9 @@ class ImportStructuresDialog(wx.Dialog):
         scope_sizer.Add(program_label, 0, wx.ALL, 5)
 
         self.program_choice = wx.Choice(self)
-        scope_sizer.Add(self.program_choice, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
+        scope_sizer.Add(
+            self.program_choice, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 5
+        )
 
         main_sizer.Add(scope_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 15)
 
@@ -145,7 +149,7 @@ class ImportStructuresDialog(wx.Dialog):
 
             schools = self.repository.list_active_schools()
             for school in schools:
-                self.school_choice.Append(str(school.name), school.id)
+                self.school_choice.Append(str(school.name), school.cms_id)
 
             self.school_choice.SetSelection(0)
             self.load_programs_for_school(None)
@@ -164,7 +168,7 @@ class ImportStructuresDialog(wx.Dialog):
 
             programs = self.repository.list_programs(school_id)
             for program in programs:
-                self.program_choice.Append(str(program.name), program.id)
+                self.program_choice.Append(str(program.name), program.cms_id)
 
             self.program_choice.SetSelection(0)
 
@@ -177,7 +181,9 @@ class ImportStructuresDialog(wx.Dialog):
 
     def on_school_changed(self, event):
         sel = self.school_choice.GetSelection()
-        school_id = self.school_choice.GetClientData(sel) if sel != wx.NOT_FOUND else None
+        school_id = (
+            self.school_choice.GetClientData(sel) if sel != wx.NOT_FOUND else None
+        )
         self.load_programs_for_school(school_id)
 
     def on_import(self, event):

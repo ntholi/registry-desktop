@@ -300,7 +300,6 @@ class TermsView(wx.Panel):
                 self.list_ctrl.SetItem(index, 3, term.start_date or "")
                 self.list_ctrl.SetItem(index, 4, term.end_date or "")
                 self.list_ctrl.SetItem(index, 5, "Yes" if term.is_active else "No")
-                self.list_ctrl.SetItemData(index, term.id)
 
             self.update_pagination_controls()
             self.update_total_label()

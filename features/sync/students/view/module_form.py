@@ -19,7 +19,7 @@ class ModuleFormDialog(wx.Dialog):
         self.module_data = module_data
         self.status_bar = status_bar
         self.repository = StudentRepository()
-        self.selected_semester_module_id = None
+        self.selected_semester_module_cms_id = None
         self.semester_module_changed = False
         self.SetSize(wx.Size(650, 500))
         self.CenterOnScreen()
@@ -244,7 +244,7 @@ class ModuleFormDialog(wx.Dialog):
             self.results_list.SetItem(
                 idx, 3, format_semester(result.get("semester_number"), type="short")
             )
-            self.results_list.SetItemData(idx, result["semester_module_id"])
+            self.results_list.SetItemData(idx, result["semester_module_cms_id"])
 
     def on_module_selected(self, event):
         self.select_btn.Enable(True)
@@ -257,7 +257,7 @@ class ModuleFormDialog(wx.Dialog):
         module_code = self.results_list.GetItemText(selected_idx, 0)
         module_name = self.results_list.GetItemText(selected_idx, 1)
         program_name = self.results_list.GetItemText(selected_idx, 2)
-        semester_module_id = self.results_list.GetItemData(selected_idx)
+        semester_module_cms_id = self.results_list.GetItemData(selected_idx)
 
         message = (
             f"Are you sure you want to change the semester module to:\n\n"
@@ -274,7 +274,7 @@ class ModuleFormDialog(wx.Dialog):
         )
 
         if dlg.ShowModal() == wx.ID_YES:
-            self.selected_semester_module_id = semester_module_id
+            self.selected_semester_module_cms_id = semester_module_cms_id
             self.semester_module_changed = True
             self.selection_label.SetLabel(
                 f"✓ Selected: {module_code} - {module_name} ({program_name})"
@@ -352,8 +352,8 @@ class ModuleFormDialog(wx.Dialog):
             data["marks"] = self.module_data.get("marks", "")
             data["grade"] = self.module_data.get("grade", "")
 
-        if self.semester_module_changed and self.selected_semester_module_id:
-            data["semester_module_id"] = self.selected_semester_module_id
+        if self.semester_module_changed and self.selected_semester_module_cms_id:
+            data["semester_module_cms_id"] = self.selected_semester_module_cms_id
 
         return data
 

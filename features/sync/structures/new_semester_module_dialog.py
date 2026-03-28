@@ -198,7 +198,7 @@ class NewSemesterModuleDialog(wx.Dialog):
             label = f"{getattr(existing, 'module_code', '')} - {getattr(existing, 'module_name', '')}".strip(
                 " -"
             )
-            self.prereq_choice.Append(label, getattr(existing, "id", None))
+            self.prereq_choice.Append(label, getattr(existing, "cms_id", None))
         self.prereq_choice.SetSelection(0)
         form_sizer.Add(self.prereq_choice, 1, wx.EXPAND)
 
@@ -258,6 +258,7 @@ class NewSemesterModuleDialog(wx.Dialog):
                     (func.lower(Module.code).like(pattern))
                     | (func.lower(Module.name).like(pattern))
                 )
+                .filter(Module.cms_id.isnot(None))
                 .order_by(Module.code)
                 .limit(100)
                 .all()
@@ -267,7 +268,7 @@ class NewSemesterModuleDialog(wx.Dialog):
             self.results_list.InsertItem(idx, str(getattr(module, "code", "")))
             self.results_list.SetItem(idx, 1, str(getattr(module, "name", "")))
             self.results_list.SetItem(idx, 2, str(getattr(module, "status", "")))
-            self.results_list.SetItemData(idx, int(getattr(module, "id")))
+            self.results_list.SetItemData(idx, int(getattr(module, "cms_id")))
 
         if not results:
             self._offer_create_module(query)
@@ -350,12 +351,12 @@ class NewSemesterModuleDialog(wx.Dialog):
 
         with Session(self._engine) as session:
             module = session.query(Module).filter(Module.code == code).first()
-            if not module:
+            if not module or module.cms_id is None:
                 self.selected_module_label.SetLabel("Selected module: (none)")
                 self._set_form_enabled(False)
                 return
 
-            self._selected_module_id = module.id
+            self._selected_module_id = module.cms_id
             self._selected_module_code = module.code
             self._selected_module_name = module.name
 

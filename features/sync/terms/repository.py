@@ -15,7 +15,6 @@ logger = get_logger(__name__)
 
 @dataclass(frozen=True)
 class TermRow:
-    id: int
     code: str
     name: Optional[str]
     year: Optional[int]
@@ -57,7 +56,6 @@ class TermRepository:
 
         rows = [
             TermRow(
-                id=result.id,
                 code=result.code,
                 name=result.name,
                 year=result.year,
@@ -68,10 +66,6 @@ class TermRepository:
             for result in results
         ]
         return rows, total
-
-    def get_term(self, term_id: int) -> Optional[Term]:
-        with self._session() as session:
-            return session.query(Term).filter(Term.id == term_id).first()
 
     def get_term_by_code(self, code: str) -> Optional[Term]:
         with self._session() as session:

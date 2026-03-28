@@ -67,10 +67,10 @@ class LoadFilterOptionsWorker(threading.Thread):
 
 
 class LoadProgramsWorker(threading.Thread):
-    def __init__(self, repository, school_id, callback):
+    def __init__(self, repository, school_cms_id, callback):
         super().__init__(daemon=True)
         self.repository = repository
-        self.school_id = school_id
+        self.school_cms_id = school_cms_id
         self.callback = callback
         self.should_stop = False
 
@@ -78,7 +78,7 @@ class LoadProgramsWorker(threading.Thread):
         if self.should_stop:
             return
         try:
-            programs = self.repository.list_programs(self.school_id)
+            programs = self.repository.list_programs(self.school_cms_id)
             self.callback("programs_loaded", programs)
         except Exception as e:
             self.callback("programs_error", str(e))
@@ -143,9 +143,9 @@ class RequestsView(wx.Panel):
         self.page_size = 30
         self.total_requests = 0
         self.search_query = ""
-        self.selected_school_id = None
-        self.selected_program_id = None
-        self.selected_term_id = None
+        self.selected_school_cms_id = None
+        self.selected_program_cms_id = None
+        self.selected_term_code = None
         self.selected_status = "approved"
         self.search_timer = None
         self.repository = EnrollmentRequestRepository()
@@ -541,7 +541,7 @@ class RequestsView(wx.Panel):
         )
         self.filter_worker.start()
 
-    def load_programs_for_school(self, school_id, trigger_load_requests=False):
+    def load_programs_for_school(self, school_cms_id, trigger_load_requests=False):
         self.pending_load_requests = trigger_load_requests
 
         self.program_filter.Enable(False)
@@ -553,35 +553,35 @@ class RequestsView(wx.Panel):
         if self.status_bar:
             self.status_bar.show_message("Loading programs...")
         self.programs_worker = LoadProgramsWorker(
-            self.repository, school_id, self.on_programs_callback
+            self.repository, school_cms_id, self.on_programs_callback
         )
         self.programs_worker.start()
 
     def on_school_changed(self, event):
         sel = self.school_filter.GetSelection()
-        self.selected_school_id = (
+        self.selected_school_cms_id = (
             self.school_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
         )
         self.program_filter.SetSelection(0)
-        self.selected_program_id = None
+        self.selected_program_cms_id = None
         self.current_page = 1
         self.load_programs_for_school(
-            self.selected_school_id, trigger_load_requests=True
+            self.selected_school_cms_id, trigger_load_requests=True
         )
 
     def on_filter_changed(self, event):
         sel = self.school_filter.GetSelection()
-        self.selected_school_id = (
+        self.selected_school_cms_id = (
             self.school_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
         )
 
         sel = self.program_filter.GetSelection()
-        self.selected_program_id = (
+        self.selected_program_cms_id = (
             self.program_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
         )
 
         sel = self.term_filter.GetSelection()
-        self.selected_term_id = (
+        self.selected_term_code = (
             self.term_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
         )
 
@@ -615,9 +615,9 @@ class RequestsView(wx.Panel):
         if self.status_bar:
             self.status_bar.show_message("Loading requests...")
         filters = {
-            "school_id": self.selected_school_id,
-            "program_id": self.selected_program_id,
-            "term_id": self.selected_term_id,
+            "school_cms_id": self.selected_school_cms_id,
+            "program_cms_id": self.selected_program_cms_id,
+            "term_code": self.selected_term_code,
             "status": self.selected_status,
             "search_query": self.search_query,
         }
@@ -785,19 +785,19 @@ class RequestsView(wx.Panel):
 
             self.school_filter.SetString(0, "All Schools")
             for school in schools:
-                self.school_filter.Append(str(school.name), school.id)
+                self.school_filter.Append(str(school.name), school.cms_id)
             self.school_filter.SetSelection(0)
             self.school_filter.Enable(True)
 
             self.program_filter.SetString(0, "All Programs")
             for program in programs:
-                self.program_filter.Append(str(program.name), program.id)
+                self.program_filter.Append(str(program.name), program.cms_id)
             self.program_filter.SetSelection(0)
             self.program_filter.Enable(True)
 
             self.term_filter.SetString(0, "All Terms")
             for term in terms:
-                self.term_filter.Append(str(term.code), term.id)
+                self.term_filter.Append(str(term.code), term.code)
             self.term_filter.SetSelection(0)
             self.term_filter.Enable(True)
         elif event_type == "filters_error":
@@ -820,7 +820,7 @@ class RequestsView(wx.Panel):
                 self.program_filter.Delete(1)
             self.program_filter.SetString(0, "All Programs")
             for program in programs:
-                self.program_filter.Append(str(program.name), program.id)
+                self.program_filter.Append(str(program.name), program.cms_id)
             self.program_filter.SetSelection(0)
             self.program_filter.Enable(True)
 

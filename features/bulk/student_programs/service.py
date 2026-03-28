@@ -8,7 +8,11 @@ from base import get_logger
 from base.browser import BASE_URL, Browser, get_form_payload
 from features.common.cms_utils import post_cms_form
 
-from .repository import BulkStudentProgramsRepository, StudentProgramRow
+from .repository import (
+    BulkStudentProgramsRepository,
+    StructureOption,
+    StudentProgramRow,
+)
 
 logger = get_logger(__name__)
 
@@ -23,13 +27,10 @@ class StudentProgramService:
     def update_student_program_structure(
         self,
         student_program: StudentProgramRow,
-        new_structure_id: int,
-        new_structure_code: str,
+        new_structure: StructureOption,
         progress_callback: Callable[[str], None],
     ) -> tuple[bool, str]:
-        cms_program_id = self._repository.get_cms_student_program_id(
-            student_program.student_program_id
-        )
+        cms_program_id = student_program.student_program_cms_id
 
         if not cms_program_id:
             return False, "Could not find CMS program ID"
@@ -57,7 +58,7 @@ class StudentProgramService:
 
             form_data["a_edit"] = "U"
 
-            form_data["x_StructureID"] = str(new_structure_id)
+            form_data["x_StructureID"] = str(new_structure.cms_id)
 
             self._populate_form_with_current_data(
                 form, form_data, student_program, page
@@ -74,7 +75,8 @@ class StudentProgramService:
 
                 db_success, db_message = (
                     self._repository.update_student_program_structure(
-                        student_program.student_program_id, new_structure_id
+                        student_program.student_program_db_id,
+                        new_structure.db_id,
                     )
                 )
 
@@ -93,7 +95,7 @@ class StudentProgramService:
                 f"Error updating student program structure - "
                 f"std_no={student_program.std_no}, "
                 f"cms_program_id={cms_program_id}, "
-                f"new_structure_id={new_structure_id}, "
+                f"new_structure_cms_id={new_structure.cms_id}, "
                 f"error={str(e)}"
             )
             return False, f"Error: {str(e)}"

@@ -18,7 +18,7 @@ class BulkAddModuleFormDialog(wx.Dialog):
         self.selected_count = selected_count
         self.status_bar = status_bar
         self.repository = StudentRepository()
-        self.selected_semester_module_id = None
+        self.selected_semester_module_cms_id = None
         self.selected_module_data = None
         self.stored_results = []
 
@@ -136,7 +136,7 @@ class BulkAddModuleFormDialog(wx.Dialog):
 
         self.results_list.DeleteAllItems()
         self.add_btn.Enable(False)
-        self.selected_semester_module_id = None
+        self.selected_semester_module_cms_id = None
 
         if self.status_bar:
             wx.CallAfter(
@@ -176,7 +176,7 @@ class BulkAddModuleFormDialog(wx.Dialog):
                 idx, 3, format_semester(result.get("semester_number"), type="short")
             )
             self.results_list.SetItem(idx, 4, str(result.get("credits", "")))
-            self.results_list.SetItemData(idx, result["semester_module_id"])
+            self.results_list.SetItemData(idx, result["semester_module_cms_id"])
 
         if self.status_bar:
             wx.CallAfter(self.status_bar.clear)
@@ -185,7 +185,7 @@ class BulkAddModuleFormDialog(wx.Dialog):
         self.add_btn.Enable(True)
         selected_idx = self.results_list.GetFirstSelected()
         if selected_idx != -1:
-            self.selected_semester_module_id = self.results_list.GetItemData(
+            self.selected_semester_module_cms_id = self.results_list.GetItemData(
                 selected_idx
             )
             if selected_idx < len(self.stored_results):
@@ -205,13 +205,21 @@ class BulkAddModuleFormDialog(wx.Dialog):
             self.EndModal(wx.ID_OK)
 
     def get_module_data(self):
-        if not self.selected_semester_module_id:
+        if not self.selected_semester_module_cms_id:
             return None
 
         return {
-            "semester_module_id": self.selected_semester_module_id,
-            "module_code": self.selected_module_data.get("module_code") if self.selected_module_data else None,
-            "module_name": self.selected_module_data.get("module_name") if self.selected_module_data else None,
+            "semester_module_cms_id": self.selected_semester_module_cms_id,
+            "module_code": (
+                self.selected_module_data.get("module_code")
+                if self.selected_module_data
+                else None
+            ),
+            "module_name": (
+                self.selected_module_data.get("module_name")
+                if self.selected_module_data
+                else None
+            ),
             "status": self.status_combo.GetValue().strip(),
         }
 

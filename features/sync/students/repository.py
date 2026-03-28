@@ -58,17 +58,22 @@ class StudentRepository:
     def list_active_schools(self):
         with self._session() as session:
             return (
-                session.query(School.id, School.name)
+                session.query(School.cms_id.label("cms_id"), School.name)
                 .filter(School.is_active == True)
+                .filter(School.cms_id.isnot(None))
                 .order_by(School.name)
                 .all()
             )
 
-    def list_programs(self, school_id: Optional[int] = None):
+    def list_programs(self, school_cms_id: Optional[int] = None):
         with self._session() as session:
-            query = session.query(Program.id, Program.name)
-            if school_id:
-                query = query.filter(Program.school_id == school_id)
+            query = session.query(Program.cms_id.label("cms_id"), Program.name).filter(
+                Program.cms_id.isnot(None)
+            )
+            if school_cms_id:
+                query = query.join(School, Program.school_id == School.id).filter(
+                    School.cms_id == school_cms_id
+                )
             return query.order_by(Program.name).all()
 
     def list_terms(self):
@@ -99,8 +104,8 @@ class StudentRepository:
     def fetch_students(
         self,
         *,
-        school_id: Optional[int] = None,
-        program_id: Optional[int] = None,
+        school_cms_id: Optional[int] = None,
+        program_cms_id: Optional[int] = None,
         term: Optional[str] = None,
         semester_number: Optional[str] = None,
         search_query: str = "",
@@ -130,11 +135,11 @@ class StudentRepository:
                 .distinct()
             )
 
-            if school_id:
-                query = query.filter(Program.school_id == school_id)
+            if school_cms_id:
+                query = query.filter(School.cms_id == school_cms_id)
 
-            if program_id:
-                query = query.filter(Program.id == program_id)
+            if program_cms_id:
+                query = query.filter(Program.cms_id == program_cms_id)
 
             if term or semester_number:
                 from database import StructureSemester
@@ -191,16 +196,21 @@ class StudentRepository:
         with self._session() as session:
             programs = (
                 session.query(
-                    StudentProgram.id,
+                    StudentProgram.id.label("student_program_db_id"),
+                    StudentProgram.cms_id.label("student_program_cms_id"),
                     StudentProgram.intake_date,
                     StudentProgram.reg_date,
                     StudentProgram.start_term,
                     StudentProgram.status,
                     StudentProgram.stream,
                     StudentProgram.graduation_date,
+                    Structure.id.label("structure_db_id"),
+                    Structure.cms_id.label("structure_cms_id"),
                     Program.name.label("program_name"),
                     Program.code.label("program_code"),
+                    Program.cms_id.label("program_cms_id"),
                     School.name.label("school_name"),
+                    School.cms_id.label("school_cms_id"),
                 )
                 .join(Structure, StudentProgram.structure_id == Structure.id)
                 .join(Program, Structure.program_id == Program.id)
@@ -221,11 +231,14 @@ class StudentRepository:
         with self._session() as session:
             program_details = (
                 session.query(
+                    StudentProgram.id.label("student_program_db_id"),
+                    StudentProgram.cms_id.label("student_program_cms_id"),
                     StudentProgram.intake_date,
                     StudentProgram.start_term,
-                    Structure.id.label("structure_id"),
-                    Program.id.label("program_id"),
-                    School.id.label("school_id"),
+                    Structure.id.label("structure_db_id"),
+                    Structure.cms_id.label("structure_cms_id"),
+                    Program.cms_id.label("program_cms_id"),
+                    School.cms_id.label("school_cms_id"),
                 )
                 .join(Structure, StudentProgram.structure_id == Structure.id)
                 .join(Program, Structure.program_id == Program.id)
@@ -245,28 +258,34 @@ class StudentRepository:
                 return None
 
             return {
+                "student_program_db_id": program_details.student_program_db_id,
+                "student_program_cms_id": program_details.student_program_cms_id,
                 "intake_date": program_details.intake_date,
                 "start_term": program_details.start_term,
-                "structure_id": program_details.structure_id,
-                "program_id": program_details.program_id,
-                "school_id": program_details.school_id,
+                "structure_db_id": program_details.structure_db_id,
+                "structure_cms_id": program_details.structure_cms_id,
+                "program_cms_id": program_details.program_cms_id,
+                "school_cms_id": program_details.school_cms_id,
             }
 
-    def get_student_program_details_by_id(self, student_program_id: int):
+    def get_student_program_details_by_id(self, student_program_db_id: int):
         with self._session() as session:
             program_details = (
                 session.query(
+                    StudentProgram.id.label("student_program_db_id"),
+                    StudentProgram.cms_id.label("student_program_cms_id"),
                     StudentProgram.std_no,
                     StudentProgram.intake_date,
                     StudentProgram.start_term,
-                    Structure.id.label("structure_id"),
-                    Program.id.label("program_id"),
-                    School.id.label("school_id"),
+                    Structure.id.label("structure_db_id"),
+                    Structure.cms_id.label("structure_cms_id"),
+                    Program.cms_id.label("program_cms_id"),
+                    School.cms_id.label("school_cms_id"),
                 )
                 .join(Structure, StudentProgram.structure_id == Structure.id)
                 .join(Program, Structure.program_id == Program.id)
                 .join(School, Program.school_id == School.id)
-                .filter(StudentProgram.id == student_program_id)
+                .filter(StudentProgram.id == student_program_db_id)
                 .first()
             )
 
@@ -274,25 +293,30 @@ class StudentRepository:
                 return None
 
             return {
+                "student_program_db_id": program_details.student_program_db_id,
+                "student_program_cms_id": program_details.student_program_cms_id,
                 "std_no": program_details.std_no,
                 "intake_date": program_details.intake_date,
                 "start_term": program_details.start_term,
-                "structure_id": program_details.structure_id,
-                "program_id": program_details.program_id,
-                "school_id": program_details.school_id,
+                "structure_db_id": program_details.structure_db_id,
+                "structure_cms_id": program_details.structure_cms_id,
+                "program_cms_id": program_details.program_cms_id,
+                "school_cms_id": program_details.school_cms_id,
             }
 
-    def get_structure_semesters(self, structure_id: int):
+    def get_structure_semesters(self, structure_db_id: int):
         with self._session() as session:
             from database import StructureSemester
 
             semesters = (
                 session.query(
-                    StructureSemester.id,
+                    StructureSemester.id.label("structure_semester_db_id"),
+                    StructureSemester.cms_id.label("structure_semester_cms_id"),
                     StructureSemester.semester_number,
                     StructureSemester.name,
                 )
-                .filter(StructureSemester.structure_id == structure_id)
+                .filter(StructureSemester.structure_id == structure_db_id)
+                .filter(StructureSemester.cms_id.isnot(None))
                 .order_by(StructureSemester.semester_number)
                 .all()
             )
@@ -356,7 +380,7 @@ class StudentRepository:
             if code.isdigit():
                 structure = (
                     session.query(Structure.id)
-                    .filter(Structure.id == int(code))
+                    .filter(Structure.cms_id == int(code))
                     .first()
                 )
                 if structure:
@@ -364,14 +388,17 @@ class StudentRepository:
 
             return None
 
-    def get_student_semesters(self, student_program_id: int):
+    def get_student_semesters(self, student_program_db_id: int):
         with self._session() as session:
             from database import StructureSemester
 
             semesters = (
                 session.query(
-                    StudentSemester.id,
+                    StudentSemester.id.label("student_semester_db_id"),
+                    StudentSemester.cms_id.label("student_semester_cms_id"),
                     StudentSemester.term_code,
+                    StructureSemester.id.label("structure_semester_db_id"),
+                    StructureSemester.cms_id.label("structure_semester_cms_id"),
                     StructureSemester.semester_number,
                     StudentSemester.status,
                     StudentSemester.caf_date,
@@ -380,58 +407,70 @@ class StudentRepository:
                     StructureSemester,
                     StudentSemester.structure_semester_id == StructureSemester.id,
                 )
-                .filter(StudentSemester.student_program_id == student_program_id)
+                .filter(StudentSemester.student_program_id == student_program_db_id)
                 .order_by(StudentSemester.term_code, StructureSemester.semester_number)
                 .all()
             )
             return semesters
 
-    def get_student_semester_by_id(self, student_semester_id: int):
+    def get_student_semester_by_id(self, student_semester_db_id: int):
         with self._session() as session:
             from database import StructureSemester
 
             result = (
                 session.query(
-                    StudentSemester.id,
-                    StudentSemester.student_program_id,
+                    StudentSemester.id.label("student_semester_db_id"),
+                    StudentSemester.student_program_id.label("student_program_db_id"),
+                    StudentProgram.cms_id.label("student_program_cms_id"),
                     StudentSemester.term_code,
-                    StudentSemester.structure_semester_id,
+                    StudentSemester.structure_semester_id.label(
+                        "structure_semester_db_id"
+                    ),
+                    StructureSemester.cms_id.label("structure_semester_cms_id"),
                     StructureSemester.semester_number,
                     StudentSemester.status,
                     StudentSemester.caf_date,
-                    StudentProgram.structure_id,
-                    StudentSemester.cms_id,
+                    StudentProgram.structure_id.label("structure_db_id"),
+                    Structure.cms_id.label("structure_cms_id"),
+                    StudentSemester.cms_id.label("student_semester_cms_id"),
                 )
                 .join(
                     StudentProgram,
                     StudentSemester.student_program_id == StudentProgram.id,
                 )
+                .join(Structure, StudentProgram.structure_id == Structure.id)
                 .join(
                     StructureSemester,
                     StudentSemester.structure_semester_id == StructureSemester.id,
                 )
-                .filter(StudentSemester.id == student_semester_id)
+                .filter(StudentSemester.id == student_semester_db_id)
                 .first()
             )
             if result:
                 return {
-                    "id": result[0],
-                    "student_program_id": result[1],
-                    "term_code": result[2],
-                    "structure_semester_id": result[3],
-                    "semester_number": result[4],
-                    "status": result[5],
-                    "caf_date": result[6],
-                    "structure_id": result[7],
-                    "cms_id": result[8],
+                    "student_semester_db_id": result.student_semester_db_id,
+                    "student_semester_cms_id": result.student_semester_cms_id,
+                    "student_program_db_id": result.student_program_db_id,
+                    "student_program_cms_id": result.student_program_cms_id,
+                    "term_code": result.term_code,
+                    "structure_semester_db_id": result.structure_semester_db_id,
+                    "structure_semester_cms_id": result.structure_semester_cms_id,
+                    "semester_number": result.semester_number,
+                    "status": result.status,
+                    "caf_date": result.caf_date,
+                    "structure_db_id": result.structure_db_id,
+                    "structure_cms_id": result.structure_cms_id,
                 }
             return None
 
-    def get_semester_modules(self, student_semester_id: int):
+    def get_semester_modules(self, student_semester_db_id: int):
         with self._session() as session:
             modules = (
                 session.query(
-                    StudentModule.id,
+                    StudentModule.id.label("student_module_db_id"),
+                    StudentModule.cms_id.label("student_module_cms_id"),
+                    SemesterModule.id.label("semester_module_db_id"),
+                    SemesterModule.cms_id.label("semester_module_cms_id"),
                     Module.code.label("module_code"),
                     Module.name.label("module_name"),
                     StudentModule.status,
@@ -444,7 +483,7 @@ class StudentRepository:
                     StudentModule.semester_module_id == SemesterModule.id,
                 )
                 .join(Module, SemesterModule.module_id == Module.id)
-                .filter(StudentModule.student_semester_id == student_semester_id)
+                .filter(StudentModule.student_semester_id == student_semester_db_id)
                 .order_by(Module.code)
                 .all()
             )
@@ -458,7 +497,8 @@ class StudentRepository:
 
             results = (
                 session.query(
-                    SemesterModule.id.label("semester_module_id"),
+                    SemesterModule.id.label("semester_module_db_id"),
+                    SemesterModule.cms_id.label("semester_module_cms_id"),
                     Module.code.label("module_code"),
                     Module.name.label("module_name"),
                     Program.name.label("program_name"),
@@ -478,13 +518,15 @@ class StudentRepository:
                         Module.name.like(search_pattern),
                     )
                 )
+                .filter(SemesterModule.cms_id.isnot(None))
                 .order_by(Module.code, Program.name)
                 .all()
             )
 
             return [
                 {
-                    "semester_module_id": r.semester_module_id,
+                    "semester_module_db_id": r.semester_module_db_id,
+                    "semester_module_cms_id": r.semester_module_cms_id,
                     "module_code": r.module_code,
                     "module_name": r.module_name,
                     "program_name": r.program_name,
@@ -695,25 +737,40 @@ class StudentRepository:
             )
             return semester_module[0] if semester_module else None
 
-    def get_semester_module_credits(self, semester_module_id: int) -> Optional[float]:
+    def get_semester_module_credits_by_cms_id(
+        self, semester_module_cms_id: int
+    ) -> Optional[float]:
         with self._session() as session:
             semester_module = (
                 session.query(SemesterModule.credits)
-                .filter(SemesterModule.id == semester_module_id)
+                .filter(SemesterModule.cms_id == semester_module_cms_id)
+                .first()
+            )
+            return semester_module[0] if semester_module else None
+
+    def get_semester_module_db_id_by_cms_id(
+        self, semester_module_cms_id: int
+    ) -> Optional[int]:
+        with self._session() as session:
+            semester_module = (
+                session.query(SemesterModule.id)
+                .filter(SemesterModule.cms_id == semester_module_cms_id)
                 .first()
             )
             return semester_module[0] if semester_module else None
 
     def upsert_student_module(self, data: dict) -> tuple[bool, str]:
         std_module_id: int = 0
-        student_semester_id: Optional[int] = None
+        student_semester_db_id: Optional[int] = None
         semester_module_id: Optional[int] = None
         with self._session() as session:
             try:
                 std_module_id = int(data["cms_id"])
-                student_semester_id = data.get("student_semester_id")
+                student_semester_db_id = data.get("student_semester_db_id") or data.get(
+                    "student_semester_id"
+                )
 
-                if not student_semester_id:
+                if not student_semester_db_id:
                     return False, "Missing student_semester_id"
 
                 existing = (
@@ -722,12 +779,19 @@ class StudentRepository:
                     .first()
                 )
 
-                if "semester_module_id" in data and data["semester_module_id"]:
+                if (
+                    "semester_module_cms_id" in data
+                    and data["semester_module_cms_id"]
+                ):
+                    semester_module_id = self.get_semester_module_db_id_by_cms_id(
+                        int(data["semester_module_cms_id"])
+                    )
+                elif "semester_module_id" in data and data["semester_module_id"]:
                     semester_module_id = data["semester_module_id"]
                 elif "module_code" in data:
                     student_semester = (
                         session.query(StudentSemester)
-                        .filter(StudentSemester.id == student_semester_id)
+                        .filter(StudentSemester.id == student_semester_db_id)
                         .first()
                     )
 
@@ -751,23 +815,25 @@ class StudentRepository:
                                 logger.error(
                                     f"Semester module not found - module_code={data['module_code']}, "
                                     f"structure_id={structure_id}, "
-                                    f"student_semester_id={student_semester_id}, "
+                                    f"student_semester_id={student_semester_db_id}, "
                                     f"std_module_id={std_module_id}"
                                 )
 
                 if not existing and semester_module_id:
                     existing = (
                         session.query(StudentModule)
-                        .filter(StudentModule.student_semester_id == student_semester_id)
+                        .filter(
+                            StudentModule.student_semester_id == student_semester_db_id
+                        )
                         .filter(StudentModule.semester_module_id == semester_module_id)
                         .first()
                     )
 
-                if not semester_module_id and student_semester_id:
+                if not semester_module_id and student_semester_db_id:
                     logger.error(
                         f"Missing semester module - "
                         f"std_module_id={std_module_id}, "
-                        f"student_semester_id={student_semester_id}, "
+                        f"student_semester_id={student_semester_db_id}, "
                         f"module_code={data.get('module_code')}, "
                         f"module_name={data.get('module_name')}"
                     )
@@ -777,7 +843,7 @@ class StudentRepository:
                     logger.error(
                         f"Cannot resolve semester_module_id - "
                         f"std_module_id={std_module_id}, "
-                        f"student_semester_id={student_semester_id}, "
+                        f"student_semester_id={student_semester_db_id}, "
                         f"module_code={data.get('module_code')}, data={data}"
                     )
                     return False, "Cannot resolve semester_module_id"
@@ -797,6 +863,8 @@ class StudentRepository:
                         existing.grade = data["grade"]
                     if "student_semester_id" in data:
                         existing.student_semester_id = data["student_semester_id"]
+                    if "student_semester_db_id" in data:
+                        existing.student_semester_id = data["student_semester_db_id"]
 
                     session.commit()
                     logger.info(f"Updated student module {std_module_id}")
@@ -809,7 +877,7 @@ class StudentRepository:
                         credits=float(data.get("credits", 0)),
                         marks=data.get("marks", "NM"),
                         grade=data.get("grade", "NM"),
-                        student_semester_id=student_semester_id,
+                        student_semester_id=student_semester_db_id,
                     )
                     session.add(new_module)
                     session.commit()
@@ -821,7 +889,7 @@ class StudentRepository:
                 error_msg = f"Error upserting student module: {str(e)}"
                 logger.error(
                     f"Error upserting student module - std_module_id={std_module_id}, "
-                    f"student_semester_id={student_semester_id}, "
+                    f"student_semester_id={student_semester_db_id}, "
                     f"semester_module_id={semester_module_id}, "
                     f"module_code={data.get('module_code')}, "
                     f"error={str(e)}, data={data}",

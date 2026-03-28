@@ -33,17 +33,18 @@ logger = get_logger(__name__)
 class StudentModuleGradeRow:
     std_no: str
     name: Optional[str]
-    student_module_id: int
-    semester_module_id: int
-    module_id: int
+    student_module_db_id: int
+    semester_module_db_id: int
+    semester_module_cms_id: Optional[int]
+    module_db_id: int
     module_code: str
     module_name: str
     status: str
     credits: Optional[float]
     marks: Optional[str]
     grade: Optional[str]
-    student_semester_id: int
-    term_id: int
+    student_semester_db_id: int
+    term_db_id: int
 
 
 @dataclass(frozen=True)
@@ -71,31 +72,40 @@ class ModuleGradesRepository:
     def list_active_schools(self):
         with self._session() as session:
             return (
-                session.query(School.id, School.name)
+                session.query(School.cms_id.label("cms_id"), School.name)
                 .filter(School.is_active == True)
+                .filter(School.cms_id.isnot(None))
                 .order_by(School.name)
                 .all()
             )
 
     def list_programs(self, school_id: Optional[int] = None):
         with self._session() as session:
-            query = session.query(Program.id, Program.name)
+            query = session.query(Program.cms_id.label("cms_id"), Program.name).filter(
+                Program.cms_id.isnot(None)
+            )
             if school_id:
-                query = query.filter(Program.school_id == school_id)
+                query = query.join(School, Program.school_id == School.id).filter(
+                    School.cms_id == school_id
+                )
             return query.order_by(Program.name).all()
 
     def list_structures(self, program_id: Optional[int] = None):
         with self._session() as session:
-            query = session.query(Structure.id, Structure.code, Structure.desc)
+            query = session.query(
+                Structure.cms_id.label("cms_id"), Structure.code, Structure.desc
+            ).filter(Structure.cms_id.isnot(None))
             if program_id:
-                query = query.filter(Structure.program_id == program_id)
+                query = query.join(Program, Structure.program_id == Program.id).filter(
+                    Program.cms_id == program_id
+                )
             return query.order_by(Structure.code.desc()).all()
 
     def list_structure_modules(self, structure_id: int):
         with self._session() as session:
             results = (
                 session.query(
-                    SemesterModule.id.label("semester_module_id"),
+                    SemesterModule.cms_id.label("semester_module_cms_id"),
                     Module.code.label("module_code"),
                     Module.name.label("module_name"),
                     SemesterModule.credits,
@@ -106,7 +116,9 @@ class ModuleGradesRepository:
                     StructureSemester,
                     SemesterModule.semester_id == StructureSemester.id,
                 )
-                .filter(StructureSemester.structure_id == structure_id)
+                .join(Structure, StructureSemester.structure_id == Structure.id)
+                .filter(Structure.cms_id == structure_id)
+                .filter(SemesterModule.cms_id.isnot(None))
                 .order_by(StructureSemester.semester_number, Module.code)
                 .all()
             )
@@ -120,7 +132,8 @@ class ModuleGradesRepository:
                     StudentProgram,
                     StudentSemester.student_program_id == StudentProgram.id,
                 )
-                .filter(StudentProgram.structure_id == structure_id)
+                .join(Structure, StudentProgram.structure_id == Structure.id)
+                .filter(Structure.cms_id == structure_id)
                 .distinct()
                 .order_by(StudentSemester.term_code.desc())
                 .all()
@@ -145,17 +158,18 @@ class ModuleGradesRepository:
                 session.query(
                     Student.std_no,
                     Student.name,
-                    StudentModule.id.label("student_module_id"),
-                    StudentModule.semester_module_id,
-                    Module.id.label("module_id"),
+                    StudentModule.id.label("student_module_db_id"),
+                    StudentModule.semester_module_id.label("semester_module_db_id"),
+                    SemesterModule.cms_id.label("semester_module_cms_id"),
+                    Module.id.label("module_db_id"),
                     Module.code.label("module_code"),
                     Module.name.label("module_name"),
                     StudentModule.status,
                     StudentModule.credits,
                     StudentModule.marks,
                     StudentModule.grade,
-                    StudentModule.student_semester_id,
-                    term_subquery.label("term_id"),
+                    StudentModule.student_semester_id.label("student_semester_db_id"),
+                    term_subquery.label("term_db_id"),
                 )
                 .join(
                     StudentSemester,
@@ -175,7 +189,7 @@ class ModuleGradesRepository:
                     StructureSemester,
                     StudentSemester.structure_semester_id == StructureSemester.id,
                 )
-                .filter(StudentProgram.structure_id == structure_id)
+                .filter(Structure.cms_id == structure_id)
                 .filter(
                     or_(
                         StudentProgram.status == "Active",
@@ -185,9 +199,7 @@ class ModuleGradesRepository:
             )
 
             if semester_module_id:
-                query = query.filter(
-                    StudentModule.semester_module_id == semester_module_id
-                )
+                query = query.filter(SemesterModule.cms_id == semester_module_id)
 
             if term:
                 query = query.filter(StudentSemester.term_code == term)
@@ -199,17 +211,18 @@ class ModuleGradesRepository:
                 StudentModuleGradeRow(
                     std_no=str(r.std_no),
                     name=r.name,
-                    student_module_id=r.student_module_id,
-                    semester_module_id=r.semester_module_id,
-                    module_id=r.module_id,
+                    student_module_db_id=r.student_module_db_id,
+                    semester_module_db_id=r.semester_module_db_id,
+                    semester_module_cms_id=r.semester_module_cms_id,
+                    module_db_id=r.module_db_id,
                     module_code=r.module_code,
                     module_name=r.module_name,
                     status=r.status,
                     credits=r.credits,
                     marks=r.marks,
                     grade=r.grade,
-                    student_semester_id=r.student_semester_id,
-                    term_id=r.term_id,
+                    student_semester_db_id=r.student_semester_db_id,
+                    term_db_id=r.term_db_id,
                 )
                 for r in results
             ]

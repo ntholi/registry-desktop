@@ -126,8 +126,8 @@ class SearchWorker(threading.Thread):
             return
         try:
             students, total = self.view.repository.fetch_students(
-                school_id=self.view.selected_school_id,
-                program_id=self.view.selected_program_id,
+                school_cms_id=self.view.selected_school_cms_id,
+                program_cms_id=self.view.selected_program_cms_id,
                 term=self.view.selected_term,
                 semester_number=self.view.selected_semester_number,
                 search_query=self.view.search_query,
@@ -166,10 +166,10 @@ class LoadFilterOptionsWorker(threading.Thread):
 
 
 class LoadProgramsWorker(threading.Thread):
-    def __init__(self, repository, school_id, callback):
+    def __init__(self, repository, school_cms_id, callback):
         super().__init__(daemon=True)
         self.repository = repository
-        self.school_id = school_id
+        self.school_cms_id = school_cms_id
         self.callback = callback
         self.should_stop = False
 
@@ -177,7 +177,7 @@ class LoadProgramsWorker(threading.Thread):
         if self.should_stop:
             return
         try:
-            programs = self.repository.list_programs(self.school_id)
+            programs = self.repository.list_programs(self.school_cms_id)
             self.callback("programs_loaded", programs)
         except Exception as e:
             self.callback("programs_error", str(e))
@@ -234,8 +234,8 @@ class StudentsView(wx.Panel):
         self.page_size = 30
         self.total_students = 0
         self.search_query = ""
-        self.selected_school_id = None
-        self.selected_program_id = None
+        self.selected_school_cms_id = None
+        self.selected_program_cms_id = None
         self.selected_term = None
         self.selected_semester_number = None
         self.fetch_worker = None
@@ -565,7 +565,7 @@ class StudentsView(wx.Panel):
         )
         self.filter_worker.start()
 
-    def load_programs_for_school(self, school_id, trigger_load_students=False):
+    def load_programs_for_school(self, school_cms_id, trigger_load_students=False):
         self.pending_update_callback = trigger_load_students
 
         self.program_filter.Enable(False)
@@ -577,33 +577,33 @@ class StudentsView(wx.Panel):
         if self.status_bar:
             self.status_bar.show_message("Loading programs...")
         self.programs_worker = LoadProgramsWorker(
-            self.repository, school_id, self.on_programs_callback
+            self.repository, school_cms_id, self.on_programs_callback
         )
         self.programs_worker.start()
 
     def on_school_changed(self, event):
         sel = self.school_filter.GetSelection()
-        self.selected_school_id = (
+        self.selected_school_cms_id = (
             self.school_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
         )
         self.term_filter.SetSelection(0)
         self.semester_filter.SetSelection(0)
-        self.selected_program_id = None
+        self.selected_program_cms_id = None
         self.selected_term = None
         self.selected_semester_number = None
         self.current_page = 1
         self.load_programs_for_school(
-            self.selected_school_id, trigger_load_students=True
+            self.selected_school_cms_id, trigger_load_students=True
         )
 
     def on_filter_changed(self, event):
         sel = self.school_filter.GetSelection()
-        self.selected_school_id = (
+        self.selected_school_cms_id = (
             self.school_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
         )
 
         sel = self.program_filter.GetSelection()
-        self.selected_program_id = (
+        self.selected_program_cms_id = (
             self.program_filter.GetClientData(sel) if sel != wx.NOT_FOUND else None
         )
 
@@ -984,13 +984,13 @@ class StudentsView(wx.Panel):
 
             self.school_filter.SetString(0, "All Schools")
             for school in schools:
-                self.school_filter.Append(str(school.name), school.id)
+                self.school_filter.Append(str(school.name), school.cms_id)
             self.school_filter.SetSelection(0)
             self.school_filter.Enable(True)
 
             self.program_filter.SetString(0, "All Programs")
             for program in programs:
-                self.program_filter.Append(str(program.name), program.id)
+                self.program_filter.Append(str(program.name), program.cms_id)
             self.program_filter.SetSelection(0)
             self.program_filter.Enable(True)
 
@@ -1028,7 +1028,7 @@ class StudentsView(wx.Panel):
                 self.program_filter.Delete(1)
             self.program_filter.SetString(0, "All Programs")
             for program in programs:
-                self.program_filter.Append(str(program.name), program.id)
+                self.program_filter.Append(str(program.name), program.cms_id)
             self.program_filter.SetSelection(0)
             self.program_filter.Enable(True)
 

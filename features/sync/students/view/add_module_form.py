@@ -12,19 +12,19 @@ logger = get_logger(__name__)
 
 
 class AddModuleFormDialog(wx.Dialog):
-    def __init__(self, student_semester_id, parent=None, status_bar=None):
+    def __init__(self, student_semester_db_id, parent=None, status_bar=None):
         super().__init__(
             parent,
             title="Add Module",
             size=wx.Size(700, 600),
             style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
         )
-        self.student_semester_id = student_semester_id
+        self.student_semester_db_id = student_semester_db_id
         self.status_bar = status_bar
         self.repository = StudentRepository()
         self.service = None
         self.push_worker = None
-        self.selected_semester_module_id = None
+        self.selected_semester_module_cms_id = None
         self.selected_module_data = None
         self.stored_results = []
 
@@ -143,7 +143,7 @@ class AddModuleFormDialog(wx.Dialog):
 
         self.results_list.DeleteAllItems()
         self.add_btn.Enable(False)
-        self.selected_semester_module_id = None
+        self.selected_semester_module_cms_id = None
 
         if self.status_bar:
             wx.CallAfter(
@@ -183,7 +183,7 @@ class AddModuleFormDialog(wx.Dialog):
                 idx, 3, format_semester(result.get("semester_number"), type="short")
             )
             self.results_list.SetItem(idx, 4, str(result.get("credits", "")))
-            self.results_list.SetItemData(idx, result["semester_module_id"])
+            self.results_list.SetItemData(idx, result["semester_module_cms_id"])
 
         if self.status_bar:
             wx.CallAfter(self.status_bar.clear)
@@ -192,7 +192,7 @@ class AddModuleFormDialog(wx.Dialog):
         self.add_btn.Enable(True)
         selected_idx = self.results_list.GetFirstSelected()
         if selected_idx != -1:
-            self.selected_semester_module_id = self.results_list.GetItemData(
+            self.selected_semester_module_cms_id = self.results_list.GetItemData(
                 selected_idx
             )
             if selected_idx < len(self.stored_results):
@@ -211,7 +211,7 @@ class AddModuleFormDialog(wx.Dialog):
         self.on_add_module(event)
 
     def on_add_module(self, event):
-        if not self.selected_semester_module_id:
+        if not self.selected_semester_module_cms_id:
             selected_idx = self.results_list.GetFirstSelected()
             if selected_idx == -1:
                 wx.MessageBox(
@@ -220,7 +220,7 @@ class AddModuleFormDialog(wx.Dialog):
                     wx.OK | wx.ICON_WARNING,
                 )
                 return
-            self.selected_semester_module_id = self.results_list.GetItemData(
+            self.selected_semester_module_cms_id = self.results_list.GetItemData(
                 selected_idx
             )
 
@@ -258,8 +258,8 @@ class AddModuleFormDialog(wx.Dialog):
             return
 
         self.push_worker = PushStudentModuleWorker(
-            self.student_semester_id,
-            self.selected_semester_module_id,
+            self.student_semester_db_id,
+            self.selected_semester_module_cms_id,
             module_status,
             module_code,
             self.service,
@@ -319,16 +319,16 @@ class SearchModulesWorker(threading.Thread):
 class PushStudentModuleWorker(threading.Thread):
     def __init__(
         self,
-        student_semester_id,
-        semester_module_id,
+        student_semester_db_id,
+        semester_module_cms_id,
         module_status,
         module_code,
         service,
         callback,
     ):
         super().__init__(daemon=True)
-        self.student_semester_id = student_semester_id
-        self.semester_module_id = semester_module_id
+        self.student_semester_db_id = student_semester_db_id
+        self.semester_module_cms_id = semester_module_cms_id
         self.module_status = module_status
         self.module_code = module_code
         self.service = service
@@ -338,8 +338,8 @@ class PushStudentModuleWorker(threading.Thread):
         try:
             self.callback("progress", "Adding module to CMS...")
             success, message = self.service.push_student_module(
-                self.student_semester_id,
-                self.semester_module_id,
+                self.student_semester_db_id,
+                self.semester_module_cms_id,
                 self.module_status,
                 self.module_code,
                 progress_callback=lambda msg: self.callback("progress", msg),

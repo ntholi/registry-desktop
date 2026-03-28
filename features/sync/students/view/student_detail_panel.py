@@ -217,20 +217,20 @@ class StudentDetailPanel(wx.Panel):
 
     def load_program_data(self):
         program = self.get_selected_program()
-        if not program or not hasattr(program, "id"):
+        if not program or not hasattr(program, "student_program_db_id"):
             self.clear_tables()
             return
 
-        student_program_id = program.id
-        self.load_semesters(student_program_id)
+        student_program_db_id = program.student_program_db_id
+        self.load_semesters(student_program_db_id)
 
-    def load_semesters(self, student_program_id):
+    def load_semesters(self, student_program_db_id):
         self.semesters_list.DeleteAllItems()
         self.modules_list.DeleteAllItems()
         self.current_semesters = []
 
         def load_data():
-            return self.repository.get_student_semesters(student_program_id)
+            return self.repository.get_student_semesters(student_program_db_id)
 
         self.semesters_loader.load_async(load_data, "Loading semesters...")
 
@@ -245,7 +245,9 @@ class StudentDetailPanel(wx.Panel):
         self.current_semesters = list(semesters)
 
         for row, semester in enumerate(semesters):
-            index = self.semesters_list.InsertItem(row, str(semester.id or ""))
+            index = self.semesters_list.InsertItem(
+                row, str(semester.student_semester_cms_id or "")
+            )
             self.semesters_list.SetItem(index, 1, str(semester.term_code or ""))
             self.semesters_list.SetItem(
                 index,
@@ -257,20 +259,20 @@ class StudentDetailPanel(wx.Panel):
 
         if semesters:
             self.semesters_list.Select(0)
-            self.load_modules_for_semester(semesters[0].id)
+            self.load_modules_for_semester(semesters[0].student_semester_db_id)
 
     def on_semester_selected(self, event):
         item = event.GetIndex()
         if item != wx.NOT_FOUND and item < len(self.current_semesters):
             semester = self.current_semesters[item]
-            self.load_modules_for_semester(semester.id)
+            self.load_modules_for_semester(semester.student_semester_db_id)
 
-    def load_modules_for_semester(self, student_semester_id):
+    def load_modules_for_semester(self, student_semester_db_id):
         self.modules_list.DeleteAllItems()
         self.current_modules = []
 
         def load_data():
-            return self.repository.get_semester_modules(student_semester_id)
+            return self.repository.get_semester_modules(student_semester_db_id)
 
         self.modules_loader.load_async(load_data, "Loading modules...")
 
@@ -285,7 +287,9 @@ class StudentDetailPanel(wx.Panel):
         self.current_modules = list(modules)
 
         for row, module in enumerate(modules):
-            index = self.modules_list.InsertItem(row, str(module.id or ""))
+            index = self.modules_list.InsertItem(
+                row, str(module.student_module_cms_id or "")
+            )
             self.modules_list.SetItem(index, 1, str(module.module_code or ""))
             self.modules_list.SetItem(index, 2, str(module.module_name or ""))
             self.modules_list.SetItem(index, 3, str(module.status or ""))
@@ -304,7 +308,7 @@ class StudentDetailPanel(wx.Panel):
 
     def on_semester_edit_clicked(self, semester):
         program = self.get_selected_program()
-        if not program or not hasattr(program, "id"):
+        if not program or not hasattr(program, "student_program_db_id"):
             wx.MessageBox(
                 "Please select a program first",
                 "No Program Selected",
@@ -312,14 +316,14 @@ class StudentDetailPanel(wx.Panel):
             )
             return
 
-        student_program_id = program.id
+        student_program_db_id = program.student_program_db_id
 
         dialog = SemesterEditFormDialog(
-            semester.id, parent=self, status_bar=self.status_bar
+            semester.student_semester_db_id, parent=self, status_bar=self.status_bar
         )
 
         if dialog.ShowModal() == wx.ID_OK:
-            self.load_semesters(student_program_id)
+            self.load_semesters(student_program_db_id)
 
         dialog.Destroy()
 
@@ -338,17 +342,19 @@ class StudentDetailPanel(wx.Panel):
         current_semester = self.current_semesters[selected_semester_index]
 
         dialog = AddModuleFormDialog(
-            current_semester.id, parent=self, status_bar=self.status_bar
+            current_semester.student_semester_db_id,
+            parent=self,
+            status_bar=self.status_bar,
         )
 
         if dialog.ShowModal() == wx.ID_OK:
-            self.load_modules_for_semester(current_semester.id)
+            self.load_modules_for_semester(current_semester.student_semester_db_id)
 
         dialog.Destroy()
 
     def on_add_semester(self, event):
         program = self.get_selected_program()
-        if not program or not hasattr(program, "id"):
+        if not program or not hasattr(program, "student_program_db_id"):
             wx.MessageBox(
                 "Please select a program first",
                 "No Program Selected",
@@ -356,14 +362,14 @@ class StudentDetailPanel(wx.Panel):
             )
             return
 
-        student_program_id = program.id
+        student_program_db_id = program.student_program_db_id
 
         dialog = SemesterFormDialog(
-            student_program_id, parent=self, status_bar=self.status_bar
+            student_program_db_id, parent=self, status_bar=self.status_bar
         )
 
         if dialog.ShowModal() == wx.ID_OK:
-            self.load_semesters(student_program_id)
+            self.load_semesters(student_program_db_id)
 
         dialog.Destroy()
 
@@ -390,7 +396,7 @@ class StudentDetailPanel(wx.Panel):
 
         current_semester = self.current_semesters[selected_semester_index]
 
-        cms_id = module.cms_id
+        cms_id = module.student_module_cms_id
         if not cms_id:
             wx.MessageBox(
                 "This module is missing a CMS ID and cannot be pushed. Re-sync the student record first.",
@@ -407,14 +413,16 @@ class StudentDetailPanel(wx.Panel):
             "credits": module.credits if hasattr(module, "credits") else "",
             "marks": module.marks,
             "grade": module.grade,
-            "student_semester_id": current_semester.id,
+            "student_semester_db_id": current_semester.student_semester_db_id,
         }
 
         dialog = ModuleFormDialog(module_data, parent=self, status_bar=self.status_bar)
 
         if dialog.ShowModal() == wx.ID_OK:
             updated_data = dialog.get_updated_data()
-            updated_data["student_semester_id"] = current_semester.id
+            updated_data["student_semester_db_id"] = (
+                current_semester.student_semester_db_id
+            )
 
             if self.push_worker and self.push_worker.is_alive():
                 wx.MessageBox(
@@ -486,7 +494,7 @@ class StudentDetailPanel(wx.Panel):
                 self.current_semesters
             ):
                 semester = self.current_semesters[selected_item]
-                self.load_modules_for_semester(semester.id)
+                self.load_modules_for_semester(semester.student_semester_db_id)
 
     def on_close(self, event):
         if self.semesters_loader:

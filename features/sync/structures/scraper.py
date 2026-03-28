@@ -247,7 +247,7 @@ def scrape_school_id(school_code: str) -> int | None:
     schools = scrape_all_schools()
     for school in schools:
         if str(school["code"]).upper() == school_code.upper():
-            return int(school["id"])
+            return int(school["cms_id"])
     return None
 
 

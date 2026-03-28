@@ -507,14 +507,6 @@ class StudentRepository:
                     .first()
                 )
 
-                if not existing:
-                    existing = (
-                        session.query(StudentProgram)
-                        .filter(StudentProgram.std_no == std_no)
-                        .filter(StudentProgram.id == int(student_program_id))
-                        .first()
-                    )
-
                 if "structure_code" in data:
                     structure_id = self.get_structure_by_code_or_desc(
                         data["structure_code"], data["structure_code"]
@@ -611,13 +603,6 @@ class StudentRepository:
                         .filter(StudentSemester.cms_id == semester_id)
                         .first()
                     )
-
-                    if not existing:
-                        existing = (
-                            session.query(StudentSemester)
-                            .filter(StudentSemester.id == semester_id)
-                            .first()
-                        )
 
                 if not existing:
                     existing = (
@@ -737,13 +722,6 @@ class StudentRepository:
                     .first()
                 )
 
-                if not existing:
-                    existing = (
-                        session.query(StudentModule)
-                        .filter(StudentModule.id == std_module_id)
-                        .first()
-                    )
-
                 if "semester_module_id" in data and data["semester_module_id"]:
                     semester_module_id = data["semester_module_id"]
                 elif "module_code" in data:
@@ -776,6 +754,14 @@ class StudentRepository:
                                     f"student_semester_id={student_semester_id}, "
                                     f"std_module_id={std_module_id}"
                                 )
+
+                if not existing and semester_module_id:
+                    existing = (
+                        session.query(StudentModule)
+                        .filter(StudentModule.student_semester_id == student_semester_id)
+                        .filter(StudentModule.semester_module_id == semester_module_id)
+                        .first()
+                    )
 
                 if not semester_module_id and student_semester_id:
                     logger.error(
@@ -926,13 +912,6 @@ class StudentRepository:
                     .filter(StudentEducation.cms_id == education_id)
                     .first()
                 )
-
-                if not existing:
-                    existing = (
-                        session.query(StudentEducation)
-                        .filter(StudentEducation.id == education_id)
-                        .first()
-                    )
 
                 if existing:
                     existing.cms_id = education_id  # type: ignore

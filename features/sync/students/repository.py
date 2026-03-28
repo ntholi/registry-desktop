@@ -720,6 +720,37 @@ class StudentRepository:
                 )
                 return False, error_msg, None
 
+    def _create_missing_semester_module(
+        self,
+        session: Session,
+        module_code: str,
+        module_name: str,
+        module_type: str,
+        credits: float,
+        structure_semester_id: int,
+    ) -> Optional[int]:
+        module = session.query(Module).filter(Module.code == module_code).first()
+        if not module:
+            module = Module(code=module_code, name=module_name, status="Active")
+            session.add(module)
+            session.flush()
+            logger.warn(f"Auto-created module - code={module_code}, name={module_name}")
+
+        sem_module = SemesterModule(
+            module_id=module.id,
+            type=module_type,
+            credits=credits,
+            semester_id=structure_semester_id,
+        )
+        session.add(sem_module)
+        session.flush()
+        logger.warn(
+            f"Auto-created semester module - module_code={module_code}, "
+            f"structure_semester_id={structure_semester_id}, "
+            f"semester_module_id={sem_module.id}"
+        )
+        return sem_module.id
+
     def get_semester_module_by_code(
         self, module_code: str, structure_id: int
     ) -> Optional[int]:
@@ -795,10 +826,7 @@ class StudentRepository:
                     .first()
                 )
 
-                if (
-                    "semester_module_cms_id" in data
-                    and data["semester_module_cms_id"]
-                ):
+                if "semester_module_cms_id" in data and data["semester_module_cms_id"]:
                     semester_module_id = self.get_semester_module_db_id_by_cms_id(
                         int(data["semester_module_cms_id"])
                     )
@@ -828,11 +856,17 @@ class StudentRepository:
                             )
 
                             if not semester_module_id:
-                                logger.error(
-                                    f"Semester module not found - module_code={data['module_code']}, "
-                                    f"structure_id={structure_id}, "
-                                    f"student_semester_id={student_semester_db_id}, "
-                                    f"std_module_id={std_module_id}"
+                                semester_module_id = (
+                                    self._create_missing_semester_module(
+                                        session,
+                                        data["module_code"],
+                                        data.get("module_name", data["module_code"]),
+                                        data.get("type", "Core"),
+                                        float(data.get("credits", 0)),
+                                        cast(
+                                            int, student_semester.structure_semester_id
+                                        ),
+                                    )
                                 )
 
                 if not existing and semester_module_id:

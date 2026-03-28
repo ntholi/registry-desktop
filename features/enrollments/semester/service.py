@@ -171,8 +171,6 @@ class SemesterEnrollmentService:
         if not student_semester_id:
             return False, "Missing student_semester_id"
 
-        url = f"{BASE_URL}/r_stdsemesteredit.php?StdSemesterID={student_semester_id}"
-
         try:
             progress_callback(f"Fetching edit form for semester...")
 
@@ -182,7 +180,10 @@ class SemesterEnrollmentService:
             if not semester_data:
                 return False, "Semester not found in database"
 
-            cms_semester_id = semester_data.get("cms_id") or student_semester_id
+            cms_semester_id = semester_data.get("cms_id")
+            if not cms_semester_id:
+                return False, "Semester is missing a CMS ID"
+
             cms_url = (
                 f"{BASE_URL}/r_stdsemesteredit.php?StdSemesterID={cms_semester_id}"
             )
@@ -308,10 +309,20 @@ class SemesterEnrollmentService:
         progress_callback: Callable[[str], None],
     ) -> tuple[bool, str]:
         try:
+            semester_data = self._repository.get_student_semester_by_id(
+                student_semester_id
+            )
+            if not semester_data:
+                return False, "Semester not found in database"
+
+            cms_semester_id = semester_data.get("cms_id")
+            if not cms_semester_id:
+                return False, "Semester is missing a CMS ID"
+
             progress_callback(f"Fetching add module form...")
 
             self._browser.fetch(
-                f"{BASE_URL}/r_stdmodulelist.php?showmaster=1&StdSemesterID={student_semester_id}"
+                f"{BASE_URL}/r_stdmodulelist.php?showmaster=1&StdSemesterID={cms_semester_id}"
             )
 
             progress_callback(f"Navigating to module add page...")
@@ -339,14 +350,14 @@ class SemesterEnrollmentService:
             progress_callback(f"Pushing module to CMS...")
 
             logger.info(
-                f"Posting module {semester_module_id} to semester {student_semester_id}"
+                f"Posting module {semester_module_id} to semester {cms_semester_id}"
             )
             self._browser.post(f"{BASE_URL}/r_stdmoduleadd1.php", form_data)
 
             progress_callback(f"Verifying module was added...")
 
             verify_response = self._browser.fetch(
-                f"{BASE_URL}/r_stdmodulelist.php?showmaster=1&StdSemesterID={student_semester_id}"
+                f"{BASE_URL}/r_stdmodulelist.php?showmaster=1&StdSemesterID={cms_semester_id}"
             )
             verify_page = BeautifulSoup(verify_response.text, "lxml")
             module_table = verify_page.select_one("table#ewlistmain")
@@ -364,7 +375,7 @@ class SemesterEnrollmentService:
             progress_callback(f"Syncing new module to database...")
 
             modules_data = scrape_student_modules_concurrent(
-                str(student_semester_id), student_semester_id
+                str(cms_semester_id), student_semester_id
             )
 
             added_module_data = None
@@ -382,7 +393,7 @@ class SemesterEnrollmentService:
             success, msg = self._repository.upsert_student_module(added_module_data)
             if success:
                 logger.info(
-                    f"Successfully added module {semester_module_id} to semester {student_semester_id}"
+                    f"Successfully added module {semester_module_id} to semester {cms_semester_id}"
                 )
                 return True, "Module added successfully"
             else:
@@ -402,13 +413,29 @@ class SemesterEnrollmentService:
             return True
 
         try:
+            semester_data = self._repository.get_student_semester_by_id(
+                student_semester_id
+            )
+            if not semester_data:
+                logger.error(
+                    f"Semester not found in database for batch add: {student_semester_id}"
+                )
+                return False
+
+            cms_semester_id = semester_data.get("cms_id")
+            if not cms_semester_id:
+                logger.error(
+                    f"Semester is missing a CMS ID for batch add: {student_semester_id}"
+                )
+                return False
+
             logger.info(
-                f"Pushing {len(modules_data)} modules to semester {student_semester_id}"
+                f"Pushing {len(modules_data)} modules to semester {cms_semester_id}"
             )
 
             # Navigate to module list page
             self._browser.fetch(
-                f"{BASE_URL}/r_stdmodulelist.php?showmaster=1&StdSemesterID={student_semester_id}"
+                f"{BASE_URL}/r_stdmodulelist.php?showmaster=1&StdSemesterID={cms_semester_id}"
             )
 
             # Navigate to add module page

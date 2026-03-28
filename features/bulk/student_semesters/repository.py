@@ -29,6 +29,7 @@ class StudentSemesterRow:
     std_no: str
     name: Optional[str]
     student_semester_id: int
+    cms_id: Optional[int]
     structure_semester_id: int
     semester_number: str
     term_code: str
@@ -108,6 +109,7 @@ class BulkStudentSemestersRepository:
                     Student.std_no,
                     Student.name,
                     StudentSemester.id.label("student_semester_id"),
+                    StudentSemester.cms_id,
                     StudentSemester.structure_semester_id,
                     StructureSemester.semester_number,
                     StudentSemester.term_code,
@@ -144,6 +146,7 @@ class BulkStudentSemestersRepository:
                     std_no=str(r.std_no),
                     name=r.name,
                     student_semester_id=r.student_semester_id,
+                    cms_id=r.cms_id,
                     structure_semester_id=r.structure_semester_id,
                     semester_number=r.semester_number,
                     term_code=r.term_code,

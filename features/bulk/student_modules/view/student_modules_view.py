@@ -185,10 +185,16 @@ class BulkUpdateWorker(threading.Thread):
                     failed_count += 1
                     continue
 
-                # Build module_data matching the pattern from student_detail_panel.py
-                # Note: 'id' must be the student_module_id for upsert_student_module
+                if not student_module.cms_id:
+                    self.callback(
+                        "error",
+                        f"Skipping student {student_module.std_no}: Missing cms_id",
+                    )
+                    failed_count += 1
+                    continue
+
                 module_data = {
-                    "id": student_module.student_module_id,
+                    "cms_id": student_module.cms_id,
                     "student_semester_id": student_module.student_semester_id,
                 }
 
@@ -210,7 +216,7 @@ class BulkUpdateWorker(threading.Thread):
                     )
 
                 success, message = self.service.push_module(
-                    student_module.student_module_id,
+                    student_module.cms_id,
                     module_data,
                     progress_callback,
                 )

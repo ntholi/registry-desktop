@@ -30,6 +30,7 @@ class StudentModuleRow:
     std_no: str
     name: Optional[str]
     student_module_id: int
+    cms_id: Optional[int]
     semester_module_id: int
     module_code: str
     module_name: str
@@ -135,6 +136,7 @@ class BulkStudentModulesRepository:
                     Student.std_no,
                     Student.name,
                     StudentModule.id.label("student_module_id"),
+                    StudentModule.cms_id,
                     StudentModule.semester_module_id,
                     Module.code.label("module_code"),
                     Module.name.label("module_name"),
@@ -183,6 +185,7 @@ class BulkStudentModulesRepository:
                     std_no=str(r.std_no),
                     name=r.name,
                     student_module_id=r.student_module_id,
+                    cms_id=r.cms_id,
                     semester_module_id=r.semester_module_id,
                     module_code=r.module_code,
                     module_name=r.module_name,
@@ -251,6 +254,7 @@ class BulkStudentModulesRepository:
                     Student.std_no,
                     Student.name,
                     StudentModule.id.label("student_module_id"),
+                    StudentModule.cms_id,
                     StudentModule.semester_module_id,
                     Module.code.label("module_code"),
                     Module.name.label("module_name"),
@@ -304,6 +308,7 @@ class BulkStudentModulesRepository:
                     std_no=str(r.std_no),
                     name=r.name,
                     student_module_id=r.student_module_id,
+                    cms_id=r.cms_id,
                     semester_module_id=r.semester_module_id,
                     module_code=r.module_code,
                     module_name=r.module_name,

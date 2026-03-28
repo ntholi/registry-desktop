@@ -141,6 +141,14 @@ class BulkAddModuleWorker(threading.Thread):
 
             try:
 
+                if not student_semester.cms_id:
+                    self.callback(
+                        "error",
+                        f"Skipping {student_semester.std_no}: Missing cms_id",
+                    )
+                    failed_count += 1
+                    continue
+
                 def progress_callback(message):
                     self.callback(
                         "progress",

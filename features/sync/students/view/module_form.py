@@ -338,7 +338,6 @@ class ModuleFormDialog(wx.Dialog):
         credits_value = self.credits_input.GetValue().strip()
 
         data = {
-            "id": self.module_data.get("id"),
             "cms_id": self.module_data.get("cms_id"),
             "module_code": self.module_data.get("module_code"),
             "module_name": self.module_data.get("module_name"),

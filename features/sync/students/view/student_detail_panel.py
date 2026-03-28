@@ -390,9 +390,17 @@ class StudentDetailPanel(wx.Panel):
 
         current_semester = self.current_semesters[selected_semester_index]
 
+        cms_id = module.cms_id
+        if not cms_id:
+            wx.MessageBox(
+                "This module is missing a CMS ID and cannot be pushed. Re-sync the student record first.",
+                "Missing CMS ID",
+                wx.OK | wx.ICON_WARNING,
+            )
+            return
+
         module_data = {
-            "id": module.id,
-            "cms_id": module.cms_id or module.id,
+            "cms_id": cms_id,
             "module_code": module.module_code,
             "module_name": module.module_name,
             "status": module.status,

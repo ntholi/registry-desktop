@@ -95,7 +95,7 @@ def scrape_structures(program_id: int) -> list[dict[str, str | int]]:
                 structure_id = href.split("StructureID=")[1].split("&")[0]
                 structures.append(
                     {
-                        "id": int(structure_id),
+                        "cms_id": int(structure_id),
                         "code": structure_code,
                         "desc": structure_desc,
                     }
@@ -139,7 +139,7 @@ def scrape_semesters(structure_id: int) -> list[dict[str, str | int | float]]:
                 clean_name = name_parts[1] if len(name_parts) > 1 else semester_name
                 semesters.append(
                     {
-                        "id": int(semester_id),
+                        "cms_id": int(semester_id),
                         "semester_number": semester_number,
                         "name": clean_name,
                         "total_credits": credits,
@@ -188,7 +188,7 @@ def scrape_semester_modules(
                 sem_module_id = href.split("SemModuleID=")[1].split("&")[0]
                 semester_modules.append(
                     {
-                        "id": int(sem_module_id),
+                        "cms_id": int(sem_module_id),
                         "module_code": module_code,
                         "module_name": module_name,
                         "type": module_type,
@@ -226,7 +226,7 @@ def scrape_all_schools() -> list[dict[str, str | int]]:
                 school_id = href.split("SchoolID=")[1].split("&")[0]
                 schools.append(
                     {
-                        "id": int(school_id),
+                        "cms_id": int(school_id),
                         "code": code_cell,
                         "name": name_cell,
                     }
@@ -283,7 +283,7 @@ def scrape_programs(school_id: int) -> list[dict[str, str | int]]:
         level = _scrape_program_level(browser, program_id)
         programs.append(
             {
-                "id": program_id,
+                "cms_id": program_id,
                 "code": program_code,
                 "name": program_name,
                 "level": level,

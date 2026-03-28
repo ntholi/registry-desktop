@@ -98,11 +98,13 @@ class EnrollmentService:
         existing_semester_id = None
         for sem in existing_semesters:
             if sem.get("term") == term_code:
-                existing_semester_id = sem.get("id")
+                existing_semester_id = sem.get("cms_id")
                 logger.info(
                     f"Found existing semester {existing_semester_id} for term {term_code} on CMS"
                 )
                 break
+
+        student_semester_db_id: Optional[int] = None
 
         if existing_semester_id:
             student_semester_id = existing_semester_id
@@ -124,17 +126,21 @@ class EnrollmentService:
                     100,
                 )
 
-                self._repository.upsert_student_semester(
-                    student_program_id,
-                    {
-                        "id": student_semester_id,
-                        "term": term_code,
-                        "structure_semester_id": structure_semester_id,
-                        "status": semester_status,
-                        "caf_date": today(),
-                        "registration_request_id": request_id,
-                    },
+                upsert_success, db_semester_id = (
+                    self._repository.upsert_student_semester(
+                        student_program_id,
+                        {
+                            "cms_id": student_semester_id,
+                            "term": term_code,
+                            "structure_semester_id": structure_semester_id,
+                            "status": semester_status,
+                            "caf_date": today(),
+                            "registration_request_id": request_id,
+                        },
+                    )
                 )
+                if upsert_success and db_semester_id:
+                    student_semester_db_id = db_semester_id
             else:
                 logger.warning(
                     f"Could not find structure semester for existing CMS semester {student_semester_id}"
@@ -180,10 +186,10 @@ class EnrollmentService:
                 f"Saving semester to database for student {std_no}...", 40, 100
             )
 
-            self._repository.upsert_student_semester(
+            upsert_success, db_semester_id = self._repository.upsert_student_semester(
                 student_program_id,
                 {
-                    "id": student_semester_id,
+                    "cms_id": student_semester_id,
                     "term": term_code,
                     "structure_semester_id": structure_semester_id,
                     "status": semester_status,
@@ -191,6 +197,8 @@ class EnrollmentService:
                     "registration_request_id": request_id,
                 },
             )
+            if upsert_success and db_semester_id:
+                student_semester_db_id = db_semester_id
 
         progress_callback(f"Checking existing modules for student {std_no}...", 50, 100)
 
@@ -258,15 +266,16 @@ class EnrollmentService:
 
             if module_code in updated_modules_map:
                 cms_mod = updated_modules_map[module_code]
+                db_sem_id = student_semester_db_id or student_semester_id
                 upsert_success = self._repository.upsert_student_module(
                     {
-                        "id": cms_mod["id"],
+                        "cms_id": cms_mod["cms_id"],
                         "semester_module_id": req_mod.semester_module_id,
                         "status": req_mod.module_status,
                         "credits": req_mod.credits or 0,
                         "marks": "NM",
                         "grade": "NM",
-                        "student_semester_id": student_semester_id,
+                        "student_semester_id": db_sem_id,
                     }
                 )
                 if upsert_success:

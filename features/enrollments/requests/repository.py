@@ -412,19 +412,28 @@ class EnrollmentRequestRepository:
 
             return semester[0]
 
-    def upsert_student_semester(self, student_program_id: int, data: dict) -> bool:
+    def upsert_student_semester(
+        self, student_program_id: int, data: dict
+    ) -> tuple[bool, Optional[int]]:
         with self._session() as session:
             from database import StudentSemester
 
             try:
-                semester_id = data.get("id")
+                semester_id = data.get("cms_id")
 
                 if semester_id:
                     existing = (
                         session.query(StudentSemester)
-                        .filter(StudentSemester.id == semester_id)
+                        .filter(StudentSemester.cms_id == semester_id)
                         .first()
                     )
+
+                    if not existing:
+                        existing = (
+                            session.query(StudentSemester)
+                            .filter(StudentSemester.id == semester_id)
+                            .first()
+                        )
 
                     if not existing:
                         existing = (
@@ -437,6 +446,8 @@ class EnrollmentRequestRepository:
                         )
 
                     if existing:
+                        if semester_id:
+                            existing.cms_id = semester_id  # type: ignore
                         if "structure_semester_id" in data:
                             existing.structure_semester_id = data[
                                 "structure_semester_id"
@@ -454,7 +465,7 @@ class EnrollmentRequestRepository:
 
                         session.commit()
                         logger.info(f"Updated student semester {semester_id}")
-                        return True
+                        return True, existing.id
                     else:
                         if (
                             "structure_semester_id" not in data
@@ -464,10 +475,10 @@ class EnrollmentRequestRepository:
                                 f"Cannot create student semester without structure_semester_id - "
                                 f"student_program_id={student_program_id}, data={data}"
                             )
-                            return False
+                            return False, None
 
                         new_semester = StudentSemester(
-                            id=semester_id,
+                            cms_id=semester_id,
                             student_program_id=student_program_id,
                             term_code=data.get("term"),
                             structure_semester_id=data["structure_semester_id"],
@@ -478,34 +489,43 @@ class EnrollmentRequestRepository:
                         )
                         session.add(new_semester)
                         session.commit()
+                        session.refresh(new_semester)
                         logger.info(f"Created student semester {semester_id}")
-                        return True
+                        return True, new_semester.id
                 else:
                     logger.error("Cannot create student semester without ID from CMS")
-                    return False
+                    return False, None
 
             except Exception as e:
                 session.rollback()
                 logger.error(f"Error upserting student semester: {str(e)}")
-                return False
+                return False, None
 
     def upsert_student_module(self, data: dict) -> bool:
         with self._session() as session:
             from database import StudentModule
 
             try:
-                module_id = data.get("id")
+                module_id = data.get("cms_id")
                 if not module_id:
                     logger.error("Cannot create student module without ID")
                     return False
 
                 existing = (
                     session.query(StudentModule)
-                    .filter(StudentModule.id == module_id)
+                    .filter(StudentModule.cms_id == module_id)
                     .first()
                 )
 
+                if not existing:
+                    existing = (
+                        session.query(StudentModule)
+                        .filter(StudentModule.id == module_id)
+                        .first()
+                    )
+
                 if existing:
+                    existing.cms_id = module_id  # type: ignore
                     if "semester_module_id" in data:
                         existing.semester_module_id = data["semester_module_id"]
                     if "status" in data:
@@ -524,7 +544,7 @@ class EnrollmentRequestRepository:
                     return True
                 else:
                     new_module = StudentModule(
-                        id=module_id,
+                        cms_id=module_id,
                         semester_module_id=data.get("semester_module_id"),
                         status=data.get("status", ""),
                         credits=float(data.get("credits", 0)),

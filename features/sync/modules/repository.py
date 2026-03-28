@@ -16,6 +16,7 @@ logger = get_logger(__name__)
 @dataclass(frozen=True)
 class ModuleRow:
     id: int
+    cms_id: Optional[int]
     code: str
     name: str
     status: str
@@ -57,6 +58,7 @@ class ModuleRepository:
         rows = [
             ModuleRow(
                 id=result.id,  # type: ignore
+                cms_id=result.cms_id,  # type: ignore
                 code=result.code,  # type: ignore
                 name=result.name,  # type: ignore
                 status=result.status,  # type: ignore
@@ -67,13 +69,13 @@ class ModuleRepository:
         ]
         return rows, total
 
-    def get_module(self, module_id: int) -> Optional[Module]:
+    def get_module(self, cms_id: int) -> Optional[Module]:
         with self._session() as session:
-            return session.query(Module).filter(Module.id == module_id).first()
+            return session.query(Module).filter(Module.cms_id == cms_id).first()
 
     def save_module(
         self,
-        module_id: int,
+        cms_id: int,
         code: str,
         name: str,
         status: str,
@@ -82,20 +84,25 @@ class ModuleRepository:
     ) -> Module:
         with self._session() as session:
             existing_module = (
-                session.query(Module).filter(Module.id == module_id).first()
+                session.query(Module).filter(Module.cms_id == cms_id).first()
             )
+            if not existing_module:
+                existing_module = (
+                    session.query(Module).filter(Module.code == code).first()
+                )
             if existing_module:
                 existing_module.code = code  # type: ignore
                 existing_module.name = name  # type: ignore
                 existing_module.status = status  # type: ignore
                 existing_module.remark = remark  # type: ignore
                 existing_module.timestamp = timestamp  # type: ignore
+                existing_module.cms_id = cms_id  # type: ignore
                 session.commit()
                 session.refresh(existing_module)
                 return existing_module
             else:
                 new_module = Module(
-                    id=module_id,
+                    cms_id=cms_id,
                     code=code,
                     name=name,
                     status=status,

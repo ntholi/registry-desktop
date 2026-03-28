@@ -257,20 +257,20 @@ class StudentSyncService:
             try:
                 program_data = scrape_student_program_data(program_id)
                 if program_data and "std_no" in program_data:
-                    success, msg = self._repository.upsert_student_program(
+                    success, msg, db_program_id = self._repository.upsert_student_program(
                         program_id, program_data["std_no"], program_data
                     )
                     if success:
                         programs_synced += 1
 
-                        try:
-                            std_program_id = int(program_id)
-                        except (TypeError, ValueError):
+                        if not db_program_id:
                             logger.warning(
-                                f"Invalid program ID format - student_number={student_number}, "
+                                f"No DB program ID returned - student_number={student_number}, "
                                 f"program_id={program_id}"
                             )
                             continue
+
+                        std_program_id = db_program_id
 
                         semester_ids = extract_student_semester_ids(program_id)
 
@@ -357,7 +357,7 @@ class StudentSyncService:
                                                             f"Failed to sync module - student_number={student_number}, "
                                                             f"program_id={program_id}, semester_id={sem_id}, "
                                                             f"db_semester_id={db_semester_id}, "
-                                                            f"module_id={module_data.get('id')}, "
+                                                            f"module_id={module_data.get('cms_id')}, "
                                                             f"module_code={module_data.get('code')}, "
                                                             f"error={mod_msg}, data={module_data}"
                                                         )
@@ -367,7 +367,7 @@ class StudentSyncService:
                                                         f"Error syncing module - student_number={student_number}, "
                                                         f"program_id={program_id}, semester_id={sem_id}, "
                                                         f"db_semester_id={db_semester_id}, "
-                                                        f"module_id={module_data.get('id')}, "
+                                                        f"module_id={module_data.get('cms_id')}, "
                                                         f"module_code={module_data.get('code')}, "
                                                         f"error={str(e)}, data={module_data}",
                                                     )

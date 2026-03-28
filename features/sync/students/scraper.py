@@ -414,7 +414,7 @@ def scrape_student_semester_data(
         )
         return {}
 
-    data: dict = {"id": std_semester_id}
+    data: dict = {"cms_id": std_semester_id}
 
     term = get_table_value(table, "Term")
     if term:
@@ -544,7 +544,7 @@ def scrape_student_module_data(std_module_id: str, student_semester_id: int) -> 
         )
         return {}
 
-    data = {"id": std_module_id, "student_semester_id": student_semester_id}
+    data = {"cms_id": std_module_id, "student_semester_id": student_semester_id}
 
     module_str = get_table_value(table, "Module")
     if module_str:
@@ -680,7 +680,7 @@ def scrape_student_education_data(std_education_id: str) -> dict:
         )
         return {}
 
-    data = {"id": std_education_id}
+    data = {"cms_id": std_education_id}
 
     student_id_str = get_table_value(table, "Student")
     if student_id_str:

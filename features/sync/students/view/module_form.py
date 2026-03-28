@@ -339,6 +339,7 @@ class ModuleFormDialog(wx.Dialog):
 
         data = {
             "id": self.module_data.get("id"),
+            "cms_id": self.module_data.get("cms_id"),
             "module_code": self.module_data.get("module_code"),
             "module_name": self.module_data.get("module_name"),
             "status": self.status_combobox.GetValue().strip(),

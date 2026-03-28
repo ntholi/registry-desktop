@@ -51,7 +51,7 @@ def scrape_modules(module_code: str) -> list[dict[str, str]]:
                 module_id = href.split("ModuleID=")[1].split("&")[0]
                 modules.append(
                     {
-                        "id": int(module_id),
+                        "cms_id": int(module_id),
                         "code": code,
                         "name": name,
                         "status": status,
@@ -162,7 +162,7 @@ def _extract_modules_from_page(page: BeautifulSoup) -> list[dict[str, str]]:
                 module_id = href.split("ModuleID=")[1].split("&")[0]
                 modules.append(
                     {
-                        "id": int(module_id),
+                        "cms_id": int(module_id),
                         "code": code,
                         "name": name,
                         "status": status,

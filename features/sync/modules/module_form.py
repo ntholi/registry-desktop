@@ -32,7 +32,9 @@ class ModuleFormDialog(wx.Dialog):
             0,
             wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL,
         )
-        module_id_text = wx.StaticText(panel, label=str(self.module_data.get("id", "")))
+        module_id_text = wx.StaticText(
+            panel, label=str(self.module_data.get("cms_id", ""))
+        )
         form_sizer.Add(module_id_text, 0, wx.EXPAND)
 
         # Module Code
@@ -137,7 +139,7 @@ class ModuleFormDialog(wx.Dialog):
         status = "Active" if status_idx == 0 else "Defunct"
 
         return {
-            "id": self.module_data.get("id"),
+            "cms_id": self.module_data.get("cms_id"),
             "code": self.code_input.GetValue().strip(),
             "name": self.name_input.GetValue().strip(),
             "status": status,

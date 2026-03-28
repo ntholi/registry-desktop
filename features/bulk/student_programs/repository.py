@@ -8,14 +8,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from base import get_logger
-from database import (
-    Program,
-    School,
-    Structure,
-    Student,
-    StudentProgram,
-    get_engine,
-)
+from database import Program, School, Structure, Student, StudentProgram, get_engine
 
 logger = get_logger(__name__)
 
@@ -92,9 +85,7 @@ class BulkStudentProgramsRepository:
                 .order_by(Structure.code.desc())
                 .all()
             )
-            return [
-                StructureOption(id=r.id, code=r.code, desc=r.desc) for r in results
-            ]
+            return [StructureOption(id=r.id, code=r.code, desc=r.desc) for r in results]
 
     def fetch_students_by_program_and_term(
         self,
@@ -238,7 +229,15 @@ class BulkStudentProgramsRepository:
                 return False, str(e)
 
     def get_cms_student_program_id(self, student_program_id: int) -> Optional[int]:
-        return student_program_id
+        with self._session() as session:
+            result = (
+                session.query(StudentProgram.cms_id)
+                .filter(StudentProgram.id == student_program_id)
+                .first()
+            )
+            if result and result[0]:
+                return result[0]
+            return student_program_id
 
     def get_structure_by_id(self, structure_id: int) -> Optional[StructureOption]:
         with self._session() as session:

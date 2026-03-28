@@ -183,21 +183,26 @@ class StructureRepository:
             for result in results
         ]
 
-    def save_school(self, school_id: int, code: str, name: str) -> School:
+    def save_school(self, cms_id: int, code: str, name: str) -> School:
         with self._session() as session:
             existing_school = (
-                session.query(School).filter(School.id == school_id).first()
+                session.query(School).filter(School.cms_id == cms_id).first()
             )
+            if not existing_school:
+                existing_school = (
+                    session.query(School).filter(School.code == code).first()
+                )
             if existing_school:
                 existing_school.code = code  # type: ignore
                 existing_school.name = name  # type: ignore
                 existing_school.is_active = True  # type: ignore
+                existing_school.cms_id = cms_id  # type: ignore
                 session.commit()
                 session.refresh(existing_school)
                 return existing_school
             else:
                 new_school = School(
-                    id=school_id,
+                    cms_id=cms_id,
                     code=code,
                     name=name,
                     is_active=True,
@@ -209,7 +214,7 @@ class StructureRepository:
 
     def save_program(
         self,
-        program_id: int,
+        cms_id: int,
         code: str,
         name: str,
         school_id: int,
@@ -217,19 +222,24 @@ class StructureRepository:
     ) -> Program:
         with self._session() as session:
             existing_program = (
-                session.query(Program).filter(Program.id == program_id).first()
+                session.query(Program).filter(Program.cms_id == cms_id).first()
             )
+            if not existing_program:
+                existing_program = (
+                    session.query(Program).filter(Program.code == code).first()
+                )
             if existing_program:
                 existing_program.code = code  # type: ignore
                 existing_program.name = name  # type: ignore
                 existing_program.school_id = school_id  # type: ignore
                 existing_program.level = level  # type: ignore
+                existing_program.cms_id = cms_id  # type: ignore
                 session.commit()
                 session.refresh(existing_program)
                 return existing_program
             else:
                 new_program = Program(
-                    id=program_id,
+                    cms_id=cms_id,
                     code=code,
                     name=name,
                     school_id=school_id,
@@ -242,25 +252,30 @@ class StructureRepository:
 
     def save_structure(
         self,
-        structure_id: int,
+        cms_id: int,
         code: str,
         desc: str,
         program_id: int,
     ) -> Structure:
         with self._session() as session:
             existing_structure = (
-                session.query(Structure).filter(Structure.id == structure_id).first()
+                session.query(Structure).filter(Structure.cms_id == cms_id).first()
             )
+            if not existing_structure:
+                existing_structure = (
+                    session.query(Structure).filter(Structure.code == code).first()
+                )
             if existing_structure:
                 existing_structure.code = code  # type: ignore
                 existing_structure.desc = desc  # type: ignore
                 existing_structure.program_id = program_id  # type: ignore
+                existing_structure.cms_id = cms_id  # type: ignore
                 session.commit()
                 session.refresh(existing_structure)
                 return existing_structure
             else:
                 new_structure = Structure(
-                    id=structure_id,
+                    cms_id=cms_id,
                     code=code,
                     desc=desc,
                     program_id=program_id,
@@ -272,7 +287,7 @@ class StructureRepository:
 
     def save_semester(
         self,
-        semester_id: int,
+        cms_id: int,
         semester_number: str,
         name: str,
         total_credits: float,
@@ -281,20 +296,28 @@ class StructureRepository:
         with self._session() as session:
             existing_semester = (
                 session.query(StructureSemester)
-                .filter(StructureSemester.id == semester_id)
+                .filter(StructureSemester.cms_id == cms_id)
                 .first()
             )
+            if not existing_semester:
+                existing_semester = (
+                    session.query(StructureSemester)
+                    .filter(StructureSemester.structure_id == structure_id)
+                    .filter(StructureSemester.semester_number == semester_number)
+                    .first()
+                )
             if existing_semester:
                 existing_semester.semester_number = semester_number  # type: ignore
                 existing_semester.name = name  # type: ignore
                 existing_semester.total_credits = total_credits  # type: ignore
                 existing_semester.structure_id = structure_id  # type: ignore
+                existing_semester.cms_id = cms_id  # type: ignore
                 session.commit()
                 session.refresh(existing_semester)
                 return existing_semester
             else:
                 new_semester = StructureSemester(
-                    id=semester_id,
+                    cms_id=cms_id,
                     semester_number=semester_number,
                     name=name,
                     total_credits=total_credits,
@@ -307,7 +330,7 @@ class StructureRepository:
 
     def save_semester_module(
         self,
-        sem_module_id: int,
+        cms_id: int,
         module_code: str,
         module_name: str,
         module_type: str,
@@ -329,21 +352,29 @@ class StructureRepository:
 
             existing_sem_module = (
                 session.query(SemesterModule)
-                .filter(SemesterModule.id == sem_module_id)
+                .filter(SemesterModule.cms_id == cms_id)
                 .first()
             )
+            if not existing_sem_module:
+                existing_sem_module = (
+                    session.query(SemesterModule)
+                    .filter(SemesterModule.module_id == module.id)
+                    .filter(SemesterModule.semester_id == semester_id)
+                    .first()
+                )
             if existing_sem_module:
                 existing_sem_module.module_id = module.id  # type: ignore
                 existing_sem_module.type = module_type  # type: ignore
                 existing_sem_module.credits = credits  # type: ignore
                 existing_sem_module.semester_id = semester_id  # type: ignore
                 existing_sem_module.hidden = hidden  # type: ignore
+                existing_sem_module.cms_id = cms_id  # type: ignore
                 session.commit()
                 session.refresh(existing_sem_module)
                 return existing_sem_module
             else:
                 new_sem_module = SemesterModule(
-                    id=sem_module_id,
+                    cms_id=cms_id,
                     module_id=module.id,
                     type=module_type,
                     credits=credits,

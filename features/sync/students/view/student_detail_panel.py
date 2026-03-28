@@ -392,6 +392,7 @@ class StudentDetailPanel(wx.Panel):
 
         module_data = {
             "id": module.id,
+            "cms_id": module.cms_id or module.id,
             "module_code": module.module_code,
             "module_name": module.module_name,
             "status": module.status,
@@ -500,7 +501,7 @@ class PushModuleWorker(threading.Thread):
             self.callback("progress", message)
 
         try:
-            std_module_id = int(self.module_data["id"])
+            std_module_id = int(self.module_data["cms_id"])
             success, message = self.service.push_module(
                 std_module_id, self.module_data, progress_callback
             )

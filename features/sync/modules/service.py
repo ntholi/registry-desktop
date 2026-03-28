@@ -39,7 +39,7 @@ class ModuleSyncService:
         for module in modules:
             try:
                 self.repository.save_module(
-                    module_id=int(module["id"]),
+                    cms_id=int(module["cms_id"]),
                     code=module["code"],
                     name=module["name"],
                     status=module["status"],
@@ -80,7 +80,7 @@ class ModuleSyncService:
 
             try:
                 self.repository.save_module(
-                    module_id=int(module["id"]),
+                    cms_id=int(module["cms_id"]),
                     code=module["code"],
                     name=module["name"],
                     status=module["status"],
@@ -149,7 +149,7 @@ class ModuleSyncService:
                 progress_callback(f"Saving module {module_id} to database...")
 
                 self.repository.save_module(
-                    module_id=module_id,
+                    cms_id=module_id,
                     code=data.get("code", ""),
                     name=data.get("name", ""),
                     status=data.get("status", ""),
@@ -233,7 +233,7 @@ class ModuleSyncService:
 
             progress_callback("Saving module to database...")
             self.repository.save_module(
-                module_id=int(created_module["id"]),
+                cms_id=int(created_module["cms_id"]),
                 code=created_module.get("code", code),
                 name=created_module.get("name", name),
                 status=created_module.get("status", "Active"),
@@ -246,4 +246,3 @@ class ModuleSyncService:
         except Exception as e:
             logger.error(f"Error creating module - data={data}, error={str(e)}")
             return False, f"Error: {str(e)}"
-

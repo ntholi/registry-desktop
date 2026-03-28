@@ -43,7 +43,7 @@ def get_cms_semesters(student_program_id: int) -> list[dict]:
                         if term_text:
                             term = term_text
 
-                semesters.append({"id": int(semester_id), "term": term})
+                semesters.append({"cms_id": int(semester_id), "term": term})
 
     logger.info(
         f"Found {len(semesters)} semesters for student program {student_program_id}"
@@ -83,7 +83,9 @@ def get_cms_semester_modules(student_semester_id: int) -> list[dict]:
                         module_code, _ = extract_module_code_and_name(module_text)
 
                 if module_code:
-                    modules.append({"id": int(module_id), "module_code": module_code})
+                    modules.append(
+                        {"cms_id": int(module_id), "module_code": module_code}
+                    )
 
     logger.info(
         f"Found {len(modules)} modules for student semester {student_semester_id}"

@@ -71,7 +71,7 @@ class SchoolSyncService:
             semesters = scrape_semesters(structure_id)
             for semester in semesters:
                 self.repository.save_semester(
-                    int(semester["id"]),
+                    int(semester["cms_id"]),
                     str(semester["semester_number"]),
                     str(semester["name"]),
                     float(semester["total_credits"]),
@@ -158,7 +158,7 @@ class SchoolSyncService:
             for sem_module in semester_modules:
                 normalized_type = normalize_module_type(str(sem_module["type"]))
                 self.repository.save_semester_module(
-                    int(sem_module["id"]),
+                    int(sem_module["cms_id"]),
                     str(sem_module["module_code"]),
                     str(sem_module["module_name"]),
                     normalized_type,
@@ -238,7 +238,7 @@ class SchoolSyncService:
             structures = scrape_structures(program_id)
             for structure in structures:
                 self.repository.save_structure(
-                    int(structure["id"]),
+                    int(structure["cms_id"]),
                     str(structure["code"]),
                     str(structure.get("desc") or ""),
                     program_id,
@@ -261,7 +261,7 @@ class SchoolSyncService:
         if not school_data:
             raise ValueError(f"School with code '{school_code}' not found")
 
-        school_id = int(school_data["id"])
+        school_id = int(school_data["cms_id"])
         school_code = str(school_data["code"])
 
         progress_callback(
@@ -288,7 +288,7 @@ class SchoolSyncService:
         logger.info(f"Found {total_schools} schools on CMS")
 
         for idx, school in enumerate(schools, 1):
-            school_id = int(school["id"])
+            school_id = int(school["cms_id"])
             school_code = str(school["code"])
             school_name = str(school["name"])
 
@@ -297,7 +297,10 @@ class SchoolSyncService:
                 idx,
                 total_schools,
             )
-            self.repository.save_school(school_id, school_code, school_name)
+            saved_school = self.repository.save_school(
+                school_id, school_code, school_name
+            )
+            db_school_id = saved_school.id
 
             progress_callback(
                 f"Fetching programs for {school_name}...",
@@ -309,13 +312,14 @@ class SchoolSyncService:
 
             for program in programs:
                 level: ProgramLevel = str(program.get("level", "degree"))  # type: ignore[assignment]
-                self.repository.save_program(
-                    int(program["id"]),
+                saved_program = self.repository.save_program(
+                    int(program["cms_id"]),
                     str(program["code"]),
                     str(program["name"]),
-                    school_id,
+                    db_school_id,
                     level,
                 )
+                program["_db_id"] = saved_program.id
 
             if programs:
                 self._import_structures(
@@ -351,13 +355,14 @@ class SchoolSyncService:
 
         for program in programs:
             level: ProgramLevel = str(program.get("level", "degree"))  # type: ignore[assignment]
-            self.repository.save_program(
-                int(program["id"]),
+            saved_program = self.repository.save_program(
+                int(program["cms_id"]),
                 str(program["code"]),
                 str(program["name"]),
                 school_id,
                 level,
             )
+            program["_db_id"] = saved_program.id
 
         self._import_structures(
             programs,
@@ -390,7 +395,7 @@ class SchoolSyncService:
 
         for structure in structures:
             self.repository.save_structure(
-                int(structure["id"]),
+                int(structure["cms_id"]),
                 str(structure["code"]),
                 str(structure["desc"]),
                 program_id,
@@ -417,7 +422,7 @@ class SchoolSyncService:
         fetch_structures: bool = False,
         fetch_semesters: bool = False,
     ):
-        school_id = int(school_data["id"])
+        school_id = int(school_data["cms_id"])
         school_name = str(school_data["name"])
         school_code = str(school_data["code"])
 
@@ -432,7 +437,8 @@ class SchoolSyncService:
             f"Saving school {school_code} to database...", current_step, total_steps
         )
 
-        self.repository.save_school(school_id, school_code, school_name)
+        saved_school = self.repository.save_school(school_id, school_code, school_name)
+        db_school_id = saved_school.id
 
         current_step += 1
         progress_callback(
@@ -442,13 +448,14 @@ class SchoolSyncService:
         )
 
         for program in programs:
-            self.repository.save_program(
-                int(program["id"]),
+            saved_program = self.repository.save_program(
+                int(program["cms_id"]),
                 program["code"],
                 program["name"],
-                school_id,
+                db_school_id,
                 program.get("level", "degree"),
             )
+            program["_db_id"] = saved_program.id
 
         if fetch_structures:
             logger.info(f"Importing structures for {len(programs)} programs")
@@ -479,8 +486,9 @@ class SchoolSyncService:
 
         for program in programs:
             current_step += 1
-            program_id = int(program["id"])
+            program_cms_id = int(program["cms_id"])
             program_code = program["code"]
+            db_program_id = program.get("_db_id") or program_cms_id
 
             progress_callback(
                 f"Fetching structures for {program_code}...",
@@ -488,18 +496,19 @@ class SchoolSyncService:
                 total_steps,
             )
 
-            structures = scrape_structures(program_id)
+            structures = scrape_structures(program_cms_id)
             logger.info(
                 f"Found {len(structures)} structures for program {program_code}"
             )
 
             for structure in structures:
-                self.repository.save_structure(
-                    int(structure["id"]),
+                saved_structure = self.repository.save_structure(
+                    int(structure["cms_id"]),
                     str(structure["code"]),
                     str(structure["desc"]),
-                    program_id,
+                    db_program_id,
                 )
+                structure["_db_id"] = saved_structure.id
 
             if fetch_semesters and structures:
                 logger.info(
@@ -515,8 +524,9 @@ class SchoolSyncService:
     ):
         logger.info(f"Starting to import semesters for {len(structures)} structures")
         for structure in structures:
-            structure_id = int(structure["id"])
+            structure_cms_id = int(structure["cms_id"])
             structure_code = str(structure["code"])
+            db_structure_id = structure.get("_db_id") or structure_cms_id
 
             progress_callback(
                 f"Fetching semesters for {program_code}/{structure_code}...",
@@ -524,19 +534,20 @@ class SchoolSyncService:
                 1,
             )
 
-            semesters = scrape_semesters(structure_id)
+            semesters = scrape_semesters(structure_cms_id)
             logger.info(
                 f"Found {len(semesters)} semesters for structure {structure_code}"
             )
 
             for semester in semesters:
-                self.repository.save_semester(
-                    int(semester["id"]),
+                saved_semester = self.repository.save_semester(
+                    int(semester["cms_id"]),
                     str(semester["semester_number"]),
                     str(semester["name"]),
                     float(semester["total_credits"]),
-                    structure_id,
+                    db_structure_id,
                 )
+                semester["_db_id"] = saved_semester.id
 
             if semesters:
                 logger.info(
@@ -556,7 +567,9 @@ class SchoolSyncService:
 
         with ThreadPoolExecutor(max_workers=5) as executor:
             future_to_semester = {
-                executor.submit(scrape_semester_modules, int(semester["id"])): semester
+                executor.submit(
+                    scrape_semester_modules, int(semester["cms_id"])
+                ): semester
                 for semester in semesters
             }
 
@@ -564,7 +577,7 @@ class SchoolSyncService:
             for future in as_completed(future_to_semester):
                 semester = future_to_semester[future]
                 semester_name = str(semester["name"])
-                semester_id = int(semester["id"])
+                db_semester_id = semester.get("_db_id") or int(semester["cms_id"])
 
                 try:
                     semester_modules = future.result()
@@ -579,12 +592,12 @@ class SchoolSyncService:
                     for sem_module in semester_modules:
                         normalized_type = normalize_module_type(str(sem_module["type"]))
                         self.repository.save_semester_module(
-                            int(sem_module["id"]),
+                            int(sem_module["cms_id"]),
                             str(sem_module["module_code"]),
                             str(sem_module["module_name"]),
                             normalized_type,
                             float(sem_module["credits"]),
-                            semester_id,
+                            db_semester_id,
                             bool(sem_module["hidden"]),
                         )
 

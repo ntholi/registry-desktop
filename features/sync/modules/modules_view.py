@@ -84,9 +84,7 @@ class UpdateModuleWorker(threading.Thread):
             self.callback("update_finished", success, message)
 
         except Exception as e:
-            self.callback(
-                "error", f"Error updating module {self.module_id}: {str(e)}"
-            )
+            self.callback("error", f"Error updating module {self.module_id}: {str(e)}")
             self.callback("update_finished", False, str(e))
 
     def stop(self):
@@ -391,7 +389,7 @@ class ModulesView(wx.Panel):
         module_remark = existing_module.remark if existing_module else None
 
         module_data = {
-            "id": module_id,
+            "cms_id": module_id,
             "code": module_code,
             "name": module_name,
             "status": module_status,
@@ -409,7 +407,7 @@ class ModulesView(wx.Panel):
             self.edit_button.Enable(False)
 
             self.update_worker = UpdateModuleWorker(
-                updated_data["id"],
+                updated_data["cms_id"],
                 {
                     "code": updated_data["code"],
                     "name": updated_data["name"],
@@ -514,7 +512,7 @@ class ModulesView(wx.Panel):
                 self.list_ctrl.SetItem(index, 1, module.name or "")
                 self.list_ctrl.SetItem(index, 2, module.status or "")
                 self.list_ctrl.SetItem(index, 3, module.timestamp or "")
-                self.list_ctrl.SetItemData(index, module.id)
+                self.list_ctrl.SetItemData(index, module.cms_id or 0)
 
             self.update_pagination_controls()
             self.update_total_label()
@@ -540,6 +538,7 @@ class CreateModuleWorker(threading.Thread):
 
     def run(self):
         try:
+
             def progress_callback(message: str):
                 self.callback("progress", message)
 

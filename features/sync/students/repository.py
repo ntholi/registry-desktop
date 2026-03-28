@@ -400,6 +400,7 @@ class StudentRepository:
                     StudentSemester.status,
                     StudentSemester.caf_date,
                     StudentProgram.structure_id,
+                    StudentSemester.cms_id,
                 )
                 .join(
                     StudentProgram,
@@ -422,6 +423,7 @@ class StudentRepository:
                     "status": result[5],
                     "caf_date": result[6],
                     "structure_id": result[7],
+                    "cms_id": result[8],
                 }
             return None
 
@@ -494,16 +496,24 @@ class StudentRepository:
 
     def upsert_student_program(
         self, student_program_id: str, std_no: int, data: dict
-    ) -> tuple[bool, str]:
+    ) -> tuple[bool, str, Optional[int]]:
         structure_id: Optional[int] = None
         with self._session() as session:
             try:
                 existing = (
                     session.query(StudentProgram)
                     .filter(StudentProgram.std_no == std_no)
-                    .filter(StudentProgram.id == int(student_program_id))
+                    .filter(StudentProgram.cms_id == int(student_program_id))
                     .first()
                 )
+
+                if not existing:
+                    existing = (
+                        session.query(StudentProgram)
+                        .filter(StudentProgram.std_no == std_no)
+                        .filter(StudentProgram.id == int(student_program_id))
+                        .first()
+                    )
 
                 if "structure_code" in data:
                     structure_id = self.get_structure_by_code_or_desc(
@@ -517,6 +527,7 @@ class StudentRepository:
                         )
 
                 if existing:
+                    existing.cms_id = int(student_program_id)  # type: ignore
                     if structure_id:
                         existing.structure_id = structure_id  # type: ignore
                     if "reg_date" in data:
@@ -538,7 +549,7 @@ class StudentRepository:
                     logger.info(
                         f"Updated student program {student_program_id} for student {std_no}"
                     )
-                    return True, "Student program updated"
+                    return True, "Student program updated", cast(int, existing.id)
                 else:
                     if not structure_id:
                         logger.error(
@@ -546,10 +557,10 @@ class StudentRepository:
                             f"std_no={std_no}, student_program_id={student_program_id}, "
                             f"structure_code={data.get('structure_code')}, data={data}"
                         )
-                        return False, "Structure not found"
+                        return False, "Structure not found", None
 
                     new_program = StudentProgram(
-                        id=int(student_program_id),
+                        cms_id=int(student_program_id),
                         std_no=std_no,
                         structure_id=structure_id,
                         reg_date=data.get("reg_date"),
@@ -562,10 +573,11 @@ class StudentRepository:
                     )
                     session.add(new_program)
                     session.commit()
+                    session.refresh(new_program)
                     logger.info(
                         f"Created student program {student_program_id} for student {std_no}"
                     )
-                    return True, "Student program created"
+                    return True, "Student program created", cast(int, new_program.id)
 
             except Exception as e:
                 session.rollback()
@@ -575,7 +587,7 @@ class StudentRepository:
                     f"student_program_id={student_program_id}, "
                     f"structure_id={structure_id}, error={str(e)}, data={data}",
                 )
-                return False, error_msg
+                return False, error_msg, None
 
     def upsert_student_semester(
         self, std_program_id: int, data: dict
@@ -583,22 +595,29 @@ class StudentRepository:
         semester_id: Optional[int] = None
         with self._session() as session:
             try:
-                if "id" in data:
+                if "cms_id" in data:
                     try:
-                        semester_id = int(data["id"])
+                        semester_id = int(data["cms_id"])
                     except (TypeError, ValueError):
                         logger.error(
                             f"Invalid semester ID - std_program_id={std_program_id}, "
-                            f"semester_id={data.get('id')}, data={data}"
+                            f"semester_id={data.get('cms_id')}, data={data}"
                         )
 
                 existing = None
                 if semester_id:
                     existing = (
                         session.query(StudentSemester)
-                        .filter(StudentSemester.id == semester_id)
+                        .filter(StudentSemester.cms_id == semester_id)
                         .first()
                     )
+
+                    if not existing:
+                        existing = (
+                            session.query(StudentSemester)
+                            .filter(StudentSemester.id == semester_id)
+                            .first()
+                        )
 
                 if not existing:
                     existing = (
@@ -609,6 +628,8 @@ class StudentRepository:
                     )
 
                 if existing:
+                    if semester_id:
+                        existing.cms_id = semester_id  # type: ignore
                     if "structure_semester_id" in data:
                         existing.structure_semester_id = data["structure_semester_id"]
                     if "status" in data:
@@ -644,7 +665,7 @@ class StudentRepository:
                         return False, error_msg, None
 
                     new_semester = StudentSemester(
-                        id=semester_id,
+                        cms_id=semester_id,
                         student_program_id=std_program_id,
                         term_code=data.get("term"),
                         structure_semester_id=data["structure_semester_id"],
@@ -655,10 +676,11 @@ class StudentRepository:
                     )
                     session.add(new_semester)
                     session.commit()
+                    session.refresh(new_semester)
                     logger.info(
                         f"Created student semester {semester_id} for program {std_program_id}"
                     )
-                    return True, "Student semester created", semester_id
+                    return True, "Student semester created", cast(int, new_semester.id)
 
             except Exception as e:
                 session.rollback()
@@ -703,7 +725,7 @@ class StudentRepository:
         semester_module_id: Optional[int] = None
         with self._session() as session:
             try:
-                std_module_id = int(data["id"])
+                std_module_id = int(data["cms_id"])
                 student_semester_id = data.get("student_semester_id")
 
                 if not student_semester_id:
@@ -711,9 +733,16 @@ class StudentRepository:
 
                 existing = (
                     session.query(StudentModule)
-                    .filter(StudentModule.id == std_module_id)
+                    .filter(StudentModule.cms_id == std_module_id)
                     .first()
                 )
+
+                if not existing:
+                    existing = (
+                        session.query(StudentModule)
+                        .filter(StudentModule.id == std_module_id)
+                        .first()
+                    )
 
                 if "semester_module_id" in data and data["semester_module_id"]:
                     semester_module_id = data["semester_module_id"]
@@ -768,6 +797,7 @@ class StudentRepository:
                     return False, "Cannot resolve semester_module_id"
 
                 if existing:
+                    existing.cms_id = std_module_id  # type: ignore
                     existing.semester_module_id = semester_module_id  # type: ignore
                     if "status" in data:
                         existing.status = normalize_student_module_status(
@@ -787,7 +817,7 @@ class StudentRepository:
                     return True, "Student module updated"
                 else:
                     new_module = StudentModule(
-                        id=std_module_id,
+                        cms_id=std_module_id,
                         semester_module_id=semester_module_id,
                         status=normalize_student_module_status(data.get("status")),
                         credits=float(data.get("credits", 0)),
@@ -885,7 +915,7 @@ class StudentRepository:
         std_no: Optional[str] = None
         with self._session() as session:
             try:
-                education_id = int(data["id"])
+                education_id = int(data["cms_id"])
                 std_no = data.get("std_no")
 
                 if not std_no:
@@ -893,11 +923,19 @@ class StudentRepository:
 
                 existing = (
                     session.query(StudentEducation)
-                    .filter(StudentEducation.id == education_id)
+                    .filter(StudentEducation.cms_id == education_id)
                     .first()
                 )
 
+                if not existing:
+                    existing = (
+                        session.query(StudentEducation)
+                        .filter(StudentEducation.id == education_id)
+                        .first()
+                    )
+
                 if existing:
+                    existing.cms_id = education_id  # type: ignore
                     if "school_name" in data:
                         existing.school_name = data["school_name"]
                     if "type" in data:
@@ -914,7 +952,7 @@ class StudentRepository:
                     return True, "Student education updated"
                 else:
                     new_education = StudentEducation(
-                        id=education_id,
+                        cms_id=education_id,
                         std_no=std_no,
                         school_name=data.get("school_name", ""),
                         type=data.get("type"),

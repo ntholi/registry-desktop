@@ -138,7 +138,7 @@ class SemesterEnrollmentService:
             progress_callback(f"Saving semester to database...")
 
             db_data = {
-                "id": matching_semester_id,
+                "cms_id": matching_semester_id,
                 "term": data.get("term"),
                 "status": data.get("status"),
                 "caf_date": data.get("caf_date"),
@@ -176,7 +176,18 @@ class SemesterEnrollmentService:
         try:
             progress_callback(f"Fetching edit form for semester...")
 
-            response = self._browser.fetch(url)
+            semester_data = self._repository.get_student_semester_by_id(
+                student_semester_id
+            )
+            if not semester_data:
+                return False, "Semester not found in database"
+
+            cms_semester_id = semester_data.get("cms_id") or student_semester_id
+            cms_url = (
+                f"{BASE_URL}/r_stdsemesteredit.php?StdSemesterID={cms_semester_id}"
+            )
+
+            response = self._browser.fetch(cms_url)
             page = BeautifulSoup(response.text, "lxml")
             form = page.select_one("form#fr_stdsemesteredit")
 
@@ -193,12 +204,6 @@ class SemesterEnrollmentService:
             form_data["a_edit"] = "U"
             form_data["btnAction"] = "Edit"
             form_data["x_CampusCode"] = "Lesotho"
-
-            semester_data = self._repository.get_student_semester_by_id(
-                student_semester_id
-            )
-            if not semester_data:
-                return False, "Semester not found in database"
 
             current_term = semester_data.get("term")
             structure_id = semester_data.get("structure_id")
@@ -219,7 +224,7 @@ class SemesterEnrollmentService:
                 f"Posting update for semester {student_semester_id} (without term)"
             )
             form_data["x_TermCode"] = ""
-            success, message = post_cms_form(self._browser, url, form_data)
+            success, message = post_cms_form(self._browser, cms_url, form_data)
 
             if not success:
                 logger.error(f"CMS update failed for semester {student_semester_id}")
@@ -228,7 +233,7 @@ class SemesterEnrollmentService:
             # Step 2: Update with term
             progress_callback(f"Fetching edit form again for semester...")
 
-            response = self._browser.fetch(url)
+            response = self._browser.fetch(cms_url)
             page = BeautifulSoup(response.text, "lxml")
             form = page.select_one("form#fr_stdsemesteredit")
 
@@ -261,7 +266,7 @@ class SemesterEnrollmentService:
             logger.info(
                 f"Posting update for semester {student_semester_id} (with term)"
             )
-            success, message = post_cms_form(self._browser, url, form_data)
+            success, message = post_cms_form(self._browser, cms_url, form_data)
 
             if not success:
                 logger.error(f"CMS update failed for semester {student_semester_id}")
@@ -272,7 +277,7 @@ class SemesterEnrollmentService:
             progress_callback(f"Saving semester to database...")
 
             db_data = {
-                "id": student_semester_id,
+                "cms_id": cms_semester_id,
                 "status": data.get("status"),
             }
 

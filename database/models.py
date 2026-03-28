@@ -14,6 +14,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
+from sqlalchemy.dialects.postgresql import ENUM as PgEnum
 from sqlalchemy.orm import Mapped, declarative_base, mapped_column
 
 DashboardUser = Literal[
@@ -330,7 +331,28 @@ class NextOfKin(Base):
         BigInteger, ForeignKey("students.std_no", ondelete="CASCADE"), nullable=False
     )
     name: Mapped[str] = mapped_column(Text, nullable=False)
-    relationship: Mapped[NextOfKinRelationship] = mapped_column(String, nullable=False)
+    relationship: Mapped[NextOfKinRelationship] = mapped_column(
+        PgEnum(
+            "Parent",
+            "Brother",
+            "Sister",
+            "Spouse",
+            "Child",
+            "Relative",
+            "Friend",
+            "Guardian",
+            "Other",
+            "Mother",
+            "Father",
+            "Husband",
+            "Wife",
+            "Permanent",
+            "Self",
+            name="next_of_kin_relationship",
+            create_type=False,
+        ),
+        nullable=False,
+    )
     phone: Mapped[str | None] = mapped_column(Text, nullable=True)
     email: Mapped[str | None] = mapped_column(Text, nullable=True)
     occupation: Mapped[str | None] = mapped_column(Text, nullable=True)

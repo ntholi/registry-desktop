@@ -735,7 +735,23 @@ class StudentRepository:
                 .filter(StructureSemester.structure_id == structure_id)
                 .first()
             )
-            return semester_module[0] if semester_module else None
+            if semester_module:
+                return semester_module[0]
+
+            semester_module = (
+                session.query(SemesterModule.id)
+                .join(Module, SemesterModule.module_id == Module.id)
+                .filter(Module.code == module_code)
+                .first()
+            )
+            if semester_module:
+                logger.info(
+                    f"Found semester module in another structure - "
+                    f"module_code={module_code}, structure_id={structure_id}"
+                )
+                return semester_module[0]
+
+            return None
 
     def get_semester_module_credits_by_cms_id(
         self, semester_module_cms_id: int

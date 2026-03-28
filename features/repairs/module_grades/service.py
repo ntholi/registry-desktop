@@ -39,7 +39,11 @@ def calculate_module_grade(
         total_weight += assessment.weight
 
         mark_record = next(
-            (m for m in assessment_marks if m.assessment_id == assessment.id),
+            (
+                m
+                for m in assessment_marks
+                if m.assessment_id == assessment.assessment_db_id
+            ),
             None,
         )
 
@@ -89,7 +93,7 @@ class ModuleGradesService:
         if progress_callback:
             progress_callback(f"Fetching assessments for {student_module.std_no}...")
 
-        if not student_module.term_id:
+        if not student_module.term_db_id:
             return (
                 False,
                 "No term found for student module",
@@ -97,8 +101,8 @@ class ModuleGradesService:
             )
 
         assessments = self.repository.get_assessments_for_module(
-            student_module.module_id,
-            student_module.term_id,
+            student_module.module_db_id,
+            student_module.term_db_id,
         )
 
         if not assessments:
@@ -112,7 +116,7 @@ class ModuleGradesService:
             progress_callback(f"Fetching marks for {student_module.std_no}...")
 
         assessment_marks = self.repository.get_assessment_marks_for_student_module(
-            student_module.student_module_id,
+            student_module.student_module_db_id,
         )
 
         if not assessment_marks:
@@ -148,7 +152,7 @@ class ModuleGradesService:
             )
 
         success = self.repository.update_student_module_grade(
-            student_module.student_module_id,
+            student_module.student_module_db_id,
             new_marks,
             new_grade,
         )

@@ -49,7 +49,7 @@ class StudentModuleGradeRow:
 
 @dataclass(frozen=True)
 class AssessmentData:
-    id: int
+    assessment_db_id: int
     weight: float
     total_marks: float
 
@@ -189,6 +189,7 @@ class ModuleGradesRepository:
                     StructureSemester,
                     StudentSemester.structure_semester_id == StructureSemester.id,
                 )
+                .join(Structure, StructureSemester.structure_id == Structure.id)
                 .filter(Structure.cms_id == structure_id)
                 .filter(
                     or_(
@@ -228,7 +229,7 @@ class ModuleGradesRepository:
             ]
 
     def get_assessments_for_module(
-        self, module_id: int, term_id: int
+        self, module_db_id: int, term_db_id: int
     ) -> list[AssessmentData]:
         with self._session() as session:
             results = (
@@ -237,13 +238,13 @@ class ModuleGradesRepository:
                     Assessment.weight,
                     Assessment.total_marks,
                 )
-                .filter(Assessment.module_id == module_id)
-                .filter(Assessment.term_id == term_id)
+                .filter(Assessment.module_id == module_db_id)
+                .filter(Assessment.term_id == term_db_id)
                 .all()
             )
             return [
                 AssessmentData(
-                    id=r.id,
+                    assessment_db_id=r.id,
                     weight=r.weight,
                     total_marks=r.total_marks,
                 )
@@ -251,7 +252,7 @@ class ModuleGradesRepository:
             ]
 
     def get_assessment_marks_for_student_module(
-        self, student_module_id: int
+        self, student_module_db_id: int
     ) -> list[AssessmentMarkData]:
         with self._session() as session:
             results = (
@@ -259,7 +260,7 @@ class ModuleGradesRepository:
                     AssessmentMark.assessment_id,
                     AssessmentMark.marks,
                 )
-                .filter(AssessmentMark.student_module_id == student_module_id)
+                .filter(AssessmentMark.student_module_id == student_module_db_id)
                 .all()
             )
             return [
@@ -272,13 +273,13 @@ class ModuleGradesRepository:
 
     def update_student_module_grade(
         self,
-        student_module_id: int,
+        student_module_db_id: int,
         marks: str,
         grade: Grade,
     ) -> bool:
         with self._session() as session:
             try:
-                student_module = session.query(StudentModule).get(student_module_id)
+                student_module = session.get(StudentModule, student_module_db_id)
                 if student_module:
                     student_module.marks = marks
                     student_module.grade = grade

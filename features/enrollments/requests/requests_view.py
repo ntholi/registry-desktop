@@ -846,7 +846,7 @@ class RequestsView(wx.Panel):
             for row, request in enumerate(requests):
                 index = self.list_ctrl.InsertItem(row, "")
                 self.list_ctrl.SetItemImage(index, self.unchecked_idx)
-                self.list_ctrl.SetItemData(index, request.id)
+                self.list_ctrl.SetItemData(index, request.request_db_id)
                 self.list_ctrl.SetItem(index, 1, request.std_no)
                 self.list_ctrl.SetItem(index, 2, request.student_name or "")
                 self.list_ctrl.SetItem(index, 3, request.sponsor_name or "")

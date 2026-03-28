@@ -140,8 +140,6 @@ class BulkAddModuleWorker(threading.Thread):
                 break
 
             try:
-
-                if not student_semester.cms_id:
                 if not student_semester.student_semester_cms_id:
                     self.callback(
                         "error",
@@ -827,7 +825,7 @@ class StudentSemestersView(wx.Panel):
                     wx.OK | wx.ICON_INFORMATION,
                 )
 
-            if self.selected_semester_id and self.selected_term:
+            if self.selected_semester_cms_id and self.selected_term:
                 self.load_students()
         elif event_type == "error":
             error_msg = args[0]

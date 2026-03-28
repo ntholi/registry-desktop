@@ -15,7 +15,7 @@ logger = get_logger(__name__)
 
 @dataclass(frozen=True)
 class ModuleRow:
-    id: int
+    module_db_id: int
     cms_id: Optional[int]
     code: str
     name: str
@@ -57,7 +57,7 @@ class ModuleRepository:
 
         rows = [
             ModuleRow(
-                id=result.id,  # type: ignore
+                module_db_id=result.id,  # type: ignore
                 cms_id=result.cms_id,  # type: ignore
                 code=result.code,  # type: ignore
                 name=result.name,  # type: ignore

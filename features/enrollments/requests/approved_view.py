@@ -242,7 +242,9 @@ class ApprovedView(wx.Panel):
         item = event.GetIndex()
         if item != wx.NOT_FOUND:
             self.selected_request_item = item
-            request_id = int(self.list_ctrl.GetItemText(item, 0).split("#")[0])
+            request_id = self.list_ctrl.GetItemData(item)
+            if request_id is None:
+                return
             self.show_request_detail(request_id)
 
     def on_list_item_deselected(self, event):
@@ -413,7 +415,7 @@ class ApprovedView(wx.Panel):
             for row, request in enumerate(requests):
                 index = self.list_ctrl.InsertItem(row, "")
                 self.list_ctrl.SetItemImage(index, self.unchecked_idx)
-                self.list_ctrl.SetItemData(index, request.id)
+                self.list_ctrl.SetItemData(index, request.request_db_id)
                 self.list_ctrl.SetItem(index, 1, request.std_no)
                 self.list_ctrl.SetItem(index, 2, request.student_name or "")
                 self.list_ctrl.SetItem(index, 3, request.sponsor_name or "")

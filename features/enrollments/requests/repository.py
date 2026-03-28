@@ -30,7 +30,7 @@ logger = get_logger(__name__)
 
 @dataclass(frozen=True)
 class RegistrationRequestRow:
-    id: int
+    request_db_id: int
     std_no: str
     student_name: Optional[str]
     sponsor_name: Optional[str]
@@ -108,7 +108,7 @@ class EnrollmentRequestRepository:
 
             base_query = (
                 session.query(
-                    RegistrationRequest.id,
+                    RegistrationRequest.id.label("request_db_id"),
                     Student.std_no,
                     Student.name.label("student_name"),
                     Sponsor.name.label("sponsor_name"),
@@ -223,10 +223,10 @@ class EnrollmentRequestRepository:
 
         rows = []
         for result in results:
-            module_count = self._get_module_count(result.id)
+            module_count = self._get_module_count(result.request_db_id)
             rows.append(
                 RegistrationRequestRow(
-                    id=result.id,
+                    request_db_id=result.request_db_id,
                     std_no=str(result.std_no),
                     student_name=result.student_name,
                     sponsor_name=result.sponsor_name,
@@ -258,7 +258,7 @@ class EnrollmentRequestRepository:
         with self._session() as session:
             request = (
                 session.query(
-                    RegistrationRequest.id,
+                    RegistrationRequest.id.label("request_db_id"),
                     Student.std_no,
                     Student.name.label("student_name"),
                     Sponsor.name.label("sponsor_name"),
@@ -285,7 +285,7 @@ class EnrollmentRequestRepository:
                 return None
 
             return {
-                "id": request.id,
+                "request_db_id": request.request_db_id,
                 "std_no": request.std_no,
                 "student_name": request.student_name,
                 "sponsor_name": request.sponsor_name,
@@ -366,13 +366,14 @@ class EnrollmentRequestRepository:
         with self._session() as session:
             modules = (
                 session.query(
-                    RequestedModule.id,
+                    RequestedModule.id.label("requested_module_db_id"),
                     Module.code.label("module_code"),
                     Module.name.label("module_name"),
                     RequestedModule.module_status,
                     RequestedModule.status,
                     SemesterModule.credits,
-                    RequestedModule.semester_module_id,
+                    RequestedModule.semester_module_id.label("semester_module_db_id"),
+                    SemesterModule.cms_id.label("semester_module_cms_id"),
                 )
                 .join(
                     SemesterModule,

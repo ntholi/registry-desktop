@@ -435,7 +435,7 @@ class StudentProgramsView(wx.Panel):
 
         self.update_update_button_state()
 
-        if self.selected_program_id and self.selected_term:
+        if self.selected_program_cms_id and self.selected_term:
             self.load_students()
         else:
             self.clear_students()

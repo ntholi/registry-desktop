@@ -173,4 +173,4 @@ response = browser.post(url, form_data)
 - `samples/pages/`: Sample .php pages from the CMS for reference when scraping/posting (forms, views, etc.)
 
 
-**EXTREMELY IMPORTANT**:  Always use the `ask_questions` tool to get whether the job was done correctly or if there are any issues that need to be dealt with, so ask me if the job is done with an option to state if it is done or enter any issues which need to be fixed, then you will fix them.
+**EXTREMELY IMPORTANT**: Before concluding any task, use the `vscode_askQuestions` tool to confirm whether the work is complete. Include a `Done` option and allow freeform input for any remaining issues. If the user reports issues, continue working until they are resolved.

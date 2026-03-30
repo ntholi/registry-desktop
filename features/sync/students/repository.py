@@ -647,12 +647,20 @@ class StudentRepository:
                     )
 
                 if not existing:
-                    existing = (
-                        session.query(StudentSemester)
-                        .filter(StudentSemester.student_program_id == std_program_id)
-                        .filter(StudentSemester.term_code == data.get("term"))
-                        .first()
+                    existing_query = session.query(StudentSemester).filter(
+                        StudentSemester.student_program_id == std_program_id,
+                        StudentSemester.cms_id.is_(None),
                     )
+                    if data.get("term"):
+                        existing_query = existing_query.filter(
+                            StudentSemester.term_code == data.get("term")
+                        )
+                    if data.get("structure_semester_id"):
+                        existing_query = existing_query.filter(
+                            StudentSemester.structure_semester_id
+                            == data.get("structure_semester_id")
+                        )
+                    existing = existing_query.first()
 
                 if existing:
                     if semester_id:
@@ -877,6 +885,7 @@ class StudentRepository:
                             StudentModule.student_semester_id == student_semester_db_id
                         )
                         .filter(StudentModule.semester_module_id == semester_module_id)
+                        .filter(StudentModule.cms_id.is_(None))
                         .first()
                     )
 

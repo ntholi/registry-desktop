@@ -1250,6 +1250,7 @@ class StudentRepository:
                 semesters = (
                     session.query(
                         StudentSemester.id,
+                        StudentSemester.cms_id,
                         StudentSemester.term_code,
                         StudentSemester.structure_semester_id,
                         StudentSemester.status,
@@ -1271,6 +1272,7 @@ class StudentRepository:
                     modules = (
                         session.query(
                             StudentModule.id,
+                            StudentModule.cms_id,
                             StudentModule.semester_module_id,
                             StudentModule.status,
                             StudentModule.credits,
@@ -1284,6 +1286,7 @@ class StudentRepository:
                     preserved_semesters.append(
                         {
                             "id": sem.id,
+                            "cms_id": sem.cms_id,
                             "term": sem.term_code,
                             "structure_semester_id": sem.structure_semester_id,
                             "status": sem.status,
@@ -1294,6 +1297,7 @@ class StudentRepository:
                             "modules": [
                                 {
                                     "id": mod.id,
+                                    "cms_id": mod.cms_id,
                                     "semester_module_id": mod.semester_module_id,
                                     "status": mod.status,
                                     "credits": mod.credits,
@@ -1338,6 +1342,7 @@ class StudentRepository:
 
                 new_semester = StudentSemester(
                     id=semester_id,
+                    cms_id=semester_data.get("cms_id"),
                     student_program_id=std_program_id,
                     term_code=semester_data.get("term"),
                     structure_semester_id=semester_data["structure_semester_id"],
@@ -1359,6 +1364,7 @@ class StudentRepository:
 
                     new_module = StudentModule(
                         id=module_data.get("id"),
+                        cms_id=module_data.get("cms_id"),
                         semester_module_id=module_data["semester_module_id"],
                         status=module_data.get("status", "Registered"),
                         credits=module_data.get("credits", 0),

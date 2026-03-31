@@ -65,6 +65,10 @@ class StudentSyncService:
         term_suffix = f" for term {term}" if term else ""
 
         if missing_sponsor_prompt is None:
+            sponsor_id = self._repository.create_sponsor(sponsor_code)
+            if sponsor_id:
+                return sponsor_id
+
             raise SponsorResolutionError(
                 f"Sponsor '{sponsor_code}' was not found for semester {semester_id}{term_suffix}."
             )
@@ -326,11 +330,7 @@ class StudentSyncService:
                                     sem_id,
                                     structure_id,
                                     self._repository,
-                                    (
-                                        resolve_missing_sponsor
-                                        if missing_sponsor_prompt
-                                        else None
-                                    ),
+                                    resolve_missing_sponsor,
                                 )
                                 if semester_data and semester_data.get("term"):
                                     semester_term = semester_data.get("term")

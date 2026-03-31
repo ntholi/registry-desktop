@@ -424,12 +424,12 @@ def scrape_student_semester_data(
     if semester_str:
         semester_number = parse_semester_number(semester_str)
         if semester_number is not None and structure_id is not None and repository:
+            converted_semester = {"F1": "01", "F2": "02"}.get(semester_number)
             structure_semester_id = repository.lookup_structure_semester_id(
                 structure_id, semester_number
             )
 
             if not structure_semester_id:
-                converted_semester = {"F1": "01", "F2": "02"}.get(semester_number)
                 if converted_semester:
                     logger.info(
                         f"Initial lookup failed for semester {semester_number}, trying {converted_semester}"
@@ -437,6 +437,19 @@ def scrape_student_semester_data(
                     structure_semester_id = repository.lookup_structure_semester_id(
                         structure_id, converted_semester
                     )
+
+            if not structure_semester_id:
+                refreshed_semesters = repository.refresh_structure_semesters(
+                    structure_id
+                )
+                if refreshed_semesters:
+                    structure_semester_id = repository.lookup_structure_semester_id(
+                        structure_id, semester_number
+                    )
+                    if not structure_semester_id and converted_semester:
+                        structure_semester_id = repository.lookup_structure_semester_id(
+                            structure_id, converted_semester
+                        )
 
             if structure_semester_id:
                 data["structure_semester_id"] = structure_semester_id

@@ -128,7 +128,23 @@ class StudentSyncService:
 
         total_steps = 3
         student_updated = False
-        scraped_data = {}
+        student_record_ready = False
+        student_record_attempted = False
+        related_records_failed = 0
+        scraped_data: dict = {}
+        next_of_kin_list: list[dict] = []
+
+        def ensure_student_record() -> bool:
+            nonlocal student_updated, student_record_attempted, student_record_ready
+            if student_record_attempted:
+                return student_record_ready
+            student_record_attempted = True
+            student_record_ready = self._repository.update_student(
+                student_number, scraped_data
+            )
+            if student_record_ready and scraped_data:
+                student_updated = True
+            return student_record_ready
 
         if import_options.get("student_info") or import_options.get("personal_info"):
             progress_callback(
@@ -144,15 +160,16 @@ class StudentSyncService:
                 next_of_kin_list = personal_data.pop("next_of_kin", [])
                 scraped_data.update(personal_data)
 
-                if next_of_kin_list:
-                    self._repository.upsert_next_of_kin(
-                        student_number, next_of_kin_list
-                    )
+            if scraped_data or next_of_kin_list:
+                if not ensure_student_record():
+                    related_records_failed += 1
 
-            if scraped_data:
-                student_updated = self._repository.update_student(
-                    student_number, scraped_data
+            if next_of_kin_list and student_record_ready:
+                next_of_kin_success, _ = self._repository.upsert_next_of_kin(
+                    student_number, next_of_kin_list
                 )
+                if not next_of_kin_success:
+                    related_records_failed += 1
 
         educations_synced = 0
         educations_failed = 0
@@ -192,7 +209,14 @@ class StudentSyncService:
             )
             address_list = scrape_student_addresses(student_number)
             if address_list:
-                self._repository.upsert_next_of_kin(student_number, address_list)
+                if ensure_student_record():
+                    address_success, _ = self._repository.upsert_next_of_kin(
+                        student_number, address_list
+                    )
+                    if not address_success:
+                        related_records_failed += 1
+                else:
+                    related_records_failed += 1
 
         program_ids = []
         preserved_semesters: list[dict] = []
@@ -257,8 +281,10 @@ class StudentSyncService:
             try:
                 program_data = scrape_student_program_data(program_id)
                 if program_data and "std_no" in program_data:
-                    success, msg, db_program_id = self._repository.upsert_student_program(
-                        program_id, program_data["std_no"], program_data
+                    success, msg, db_program_id = (
+                        self._repository.upsert_student_program(
+                            program_id, program_data["std_no"], program_data
+                        )
                     )
                     if success:
                         programs_synced += 1
@@ -479,11 +505,19 @@ class StudentSyncService:
             f"Education records synced={educations_synced}, Programs synced={programs_synced}, "
             f"Semesters synced={semesters_synced}, Semesters skipped={semesters_skipped}, "
             f"Semesters restored={semesters_restored}, Modules synced={modules_synced}, "
+            f"Related records failed={related_records_failed}, "
             f"Education records failed={educations_failed}, Programs failed={programs_failed}, "
             f"Semesters failed={semesters_failed}, Modules failed={modules_failed}"
         )
 
-        return student_updated
+        return (
+            student_updated
+            and related_records_failed == 0
+            and educations_failed == 0
+            and programs_failed == 0
+            and semesters_failed == 0
+            and modules_failed == 0
+        )
 
     def push_student(
         self,
@@ -521,15 +555,11 @@ class StudentSyncService:
             if program_details:
                 if program_details.get("school_cms_id"):
                     form_data["x_SchoolID"] = str(program_details["school_cms_id"])
-                    form_data["x_opSchoolID"] = str(
-                        program_details["school_cms_id"]
-                    )
+                    form_data["x_opSchoolID"] = str(program_details["school_cms_id"])
 
                 if program_details.get("program_cms_id"):
                     form_data["x_ProgramID"] = str(program_details["program_cms_id"])
-                    form_data["x_opProgramID"] = str(
-                        program_details["program_cms_id"]
-                    )
+                    form_data["x_opProgramID"] = str(program_details["program_cms_id"])
 
                 if program_details.get("structure_cms_id"):
                     form_data["x_StructureID"] = str(

@@ -115,19 +115,19 @@ def scrape_semesters(structure_id: int) -> list[dict[str, str | int | float]]:
 
     for row in rows:
         cells = row.select("td")
-        if len(cells) < 2:
+        if not cells:
             continue
 
         semester_name = cells[0].get_text(strip=True)
-        credits_text = cells[1].get_text(strip=True)
 
-        if not semester_name or not credits_text:
+        if not semester_name:
             continue
 
-        try:
-            credits = float(credits_text)
-        except (ValueError, TypeError):
-            continue
+        credits = 0.0
+        if len(cells) > 1:
+            credits_text = cells[1].get_text(strip=True).replace(",", "")
+            if credits_text and credits_text.replace(".", "", 1).isdigit():
+                credits = float(credits_text)
 
         view_link = row.select_one("a[href*='f_semesterview.php']")
         if view_link and "href" in view_link.attrs:

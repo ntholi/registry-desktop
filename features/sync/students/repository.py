@@ -49,6 +49,7 @@ class StudentRow:
 class StudentRepository:
     def __init__(self) -> None:
         self._engine = get_engine()
+        self._refreshed_structure_semesters: set[int] = set()
 
     @contextmanager
     def _session(self):
@@ -387,6 +388,43 @@ class StudentRepository:
                     return structure[0]
 
             return None
+
+    def get_structure_cms_id(self, structure_id: int) -> Optional[int]:
+        with self._session() as session:
+            result = (
+                session.query(Structure.cms_id)
+                .filter(Structure.id == structure_id)
+                .first()
+            )
+            return result[0] if result else None
+
+    def refresh_structure_semesters(self, structure_id: int) -> int:
+        if structure_id in self._refreshed_structure_semesters:
+            return 0
+
+        structure_cms_id = self.get_structure_cms_id(structure_id)
+        self._refreshed_structure_semesters.add(structure_id)
+
+        if not structure_cms_id:
+            return 0
+
+        from features.sync.structures.repository import StructureRepository
+        from features.sync.structures.scraper import scrape_semesters
+
+        semesters = scrape_semesters(structure_cms_id)
+        structure_repository = StructureRepository()
+
+        for semester in semesters:
+            structure_repository.save_semester(
+                int(semester["cms_id"]),
+                str(semester["semester_number"]),
+                str(semester["name"]),
+                float(semester["total_credits"]),
+                structure_id,
+            )
+
+        self.preload_structure_semesters(structure_id)
+        return len(semesters)
 
     def get_student_semesters(self, student_program_db_id: int):
         with self._session() as session:

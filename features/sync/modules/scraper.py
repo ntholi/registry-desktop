@@ -8,7 +8,55 @@ from base.browser import BASE_URL, Browser
 logger = get_logger(__name__)
 
 
-def scrape_modules(module_code: str) -> list[dict[str, str]]:
+def _extract_module_id(href: str) -> int | None:
+    if "ModuleID=" not in href:
+        return None
+
+    try:
+        return int(href.split("ModuleID=")[1].split("&")[0])
+    except (ValueError, IndexError):
+        return None
+
+
+def _extract_module_rows(page: BeautifulSoup) -> list[dict[str, str | int]]:
+    modules = []
+    rows = page.select("table#ewlistmain tr")
+
+    for row in rows:
+        cells = row.select("td")
+        if len(cells) < 5:
+            continue
+
+        code = cells[0].get_text(strip=True)
+        name = cells[1].get_text(strip=True)
+        status = cells[2].get_text(strip=True)
+        timestamp = cells[4].get_text(strip=True)
+
+        if not code:
+            continue
+
+        view_link = row.select_one("a[href*='f_moduleview.php']")
+        if not view_link or "href" not in view_link.attrs:
+            continue
+
+        module_id = _extract_module_id(str(view_link["href"]))
+        if module_id is None:
+            continue
+
+        modules.append(
+            {
+                "cms_id": module_id,
+                "code": code,
+                "name": name,
+                "status": status,
+                "timestamp": timestamp,
+            }
+        )
+
+    return modules
+
+
+def scrape_modules(module_code: str) -> list[dict[str, str | int]]:
     browser = Browser()
 
     url = (
@@ -28,41 +76,10 @@ def scrape_modules(module_code: str) -> list[dict[str, str]]:
     response = browser.fetch(url)
     page = BeautifulSoup(response.text, "lxml")
 
-    modules = []
-    rows = page.select("table#ewlistmain tr")
-
-    for row in rows:
-        cells = row.select("td")
-        if len(cells) < 5:
-            continue
-
-        code = cells[0].get_text(strip=True)
-        name = cells[1].get_text(strip=True)
-        status = cells[2].get_text(strip=True)
-        timestamp = cells[4].get_text(strip=True)
-
-        if not code or not name:
-            continue
-
-        view_link = row.select_one("a[href*='f_moduleview.php']")
-        if view_link and "href" in view_link.attrs:
-            href = str(view_link["href"])
-            if "ModuleID=" in href:
-                module_id = href.split("ModuleID=")[1].split("&")[0]
-                modules.append(
-                    {
-                        "cms_id": int(module_id),
-                        "code": code,
-                        "name": name,
-                        "status": status,
-                        "timestamp": timestamp,
-                    }
-                )
-
-    return modules
+    return _extract_module_rows(page)
 
 
-def scrape_all_modules(progress_callback=None) -> list[dict[str, str]]:
+def scrape_all_modules(progress_callback=None) -> list[dict[str, str | int]]:
     browser = Browser()
     all_modules = []
     current_page = 1
@@ -138,36 +155,5 @@ def _extract_total_records(page: BeautifulSoup) -> int:
     return 0
 
 
-def _extract_modules_from_page(page: BeautifulSoup) -> list[dict[str, str]]:
-    modules = []
-    rows = page.select("table#ewlistmain tr")
-
-    for row in rows:
-        cells = row.select("td")
-        if len(cells) < 5:
-            continue
-
-        code = cells[0].get_text(strip=True)
-        name = cells[1].get_text(strip=True)
-        status = cells[2].get_text(strip=True)
-        timestamp = cells[4].get_text(strip=True)
-
-        if not code or not name:
-            continue
-
-        view_link = row.select_one("a[href*='f_moduleview.php']")
-        if view_link and "href" in view_link.attrs:
-            href = str(view_link["href"])
-            if "ModuleID=" in href:
-                module_id = href.split("ModuleID=")[1].split("&")[0]
-                modules.append(
-                    {
-                        "cms_id": int(module_id),
-                        "code": code,
-                        "name": name,
-                        "status": status,
-                        "timestamp": timestamp,
-                    }
-                )
-
-    return modules
+def _extract_modules_from_page(page: BeautifulSoup) -> list[dict[str, str | int]]:
+    return _extract_module_rows(page)

@@ -82,17 +82,21 @@ class ModuleRepository:
         remark: Optional[str] = None,
         timestamp: Optional[str] = None,
     ) -> Module:
+        normalized_code = code.strip()
+        normalized_name = name.strip()
+
         with self._session() as session:
             existing_module = (
                 session.query(Module).filter(Module.cms_id == cms_id).first()
             )
             if not existing_module:
                 existing_module = (
-                    session.query(Module).filter(Module.code == code).first()
+                    session.query(Module).filter(Module.code == normalized_code).first()
                 )
             if existing_module:
-                existing_module.code = code  # type: ignore
-                existing_module.name = name  # type: ignore
+                existing_module.code = normalized_code  # type: ignore
+                if normalized_name or not existing_module.name:
+                    existing_module.name = normalized_name  # type: ignore
                 existing_module.status = status  # type: ignore
                 existing_module.remark = remark  # type: ignore
                 existing_module.timestamp = timestamp  # type: ignore
@@ -103,8 +107,8 @@ class ModuleRepository:
             else:
                 new_module = Module(
                     cms_id=cms_id,
-                    code=code,
-                    name=name,
+                    code=normalized_code,
+                    name=normalized_name,
                     status=status,
                     remark=remark,
                     timestamp=timestamp,
@@ -122,14 +126,23 @@ class ModuleRepository:
         remark: Optional[str] = None,
         timestamp: Optional[str] = None,
     ) -> tuple[bool, str, Optional[Module]]:
+        normalized_code = code.strip()
+        normalized_name = name.strip()
+
         with self._session() as session:
-            existing = session.query(Module).filter(Module.code == code).first()
+            existing = (
+                session.query(Module).filter(Module.code == normalized_code).first()
+            )
             if existing:
-                return False, f"Module with code '{code}' already exists", existing
+                return (
+                    False,
+                    f"Module with code '{normalized_code}' already exists",
+                    existing,
+                )
 
             new_module = Module(
-                code=code,
-                name=name,
+                code=normalized_code,
+                name=normalized_name,
                 status=status,
                 remark=remark,
                 timestamp=timestamp,

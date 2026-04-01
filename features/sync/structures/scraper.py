@@ -42,6 +42,57 @@ def _normalize_program_level(category: str) -> ProgramLevel:
     return "degree"
 
 
+def _get_detail_value(page: BeautifulSoup, field_name: str) -> str | None:
+    expected = field_name.strip().lower()
+
+    for row in page.select("table.ewTable tr"):
+        cells = row.select("td")
+        if len(cells) < 2:
+            continue
+
+        label = cells[0].get_text(strip=True).rstrip(":").lower()
+        if label != expected:
+            continue
+
+        value = cells[1].get_text(" ", strip=True)
+        return value or None
+
+    return None
+
+
+def _extract_semester_module_id(href: str) -> int | None:
+    if "SemModuleID=" not in href:
+        return None
+
+    try:
+        sem_module_id_raw = href.split("SemModuleID=")[1].split("&")[0]
+        return int(sem_module_id_raw)
+    except (ValueError, IndexError):
+        return None
+
+
+def _scrape_semester_module_identity(
+    browser: Browser,
+    sem_module_id: int,
+    cache: dict[int, tuple[str | None, str | None]],
+) -> tuple[str | None, str | None]:
+    cached = cache.get(sem_module_id)
+    if cached is not None:
+        return cached
+
+    url = f"{BASE_URL}/f_semmoduleview.php?SemModuleID={sem_module_id}"
+    response = browser.fetch(url)
+    page = BeautifulSoup(response.text, "lxml")
+    module_text = _get_detail_value(page, "Module") or ""
+    module_code, module_name = extract_module_code_and_name(module_text)
+
+    if module_code and module_name is None:
+        module_name = ""
+
+    cache[sem_module_id] = (module_code, module_name)
+    return cache[sem_module_id]
+
+
 def _scrape_program_level(browser: Browser, program_id: int) -> ProgramLevel:
     url = f"{BASE_URL}/f_programview.php?ProgramID={program_id}"
     response = browser.fetch(url)
@@ -156,6 +207,7 @@ def scrape_semester_modules(
     url = f"{BASE_URL}/f_semmodulelist.php?showmaster=1&SemesterID={semester_id}"
     response = browser.fetch(url)
     page = BeautifulSoup(response.text, "lxml")
+    detail_cache: dict[int, tuple[str | None, str | None]] = {}
 
     semester_modules = []
     rows = page.select("table#ewlistmain tr")
@@ -167,35 +219,52 @@ def scrape_semester_modules(
 
         module_text = cells[0].get_text(strip=True)
         module_type = cells[1].get_text(strip=True)
-        credits_text = cells[3].get_text(strip=True)
+        credits_text = cells[3].get_text(strip=True).replace(",", "")
 
         if not module_text or not module_type:
             continue
 
-        module_code, module_name = extract_module_code_and_name(module_text)
-        if not module_code or not module_name:
+        view_link = row.select_one("a[href*='f_semmoduleview.php']")
+        if not view_link or "href" not in view_link.attrs:
             continue
+
+        sem_module_id = _extract_semester_module_id(str(view_link["href"]))
+        if sem_module_id is None:
+            continue
+
+        module_code, module_name = extract_module_code_and_name(module_text)
+        if not module_code or module_name is None:
+            detail_code, detail_name = _scrape_semester_module_identity(
+                browser,
+                sem_module_id,
+                detail_cache,
+            )
+            if detail_code:
+                module_code = detail_code
+            if detail_name is not None:
+                module_name = detail_name
+
+        if not module_code:
+            continue
+
+        if module_name is None:
+            module_name = ""
 
         try:
             credits = float(credits_text)
         except (ValueError, TypeError):
             continue
 
-        view_link = row.select_one("a[href*='f_semmoduleview.php']")
-        if view_link and "href" in view_link.attrs:
-            href = str(view_link["href"])
-            if "SemModuleID=" in href:
-                sem_module_id = href.split("SemModuleID=")[1].split("&")[0]
-                semester_modules.append(
-                    {
-                        "cms_id": int(sem_module_id),
-                        "module_code": module_code,
-                        "module_name": module_name,
-                        "type": module_type,
-                        "credits": credits,
-                        "hidden": False,
-                    }
-                )
+        semester_modules.append(
+            {
+                "cms_id": sem_module_id,
+                "module_code": module_code,
+                "module_name": module_name,
+                "type": module_type,
+                "credits": credits,
+                "hidden": False,
+            }
+        )
 
     return semester_modules
 

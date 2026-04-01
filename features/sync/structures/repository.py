@@ -420,6 +420,9 @@ class StructureRepository:
         semester_id: int,
         hidden: bool = False,
     ) -> SemesterModule:
+        normalized_module_code = module_code.strip()
+        normalized_module_name = module_name.strip()
+
         with self._session() as session:
             resolved_semester_id = self._resolve_structure_semester_db_id(
                 session, semester_id
@@ -427,14 +430,22 @@ class StructureRepository:
             if resolved_semester_id is None:
                 raise ValueError(f"Semester not found for ID {semester_id}")
 
-            module = session.query(Module).filter(Module.code == module_code).first()
+            module = (
+                session.query(Module)
+                .filter(Module.code == normalized_module_code)
+                .first()
+            )
             if not module:
                 module = Module(
-                    code=module_code,
-                    name=module_name,
+                    code=normalized_module_code,
+                    name=normalized_module_name,
                     status="Active",
                 )
                 session.add(module)
+                session.commit()
+                session.refresh(module)
+            elif normalized_module_name and module.name != normalized_module_name:
+                module.name = normalized_module_name  # type: ignore
                 session.commit()
                 session.refresh(module)
 

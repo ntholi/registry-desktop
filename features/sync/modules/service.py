@@ -234,11 +234,11 @@ class ModuleSyncService:
             progress_callback("Saving module to database...")
             self.repository.save_module(
                 cms_id=int(created_module["cms_id"]),
-                code=created_module.get("code", code),
-                name=created_module.get("name", name),
-                status=created_module.get("status", "Active"),
+                code=created_module["code"] or code,
+                name=created_module["name"] or name,
+                status=created_module["status"] or "Active",
                 remark=remark,
-                timestamp=created_module.get("timestamp") or date_stamp,
+                timestamp=created_module["timestamp"] or date_stamp,
             )
 
             return True, "Module created successfully"

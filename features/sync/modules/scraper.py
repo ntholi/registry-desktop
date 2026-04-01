@@ -1,4 +1,5 @@
 import re
+from typing import TypedDict
 
 from bs4 import BeautifulSoup
 
@@ -6,6 +7,14 @@ from base import get_logger
 from base.browser import BASE_URL, Browser
 
 logger = get_logger(__name__)
+
+
+class ModuleScrapeData(TypedDict):
+    cms_id: int
+    code: str
+    name: str
+    status: str
+    timestamp: str
 
 
 def _extract_module_id(href: str) -> int | None:
@@ -18,7 +27,7 @@ def _extract_module_id(href: str) -> int | None:
         return None
 
 
-def _extract_module_rows(page: BeautifulSoup) -> list[dict[str, str | int]]:
+def _extract_module_rows(page: BeautifulSoup) -> list[ModuleScrapeData]:
     modules = []
     rows = page.select("table#ewlistmain tr")
 
@@ -56,7 +65,7 @@ def _extract_module_rows(page: BeautifulSoup) -> list[dict[str, str | int]]:
     return modules
 
 
-def scrape_modules(module_code: str) -> list[dict[str, str | int]]:
+def scrape_modules(module_code: str) -> list[ModuleScrapeData]:
     browser = Browser()
 
     url = (
@@ -79,7 +88,7 @@ def scrape_modules(module_code: str) -> list[dict[str, str | int]]:
     return _extract_module_rows(page)
 
 
-def scrape_all_modules(progress_callback=None) -> list[dict[str, str | int]]:
+def scrape_all_modules(progress_callback=None) -> list[ModuleScrapeData]:
     browser = Browser()
     all_modules = []
     current_page = 1
@@ -155,5 +164,5 @@ def _extract_total_records(page: BeautifulSoup) -> int:
     return 0
 
 
-def _extract_modules_from_page(page: BeautifulSoup) -> list[dict[str, str | int]]:
+def _extract_modules_from_page(page: BeautifulSoup) -> list[ModuleScrapeData]:
     return _extract_module_rows(page)

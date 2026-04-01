@@ -1,3 +1,5 @@
+import re
+
 from bs4 import BeautifulSoup
 
 from base import get_logger
@@ -40,6 +42,19 @@ def _normalize_program_level(category: str) -> ProgramLevel:
 
     logger.warning(f"Unknown program category '{category}', defaulting to 'degree'")
     return "degree"
+
+
+def _extract_pager_bounds(page: BeautifulSoup) -> tuple[int, int, int] | None:
+    pager = page.select_one("form#ewpagerform")
+    if not pager:
+        return None
+
+    text = pager.get_text(" ", strip=True)
+    match = re.search(r"Records\s+(\d+)\s+to\s+(\d+)\s+of\s+(\d+)", text)
+    if not match:
+        return None
+
+    return int(match.group(1)), int(match.group(2)), int(match.group(3))
 
 
 def _get_detail_value(page: BeautifulSoup, field_name: str) -> str | None:
@@ -91,6 +106,71 @@ def _scrape_semester_module_identity(
 
     cache[sem_module_id] = (module_code, module_name)
     return cache[sem_module_id]
+
+
+def _extract_semester_modules_from_page(
+    page: BeautifulSoup,
+    browser: Browser,
+    detail_cache: dict[int, tuple[str | None, str | None]],
+) -> list[dict[str, str | int | float | bool]]:
+    semester_modules = []
+    rows = page.select("table#ewlistmain tr")
+
+    for row in rows:
+        cells = row.select("td")
+        if len(cells) < 4:
+            continue
+
+        module_text = cells[0].get_text(strip=True)
+        module_type = cells[1].get_text(strip=True)
+        credits_text = cells[3].get_text(strip=True).replace(",", "")
+
+        if not module_text or not module_type:
+            continue
+
+        view_link = row.select_one("a[href*='f_semmoduleview.php']")
+        if not view_link or "href" not in view_link.attrs:
+            continue
+
+        sem_module_id = _extract_semester_module_id(str(view_link["href"]))
+        if sem_module_id is None:
+            continue
+
+        module_code, module_name = extract_module_code_and_name(module_text)
+        if not module_code or module_name is None:
+            detail_code, detail_name = _scrape_semester_module_identity(
+                browser,
+                sem_module_id,
+                detail_cache,
+            )
+            if detail_code:
+                module_code = detail_code
+            if detail_name is not None:
+                module_name = detail_name
+
+        if not module_code:
+            continue
+
+        if module_name is None:
+            module_name = ""
+
+        try:
+            credits = float(credits_text)
+        except (ValueError, TypeError):
+            continue
+
+        semester_modules.append(
+            {
+                "cms_id": sem_module_id,
+                "module_code": module_code,
+                "module_name": module_name,
+                "type": module_type,
+                "credits": credits,
+                "hidden": False,
+            }
+        )
+
+    return semester_modules
 
 
 def _scrape_program_level(browser: Browser, program_id: int) -> ProgramLevel:
@@ -204,67 +284,34 @@ def scrape_semester_modules(
     semester_id: int,
 ) -> list[dict[str, str | int | float | bool]]:
     browser = Browser()
-    url = f"{BASE_URL}/f_semmodulelist.php?showmaster=1&SemesterID={semester_id}"
-    response = browser.fetch(url)
+    base_url = f"{BASE_URL}/f_semmodulelist.php?showmaster=1&SemesterID={semester_id}"
+    response = browser.fetch(base_url)
     page = BeautifulSoup(response.text, "lxml")
     detail_cache: dict[int, tuple[str | None, str | None]] = {}
 
-    semester_modules = []
-    rows = page.select("table#ewlistmain tr")
+    semester_modules = _extract_semester_modules_from_page(page, browser, detail_cache)
+    pager_bounds = _extract_pager_bounds(page)
+    if not pager_bounds:
+        return semester_modules
 
-    for row in rows:
-        cells = row.select("td")
-        if len(cells) < 4:
-            continue
+    _, page_last, total_records = pager_bounds
+    next_start = page_last + 1
 
-        module_text = cells[0].get_text(strip=True)
-        module_type = cells[1].get_text(strip=True)
-        credits_text = cells[3].get_text(strip=True).replace(",", "")
-
-        if not module_text or not module_type:
-            continue
-
-        view_link = row.select_one("a[href*='f_semmoduleview.php']")
-        if not view_link or "href" not in view_link.attrs:
-            continue
-
-        sem_module_id = _extract_semester_module_id(str(view_link["href"]))
-        if sem_module_id is None:
-            continue
-
-        module_code, module_name = extract_module_code_and_name(module_text)
-        if not module_code or module_name is None:
-            detail_code, detail_name = _scrape_semester_module_identity(
-                browser,
-                sem_module_id,
-                detail_cache,
-            )
-            if detail_code:
-                module_code = detail_code
-            if detail_name is not None:
-                module_name = detail_name
-
-        if not module_code:
-            continue
-
-        if module_name is None:
-            module_name = ""
-
-        try:
-            credits = float(credits_text)
-        except (ValueError, TypeError):
-            continue
-
-        semester_modules.append(
-            {
-                "cms_id": sem_module_id,
-                "module_code": module_code,
-                "module_name": module_name,
-                "type": module_type,
-                "credits": credits,
-                "hidden": False,
-            }
+    while next_start <= total_records:
+        response = browser.fetch(f"{base_url}&start={next_start}")
+        page = BeautifulSoup(response.text, "lxml")
+        semester_modules.extend(
+            _extract_semester_modules_from_page(page, browser, detail_cache)
         )
+
+        pager_bounds = _extract_pager_bounds(page)
+        if not pager_bounds:
+            break
+
+        _, current_last, total_records = pager_bounds
+        if current_last < next_start:
+            break
+        next_start = current_last + 1
 
     return semester_modules
 

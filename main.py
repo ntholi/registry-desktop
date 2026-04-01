@@ -5,13 +5,8 @@ import threading
 from pathlib import Path
 
 import wx
-from sqlalchemy.orm import Session as DBSession
 
 from base.__version__ import __version__
-from base.auth.access_denied_dialog import AccessDeniedDialog
-from base.auth.login_view import LoginWindow
-from base.auth.repository import AuthRepository
-from base.auth.session_manager import SessionManager
 from base.auto_update import AutoUpdater
 from base.logging_config import setup_logging
 from base.menu_bar import AppMenuBar
@@ -20,8 +15,7 @@ from base.splash_screen import SplashScreen
 from base.status.status_bar import StatusBar
 from base.widgets.loading_panel import LoadingPanel
 from base.widgets.update_dialog import UpdateDialog
-from database.connection import get_database_env_label, get_engine
-from database.models import User
+from database.connection import get_database_env_label
 from features.bulk.student_modules import StudentModulesView
 from features.bulk.student_programs import StudentProgramsView
 from features.bulk.student_semesters import StudentSemestersView
@@ -40,17 +34,16 @@ logger = logging.getLogger(__name__)
 
 
 class MainWindow(wx.Frame):
-    def __init__(self, current_user: User):
+    def __init__(self):
         super().__init__(
             None,
             title=f"Limkokwing Registry v{__version__} ({get_database_env_label()})",
             size=wx.Size(1100, 750),
         )
 
-        self.current_user = current_user
-        logger.info(f"Main window initialized for user: {current_user.email}")
+        logger.info("Main window initialized")
 
-        self.menu_bar = AppMenuBar(self, current_user)
+        self.menu_bar = AppMenuBar(self)
 
         panel = wx.Panel(self)
         root_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -163,19 +156,23 @@ class MainWindow(wx.Frame):
                 self.pending_action = None
 
     def _load_view_titles(self) -> dict[str, str]:
-        """Load view titles/descriptions from menu.json"""
         config_path = Path(__file__).parent / "base" / "nav" / "menu.json"
         titles = {}
+
+        def collect_titles(items):
+            for item in items:
+                action = item.get("action")
+                if action:
+                    titles[action] = item["title"]
+                submenu = item.get("submenu")
+                if submenu:
+                    collect_titles(submenu)
 
         try:
             with open(config_path, "r") as f:
                 config = json.load(f)
 
-            for item in config["menu_items"]:
-                for submenu in item["submenu"]:
-                    action = submenu["action"]
-                    title = submenu.get("title", submenu["title"])
-                    titles[action] = title
+            collect_titles(config["menu_items"])
         except (FileNotFoundError, json.JSONDecodeError, KeyError) as e:
             print(f"Error loading menu titles: {e}")
 
@@ -203,40 +200,9 @@ class MainWindow(wx.Frame):
         wx.SafeYield()
 
 
-def check_existing_session() -> User | None:
-    token = SessionManager.get_token()
-    if not token:
-        return None
-
+def show_main_window():
     try:
-        engine = get_engine()
-        with DBSession(engine) as db_session:
-            auth_repo = AuthRepository(db_session)
-            user = auth_repo.get_user_by_token(token)
-
-            if user:
-                logger.info(f"Valid session found for user: {user.email}")
-                return user
-            else:
-                SessionManager.clear_session()
-                logger.info("Session expired or invalid, cleared local session")
-                return None
-    except Exception as e:
-        logger.exception(f"Error checking existing session: {e}")
-        SessionManager.clear_session()
-        return None
-
-
-def show_main_window(user: User):
-    if user.role not in ["registry", "admin"]:
-        SessionManager.clear_session()
-        dialog = AccessDeniedDialog(None, user.role)
-        dialog.ShowModal()
-        dialog.Destroy()
-        return
-
-    try:
-        window = MainWindow(user)
+        window = MainWindow()
         window.Maximize()
         window.Show()
 
@@ -321,23 +287,9 @@ def main():
 
     wx.Yield()
 
-    current_user = check_existing_session()
-
     splash.close()
 
-    if current_user:
-        if current_user.role in ["registry", "admin"]:
-            show_main_window(current_user)
-        else:
-            SessionManager.clear_session()
-            dialog = AccessDeniedDialog(None, current_user.role)
-            dialog.ShowModal()
-            dialog.Destroy()
-            login_window = LoginWindow(on_login_success=show_main_window)
-            login_window.Show()
-    else:
-        login_window = LoginWindow(on_login_success=show_main_window)
-        login_window.Show()
+    show_main_window()
 
     app.MainLoop()
 

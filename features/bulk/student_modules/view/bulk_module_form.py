@@ -5,7 +5,6 @@ import wx
 from database.models import Grade, StudentModuleStatus
 from features.sync.students.repository import StudentRepository
 from utils.formatters import format_semester
-from utils.permissions import can_edit_grades
 
 
 class BulkModuleFormDialog(wx.Dialog):

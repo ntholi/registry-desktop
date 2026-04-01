@@ -1,6 +1,5 @@
 from .connection import get_engine
 from .models import (
-    Account,
     Assessment,
     AssessmentMark,
     Base,
@@ -13,7 +12,6 @@ from .models import (
     RequestedModule,
     School,
     SemesterModule,
-    Session,
     Sponsor,
     SponsoredStudent,
     Structure,
@@ -24,12 +22,10 @@ from .models import (
     StudentProgram,
     StudentSemester,
     Term,
-    User,
 )
 
 __all__ = [
     "get_engine",
-    "Account",
     "Assessment",
     "AssessmentMark",
     "Base",
@@ -42,7 +38,6 @@ __all__ = [
     "RequestedModule",
     "School",
     "SemesterModule",
-    "Session",
     "Sponsor",
     "SponsoredStudent",
     "Student",
@@ -53,5 +48,4 @@ __all__ = [
     "Structure",
     "StructureSemester",
     "Term",
-    "User",
 ]

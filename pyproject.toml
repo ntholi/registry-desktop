@@ -7,7 +7,6 @@ requires-python = ">=3.12"
 dependencies = [
     "beautifulsoup4>=4.14.3",
     "lxml>=6.0.2",
-    "nanoid>=2.0.0",
     "pyinstaller>=6.19.0",
     "wxpython>=4.2.5",
     "python-dotenv>=1.2.2",

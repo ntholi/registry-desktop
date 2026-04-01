@@ -1,7 +1,6 @@
 from datetime import datetime
 from typing import Literal
 
-import nanoid
 from sqlalchemy import (
     BigInteger,
     Boolean,
@@ -18,17 +17,6 @@ from sqlalchemy.dialects.postgresql import ENUM as PgEnum
 from sqlalchemy.orm import Mapped, declarative_base, mapped_column
 
 DashboardUser = Literal[
-    "finance",
-    "registry",
-    "library",
-    "resource",
-    "academic",
-    "student_services",
-    "admin",
-]
-UserRole = Literal[
-    "user",
-    "student",
     "finance",
     "registry",
     "library",
@@ -187,78 +175,7 @@ def utc_now():
     return datetime.utcnow()
 
 
-def generate_nanoid():
-    return nanoid.generate()
-
-
 Base = declarative_base()
-
-
-class User(Base):
-    __tablename__ = "users"
-
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_nanoid)
-    name: Mapped[str] = mapped_column(Text, nullable=False)
-    role: Mapped[UserRole] = mapped_column(String, nullable=False, default="user")
-    email: Mapped[str] = mapped_column(String, unique=True, nullable=False)
-    email_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    image: Mapped[str | None] = mapped_column(Text, nullable=True)
-    preset_id: Mapped[str | None] = mapped_column(String, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=utc_now, nullable=False
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=utc_now, nullable=False
-    )
-    banned: Mapped[bool | None] = mapped_column(Boolean, default=False, nullable=True)
-    ban_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
-    ban_expires: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-
-
-class Account(Base):
-    __tablename__ = "accounts"
-
-    id: Mapped[str] = mapped_column(String, primary_key=True)
-    user_id: Mapped[str] = mapped_column(
-        String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-    )
-    account_id: Mapped[str] = mapped_column(String, nullable=False)
-    provider_id: Mapped[str] = mapped_column(String, nullable=False)
-    refresh_token: Mapped[str | None] = mapped_column(Text, nullable=True)
-    access_token: Mapped[str | None] = mapped_column(Text, nullable=True)
-    scope: Mapped[str | None] = mapped_column(Text, nullable=True)
-    id_token: Mapped[str | None] = mapped_column(Text, nullable=True)
-    access_token_expires_at: Mapped[datetime | None] = mapped_column(
-        DateTime, nullable=True
-    )
-    refresh_token_expires_at: Mapped[datetime | None] = mapped_column(
-        DateTime, nullable=True
-    )
-    password: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime | None] = mapped_column(
-        DateTime, default=utc_now, nullable=True
-    )
-    updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-
-
-class Session(Base):
-    __tablename__ = "sessions"
-
-    id: Mapped[str] = mapped_column(String, primary_key=True)
-    token: Mapped[str] = mapped_column(String, unique=True, nullable=False)
-    user_id: Mapped[str] = mapped_column(
-        String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-    )
-    ip_address: Mapped[str | None] = mapped_column(Text, nullable=True)
-    user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
-    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=utc_now, nullable=False
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=utc_now, nullable=False
-    )
-    impersonated_by: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class Student(Base):
@@ -280,9 +197,6 @@ class Student(Base):
     nationality: Mapped[str | None] = mapped_column(Text, nullable=True)
     birth_place: Mapped[str | None] = mapped_column(Text, nullable=True)
     religion: Mapped[str | None] = mapped_column(Text, nullable=True)
-    user_id: Mapped[str | None] = mapped_column(
-        String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
-    )
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime, default=utc_now, nullable=True
     )
@@ -296,7 +210,6 @@ class Student(Base):
             postgresql_using="gin",
             postgresql_ops={"name": "gin_trgm_ops"},
         ),
-        Index("fk_students_user_id", "user_id"),
     )
 
 
@@ -612,9 +525,6 @@ class RegistrationRequest(Base):
     updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     date_registered: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    deleted_by: Mapped[str | None] = mapped_column(
-        String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
-    )
     student_semester_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey("student_semesters.id", ondelete="SET NULL"),
@@ -668,9 +578,7 @@ class Clearance(Base):
         String, nullable=False, default="pending"
     )
     message: Mapped[str | None] = mapped_column(Text, nullable=True)
-    responded_by: Mapped[str | None] = mapped_column(
-        String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True
-    )
+    responded_by: Mapped[str | None] = mapped_column(String, nullable=True)
     response_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime, default=utc_now, nullable=True

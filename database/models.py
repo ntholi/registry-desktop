@@ -142,7 +142,7 @@ Grade = Literal[
     "NM",
 ]
 
-ProgramLevel = Literal["certificate", "diploma", "degree"]
+ProgramLevel = Literal["certificate", "diploma", "degree", "short_course"]
 ModuleStatus = Literal["Active", "Defunct"]
 ModuleType = Literal["Major", "Minor", "Core", "Delete", "Elective"]
 

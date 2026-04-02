@@ -23,6 +23,8 @@ def _extract_program_id(href: str) -> int | None:
 
 def _normalize_program_level(category: str) -> ProgramLevel:
     normalized = category.strip().lower()
+    if "short" in normalized and "course" in normalized:
+        return "short_course"
     if normalized in {"certificate", "cert"}:
         return "certificate"
     if "cert" in normalized:
@@ -40,8 +42,10 @@ def _normalize_program_level(category: str) -> ProgramLevel:
     ):
         return "degree"
 
-    logger.warning(f"Unknown program category '{category}', defaulting to 'degree'")
-    return "degree"
+    logger.warning(
+        f"Unknown program category '{category}', defaulting to 'short_course'"
+    )
+    return "short_course"
 
 
 def _extract_pager_bounds(page: BeautifulSoup) -> tuple[int, int, int] | None:

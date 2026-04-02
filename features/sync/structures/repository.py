@@ -71,6 +71,17 @@ class StructureRepository:
 
         return None
 
+    def _resolve_school_db_id(self, session: Session, school_id: int) -> Optional[int]:
+        result = session.query(School.id).filter(School.id == school_id).first()
+        if result:
+            return int(result[0])
+
+        result = session.query(School.id).filter(School.cms_id == school_id).first()
+        if result:
+            return int(result[0])
+
+        return None
+
     def _resolve_structure_db_id(
         self, session: Session, structure_id: int
     ) -> Optional[int]:
@@ -295,6 +306,10 @@ class StructureRepository:
         level: ProgramLevel = "degree",
     ) -> Program:
         with self._session() as session:
+            resolved_school_id = self._resolve_school_db_id(session, school_id)
+            if resolved_school_id is None:
+                raise ValueError(f"School not found for ID {school_id}")
+
             existing_program = (
                 session.query(Program).filter(Program.cms_id == cms_id).first()
             )
@@ -305,7 +320,7 @@ class StructureRepository:
             if existing_program:
                 existing_program.code = code  # type: ignore
                 existing_program.name = name  # type: ignore
-                existing_program.school_id = school_id  # type: ignore
+                existing_program.school_id = resolved_school_id  # type: ignore
                 existing_program.level = level  # type: ignore
                 existing_program.cms_id = cms_id  # type: ignore
                 session.commit()
@@ -316,7 +331,7 @@ class StructureRepository:
                     cms_id=cms_id,
                     code=code,
                     name=name,
-                    school_id=school_id,
+                    school_id=resolved_school_id,
                     level=level,
                 )
                 session.add(new_program)

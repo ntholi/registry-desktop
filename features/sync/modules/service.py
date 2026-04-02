@@ -60,16 +60,14 @@ class ModuleSyncService:
     def fetch_and_save_all_modules(
         self, progress_callback: Callable[[str, int, int], None]
     ):
-        def scraping_progress(message, current, total):
-            progress_callback(f"[Scraping] {message}", current, total)
-
-        modules = scrape_all_modules(progress_callback=scraping_progress)
+        modules = scrape_all_modules(progress_callback=progress_callback)
 
         if not modules:
             raise ValueError("No modules found")
 
         total_modules = len(modules)
         saved_count = 0
+        save_errors: list[str] = []
 
         for idx, module in enumerate(modules, start=1):
             progress_callback(
@@ -89,9 +87,31 @@ class ModuleSyncService:
                 saved_count += 1
             except Exception as e:
                 logger.error(f"Error saving module {module['code']}: {e}")
+                save_errors.append(f"{module['code']} ({module['cms_id']})")
+
+        if save_errors:
+            error_preview = ", ".join(save_errors[:10])
+            raise RuntimeError(
+                f"Failed to save {len(save_errors)} of {total_modules} modules: {error_preview}"
+            )
 
         progress_callback(
-            f"Successfully saved {saved_count}/{total_modules} modules",
+            "Verifying saved modules in database...",
+            total_modules,
+            total_modules,
+        )
+
+        missing_cms_ids = self.repository.find_missing_cms_ids(
+            [int(module["cms_id"]) for module in modules]
+        )
+        if missing_cms_ids:
+            missing_preview = ", ".join(str(cms_id) for cms_id in missing_cms_ids[:10])
+            raise RuntimeError(
+                f"Saved modules could not be verified in the database. Missing CMS IDs: {missing_preview}"
+            )
+
+        progress_callback(
+            f"Successfully saved and verified {saved_count}/{total_modules} modules",
             total_modules,
             total_modules,
         )

@@ -118,6 +118,29 @@ class ModuleRepository:
                 session.refresh(new_module)
                 return new_module
 
+    def find_missing_cms_ids(
+        self,
+        cms_ids: list[int],
+        *,
+        chunk_size: int = 500,
+    ) -> list[int]:
+        pending_ids = [int(cms_id) for cms_id in cms_ids]
+        if not pending_ids:
+            return []
+
+        existing_ids: set[int] = set()
+        with self._session() as session:
+            for start in range(0, len(pending_ids), chunk_size):
+                chunk = pending_ids[start : start + chunk_size]
+                rows = (
+                    session.query(Module.cms_id).filter(Module.cms_id.in_(chunk)).all()
+                )
+                existing_ids.update(
+                    int(cms_id) for (cms_id,) in rows if cms_id is not None
+                )
+
+        return [cms_id for cms_id in pending_ids if cms_id not in existing_ids]
+
     def create_local_module(
         self,
         code: str,

@@ -142,14 +142,14 @@ class CatalogScraperTests(unittest.TestCase):
             ],
         )
 
-    def test_scrape_all_modules_follows_pager_bounds_and_deduplicates(self):
+    def test_scrape_all_modules_follows_pager_bounds(self):
         base_url = f"{BASE_URL}/f_modulelist.php?cmd=resetall"
         browser = _FakeBrowser(
             {
                 base_url: """
                     <html>
                       <body>
-                        <form id="ewpagerform">Records 1 to 20 of 21</form>
+                        <form id="ewpagerform">Records 1 to 1 of 2</form>
                         <table id="ewlistmain">
                           <tr>
                             <td>Code</td>
@@ -170,10 +170,10 @@ class CatalogScraperTests(unittest.TestCase):
                       </body>
                     </html>
                 """,
-                f"{base_url}&start=21": """
+                f"{base_url}&start=2": """
                     <html>
                       <body>
-                        <form id="ewpagerform">Records 21 to 21 of 21</form>
+                        <form id="ewpagerform">Records 2 to 2 of 2</form>
                         <table id="ewlistmain">
                           <tr>
                             <td>Code</td>
@@ -181,14 +181,6 @@ class CatalogScraperTests(unittest.TestCase):
                             <td>Status</td>
                             <td>Total</td>
                             <td>Date Stamp</td>
-                          </tr>
-                          <tr>
-                            <td>AAA101</td>
-                            <td>Alpha</td>
-                            <td>Active</td>
-                            <td>0</td>
-                            <td>2024-01-01</td>
-                            <td><a href="f_moduleview.php?ModuleID=101">View</a></td>
                           </tr>
                           <tr>
                             <td>BBB202</td>

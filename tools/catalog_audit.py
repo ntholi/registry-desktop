@@ -15,7 +15,6 @@ from sqlalchemy.orm import Session
 import database.connection as db_connection
 from base.browser import BASE_URL, Browser
 from database import (
-    Base,
     Module,
     Program,
     School,
@@ -23,6 +22,7 @@ from database import (
     Structure,
     StructureSemester,
 )
+from database.bootstrap import ensure_database_schema
 from features.sync.modules.scraper import (
     _extract_pager_bounds as extract_module_pager_bounds,
 )
@@ -284,48 +284,7 @@ def create_audit_database(source_url: URL) -> tuple[str, URL, str]:
 
     if bootstrap_mode == "create_all":
         bootstrap_engine = create_engine(audit_url, pool_pre_ping=True)
-        with bootstrap_engine.connect().execution_options(
-            isolation_level="AUTOCOMMIT"
-        ) as conn:
-            conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
-            conn.execute(
-                text(
-                    """
-                    DO $$
-                    BEGIN
-                        IF NOT EXISTS (
-                            SELECT 1 FROM pg_type WHERE typname = 'program_level'
-                        ) THEN
-                            CREATE TYPE program_level AS ENUM (
-                                'certificate', 'diploma', 'degree', 'short_course'
-                            );
-                        END IF;
-                    END
-                    $$;
-                    """
-                )
-            )
-            conn.execute(
-                text(
-                    """
-                    DO $$
-                    BEGIN
-                        IF NOT EXISTS (
-                            SELECT 1 FROM pg_type WHERE typname = 'next_of_kin_relationship'
-                        ) THEN
-                            CREATE TYPE next_of_kin_relationship AS ENUM (
-                                'Parent', 'Brother', 'Sister', 'Spouse', 'Child', 'Relative',
-                                'Friend', 'Guardian', 'Other', 'Mother', 'Father', 'Husband',
-                                'Wife', 'Permanent', 'Self'
-                            );
-                        END IF;
-                    END
-                    $$;
-                    """
-                )
-            )
-
-        Base.metadata.create_all(bootstrap_engine)
+        ensure_database_schema(bootstrap_engine)
         bootstrap_engine.dispose()
 
     return database_name, audit_url, bootstrap_mode

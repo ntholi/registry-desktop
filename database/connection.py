@@ -2,7 +2,7 @@ import os
 
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
-from sqlalchemy.engine import Engine
+from sqlalchemy.engine import URL, Engine
 from sqlalchemy.pool import NullPool
 
 load_dotenv()
@@ -25,30 +25,33 @@ def get_database_env_label() -> str:
     return "remote" if is_remote_database() else "local"
 
 
-def get_engine() -> Engine:
-    use_remote = is_remote_database()
-
-    if use_remote:
+def get_database_url() -> str:
+    if is_remote_database():
         if not DATABASE_REMOTE_URL:
             raise ValueError("DATABASE_REMOTE_URL environment variable is missing")
+        return DATABASE_REMOTE_URL
 
+    if not DATABASE_LOCAL_URL:
+        raise ValueError("DATABASE_LOCAL_URL environment variable is missing")
+    return DATABASE_LOCAL_URL
+
+
+def create_database_engine(database_url: str | URL) -> Engine:
+    return create_engine(
+        database_url,
+        echo=False,
+        pool_pre_ping=True,
+        poolclass=NullPool,
+    )
+
+
+def get_engine() -> Engine:
+    use_remote = is_remote_database()
+    database_url = get_database_url()
+
+    if use_remote:
         print("Using remote PostgreSQL database")
-        engine = create_engine(
-            DATABASE_REMOTE_URL,
-            echo=False,
-            pool_pre_ping=True,
-            poolclass=NullPool,
-        )
-        return engine
     else:
-        if not DATABASE_LOCAL_URL:
-            raise ValueError("DATABASE_LOCAL_URL environment variable is missing")
-
         print("Using local PostgreSQL database")
-        engine = create_engine(
-            DATABASE_LOCAL_URL,
-            echo=False,
-            pool_pre_ping=True,
-            poolclass=NullPool,
-        )
-        return engine
+
+    return create_database_engine(database_url)

@@ -17,12 +17,24 @@ Registry Desktop is a wxPython-based desktop application for syncing data betwee
 
    uv run main.py
 
+Create the selected PostgreSQL database and all tables if they do not exist:
+
+   uv run python -m database.bootstrap
+
+On Windows, you can use the convenience command:
+
+   .\init_db.bat
+
 Environment variables:
 
 - `DATABASE_ENV` — set to "local" or "remote" to choose database
 - `DATABASE_LOCAL_URL` — PostgreSQL connection string for local development (e.g., `postgresql://dev:111111@localhost:5432/registry`)
 - `DATABASE_REMOTE_URL` — PostgreSQL connection string for production (Neon database)
 - `DESKTOP_ENV` — set to "dev" or "prod" (when "prod", uses remote database)
+
+If your PostgreSQL admin database is not `postgres`, run:
+
+   .\init_db.bat --admin-db <admin_database>
 
 ## Project layout (high level)
 

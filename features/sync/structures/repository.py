@@ -4,7 +4,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Optional
 
-from sqlalchemy import distinct, or_
+from sqlalchemy import distinct, or_, text
 from sqlalchemy.orm import Session
 
 from base import get_logger
@@ -52,11 +52,40 @@ class SemesterModuleRow:
 class StructureRepository:
     def __init__(self) -> None:
         self._engine = get_engine()
+        self._ensure_program_level_enum_support()
 
     @contextmanager
     def _session(self):
         with Session(self._engine) as session:
             yield session
+
+    def _ensure_program_level_enum_support(self) -> None:
+        if self._engine.dialect.name != "postgresql":
+            return
+
+        with self._engine.connect().execution_options(
+            isolation_level="AUTOCOMMIT"
+        ) as connection:
+            enum_exists = connection.execute(
+                text(
+                    """
+                    SELECT 1
+                    FROM pg_type type
+                    JOIN pg_namespace namespace ON namespace.oid = type.typnamespace
+                    WHERE type.typname = 'program_level'
+                    AND namespace.nspname = 'public'
+                    """
+                )
+            ).scalar()
+
+            if not enum_exists:
+                return
+
+            connection.execute(
+                text(
+                    "ALTER TYPE public.program_level ADD VALUE IF NOT EXISTS 'short_course'"
+                )
+            )
 
     def _resolve_program_db_id(
         self, session: Session, program_id: int

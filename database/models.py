@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal
+from typing import Literal, get_args
 
 from sqlalchemy import (
     BigInteger,
@@ -299,7 +299,10 @@ class Program(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     code: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     name: Mapped[str] = mapped_column(Text, nullable=False)
-    level: Mapped[ProgramLevel] = mapped_column(String, nullable=False)
+    level: Mapped[ProgramLevel] = mapped_column(
+        PgEnum(*get_args(ProgramLevel), name="program_level", create_type=False),
+        nullable=False,
+    )
     school_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("schools.id", ondelete="CASCADE"), nullable=False
     )

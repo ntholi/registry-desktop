@@ -4,6 +4,7 @@ from unittest.mock import patch
 from bs4 import BeautifulSoup
 
 from base.browser import BASE_URL
+from features.sync.modules import scraper as modules_scraper
 from features.sync.modules.scraper import _extract_modules_from_page
 from features.sync.structures import scraper as structures_scraper
 
@@ -68,7 +69,9 @@ class CatalogScraperTests(unittest.TestCase):
     def test_scrape_semester_modules_resolves_code_only_rows_from_detail_page(self):
         semester_id = 1140
         sem_module_id = 5389
-        list_url = f"{BASE_URL}/f_semmodulelist.php?showmaster=1&SemesterID={semester_id}"
+        list_url = (
+            f"{BASE_URL}/f_semmodulelist.php?showmaster=1&SemesterID={semester_id}"
+        )
         detail_url = f"{BASE_URL}/f_semmoduleview.php?SemModuleID={sem_module_id}"
         browser = _FakeBrowser(
             {
@@ -137,6 +140,81 @@ class CatalogScraperTests(unittest.TestCase):
                     "hidden": False,
                 }
             ],
+        )
+
+    def test_scrape_all_modules_follows_pager_bounds_and_deduplicates(self):
+        base_url = f"{BASE_URL}/f_modulelist.php?cmd=resetall"
+        browser = _FakeBrowser(
+            {
+                base_url: """
+                    <html>
+                      <body>
+                        <form id="ewpagerform">Records 1 to 20 of 21</form>
+                        <table id="ewlistmain">
+                          <tr>
+                            <td>Code</td>
+                            <td>Name</td>
+                            <td>Status</td>
+                            <td>Total</td>
+                            <td>Date Stamp</td>
+                          </tr>
+                          <tr>
+                            <td>AAA101</td>
+                            <td>Alpha</td>
+                            <td>Active</td>
+                            <td>0</td>
+                            <td>2024-01-01</td>
+                            <td><a href="f_moduleview.php?ModuleID=101">View</a></td>
+                          </tr>
+                        </table>
+                      </body>
+                    </html>
+                """,
+                f"{base_url}&start=21": """
+                    <html>
+                      <body>
+                        <form id="ewpagerform">Records 21 to 21 of 21</form>
+                        <table id="ewlistmain">
+                          <tr>
+                            <td>Code</td>
+                            <td>Name</td>
+                            <td>Status</td>
+                            <td>Total</td>
+                            <td>Date Stamp</td>
+                          </tr>
+                          <tr>
+                            <td>AAA101</td>
+                            <td>Alpha</td>
+                            <td>Active</td>
+                            <td>0</td>
+                            <td>2024-01-01</td>
+                            <td><a href="f_moduleview.php?ModuleID=101">View</a></td>
+                          </tr>
+                          <tr>
+                            <td>BBB202</td>
+                            <td>Beta</td>
+                            <td>Defunct</td>
+                            <td>0</td>
+                            <td>2024-02-02</td>
+                            <td><a href="f_moduleview.php?ModuleID=202">View</a></td>
+                          </tr>
+                        </table>
+                      </body>
+                    </html>
+                """,
+            }
+        )
+
+        with patch.object(modules_scraper, "Browser", return_value=browser):
+            modules = modules_scraper.scrape_all_modules()
+
+        self.assertEqual([module["cms_id"] for module in modules], [101, 202])
+        self.assertEqual([module["code"] for module in modules], ["AAA101", "BBB202"])
+
+    def test_normalize_program_level_handles_short_course(self):
+        self.assertEqual(
+            structures_scraper._normalize_program_level("Short Course"),
+            "short_course",
         )
 
 

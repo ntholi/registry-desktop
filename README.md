@@ -25,6 +25,14 @@ On Windows, you can use the convenience command:
 
    .\init_db.bat
 
+Create a PostgreSQL custom-format backup in `backup_db/`:
+
+   uv run python -m database.backup
+
+On Windows, you can use the convenience command:
+
+   .\backup_database.bat
+
 Environment variables:
 
 - `DATABASE_ENV` — set to "local" or "remote" to choose database
@@ -35,6 +43,10 @@ Environment variables:
 If your PostgreSQL admin database is not `postgres`, run:
 
    .\init_db.bat --admin-db <admin_database>
+
+To choose a specific backup file path, run:
+
+   .\backup_database.bat --output backup_db\my-backup.dump
 
 ## Project layout (high level)
 

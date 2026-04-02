@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional
 
 from sqlalchemy import distinct, or_, text
 from sqlalchemy.orm import Session
@@ -148,6 +148,28 @@ class StructureRepository:
             return int(result[0])
 
         return None
+
+    def _find_missing_cms_ids(
+        self,
+        model: Any,
+        cms_ids: list[int],
+        *,
+        chunk_size: int = 500,
+    ) -> list[int]:
+        pending_ids = [int(cms_id) for cms_id in cms_ids]
+        if not pending_ids:
+            return []
+
+        existing_ids: set[int] = set()
+        with self._session() as session:
+            for start in range(0, len(pending_ids), chunk_size):
+                chunk = pending_ids[start : start + chunk_size]
+                rows = session.query(model.cms_id).filter(model.cms_id.in_(chunk)).all()
+                existing_ids.update(
+                    int(cms_id) for (cms_id,) in rows if cms_id is not None
+                )
+
+        return [cms_id for cms_id in pending_ids if cms_id not in existing_ids]
 
     def list_active_schools(self):
         with self._session() as session:
@@ -296,6 +318,54 @@ class StructureRepository:
             )
             for result in results
         ]
+
+    def find_missing_school_cms_ids(
+        self,
+        cms_ids: list[int],
+        *,
+        chunk_size: int = 500,
+    ) -> list[int]:
+        return self._find_missing_cms_ids(School, cms_ids, chunk_size=chunk_size)
+
+    def find_missing_program_cms_ids(
+        self,
+        cms_ids: list[int],
+        *,
+        chunk_size: int = 500,
+    ) -> list[int]:
+        return self._find_missing_cms_ids(Program, cms_ids, chunk_size=chunk_size)
+
+    def find_missing_structure_cms_ids(
+        self,
+        cms_ids: list[int],
+        *,
+        chunk_size: int = 500,
+    ) -> list[int]:
+        return self._find_missing_cms_ids(Structure, cms_ids, chunk_size=chunk_size)
+
+    def find_missing_semester_cms_ids(
+        self,
+        cms_ids: list[int],
+        *,
+        chunk_size: int = 500,
+    ) -> list[int]:
+        return self._find_missing_cms_ids(
+            StructureSemester,
+            cms_ids,
+            chunk_size=chunk_size,
+        )
+
+    def find_missing_semester_module_cms_ids(
+        self,
+        cms_ids: list[int],
+        *,
+        chunk_size: int = 500,
+    ) -> list[int]:
+        return self._find_missing_cms_ids(
+            SemesterModule,
+            cms_ids,
+            chunk_size=chunk_size,
+        )
 
     def save_school(self, cms_id: int, code: str, name: str) -> School:
         with self._session() as session:

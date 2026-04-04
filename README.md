@@ -39,6 +39,10 @@ Environment variables:
 - `DATABASE_LOCAL_URL` — PostgreSQL connection string for local development (e.g., `postgresql://dev:111111@localhost:5432/registry`)
 - `DATABASE_REMOTE_URL` — PostgreSQL connection string for production (Neon database)
 - `DESKTOP_ENV` — set to "dev" or "prod" (when "prod", uses remote database)
+- On startup the app now prompts for `Lesotho` or `Eswatini` and uses that country for the CMS URL, the active database name, and the main window title.
+- Built-in CMS URLs are `https://cmslesotho.limkokwing.net/campus/registry` and `https://cmseswatini.limkokwing.net/campus/registry`.
+- By default the selected country swaps the database name to `cms_lesotho` or `cms_eswatini` while keeping the rest of the configured connection string unchanged.
+- Optional overrides: `REGISTRY_COUNTRY`, `CMS_LESOTHO_URL`, `CMS_ESWATINI_URL`, `DATABASE_LESOTHO_NAME`, `DATABASE_ESWATINI_NAME`, `DATABASE_LOCAL_URL_LESOTHO`, `DATABASE_LOCAL_URL_ESWATINI`, `DATABASE_REMOTE_URL_LESOTHO`, `DATABASE_REMOTE_URL_ESWATINI`
 
 If your PostgreSQL admin database is not `postgres`, run:
 

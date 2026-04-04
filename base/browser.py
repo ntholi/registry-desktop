@@ -15,11 +15,29 @@ from urllib3.exceptions import InsecureRequestWarning
 from urllib3.util.retry import Retry
 
 from . import get_logger
+from .runtime_config import get_current_cms_base_url, get_current_session_file
 
 logger = get_logger(__name__)
 
-BASE_URL = "https://cmslesotho.limkokwing.net/campus/registry"
-SESSION_FILE = "session.pkl"
+
+class _BaseUrlProxy:
+    def __str__(self) -> str:
+        return get_current_cms_base_url()
+
+    def __repr__(self) -> str:
+        return str(self)
+
+    def __format__(self, format_spec: str) -> str:
+        return format(str(self), format_spec)
+
+    def __eq__(self, other: object) -> bool:
+        return str(self) == str(other)
+
+    def __hash__(self) -> int:
+        return hash(str(self))
+
+
+BASE_URL = _BaseUrlProxy()
 
 urllib3.disable_warnings(InsecureRequestWarning)
 
@@ -55,8 +73,9 @@ class Browser:
         return cls._instance
 
     def load_session(self):
-        if os.path.exists(SESSION_FILE):
-            with open(SESSION_FILE, "rb") as f:
+        session_file = get_current_session_file()
+        if os.path.exists(session_file):
+            with open(session_file, "rb") as f:
                 self.session = pickle.load(f)
             logger.info("Loaded existing session")
         else:
@@ -82,7 +101,7 @@ class Browser:
         self.session.mount("https://", adapter)
 
     def save_session(self):
-        with open(SESSION_FILE, "wb") as f:
+        with open(get_current_session_file(), "wb") as f:
             pickle.dump(self.session, f)
         logger.info("Saved session")
 

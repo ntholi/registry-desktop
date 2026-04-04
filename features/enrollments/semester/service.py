@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 
 from base import get_logger
 from base.browser import BASE_URL, Browser, get_form_payload
+from base.runtime_config import get_current_country_label
 from features.common.cms_utils import format_module_enrollment_string, post_cms_form
 
 from .repository import SemesterEnrollmentRepository
@@ -55,7 +56,7 @@ class SemesterEnrollmentService:
             form_data["a_add"] = "A"
             form_data["x_StdProgramID"] = str(student_program_cms_id)
             form_data["x_StructureID"] = str(structure_cms_id)
-            form_data["x_CampusCode"] = "Lesotho"
+            form_data["x_CampusCode"] = get_current_country_label()
             form_data["x_TermCode"] = term
             form_data["x_SemesterID"] = str(structure_semester_cms_id)
             form_data["x_SemesterStatus"] = status
@@ -217,7 +218,7 @@ class SemesterEnrollmentService:
 
             form_data["a_edit"] = "U"
             form_data["btnAction"] = "Edit"
-            form_data["x_CampusCode"] = "Lesotho"
+            form_data["x_CampusCode"] = get_current_country_label()
 
             current_term = semester_data.get("term_code")
             structure_cms_id = semester_data.get("structure_cms_id")
@@ -264,7 +265,7 @@ class SemesterEnrollmentService:
 
             form_data["a_edit"] = "U"
             form_data["btnAction"] = "Edit"
-            form_data["x_CampusCode"] = "Lesotho"
+            form_data["x_CampusCode"] = get_current_country_label()
 
             if structure_cms_id:
                 form_data["x_StructureID"] = str(structure_cms_id)

@@ -11,11 +11,13 @@ from base.auto_update import AutoUpdater
 from base.logging_config import setup_logging
 from base.menu_bar import AppMenuBar
 from base.nav import AccordionNavigation
+from base.runtime_config import get_current_country_code, get_current_country_label
 from base.splash_screen import SplashScreen
 from base.status.status_bar import StatusBar
+from base.widgets.country_selection_dialog import CountrySelectionDialog
 from base.widgets.loading_panel import LoadingPanel
 from base.widgets.update_dialog import UpdateDialog
-from database.connection import get_database_env_label
+from database.connection import configure_database_urls_for_country
 from features.bulk.student_modules import StudentModulesView
 from features.bulk.student_programs import StudentProgramsView
 from features.bulk.student_semesters import StudentSemestersView
@@ -37,7 +39,7 @@ class MainWindow(wx.Frame):
     def __init__(self):
         super().__init__(
             None,
-            title=f"Limkokwing Registry v{__version__} ({get_database_env_label()})",
+            title=f"Limkokwing Registry v{__version__} ({get_current_country_label()})",
             size=wx.Size(1100, 750),
         )
 
@@ -217,6 +219,30 @@ def show_main_window():
         raise
 
 
+def select_runtime_country() -> bool:
+    dialog = CountrySelectionDialog(None, get_current_country_code())
+    result = dialog.ShowModal()
+
+    if result != wx.ID_OK:
+        dialog.Destroy()
+        return False
+
+    selected_country = dialog.get_selected_country_code()
+    dialog.Destroy()
+
+    try:
+        configure_database_urls_for_country(selected_country)
+    except Exception as exc:
+        wx.MessageBox(
+            f"Failed to load the {selected_country.title()} configuration: {exc}",
+            "Configuration Error",
+            wx.OK | wx.ICON_ERROR,
+        )
+        return False
+
+    return True
+
+
 def check_for_updates_async(parent_window):
     def check_updates():
         updater = AutoUpdater()
@@ -281,6 +307,9 @@ def main():
         input("Press any key to continue...")
 
     app = wx.App()
+
+    if not select_runtime_country():
+        return
 
     splash = SplashScreen(__version__)
     splash.Show()

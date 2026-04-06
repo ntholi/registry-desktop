@@ -25,6 +25,8 @@ On Windows, you can use the convenience command:
 
    .\init_db.bat
 
+Both commands now prompt you to choose the target database (`Lesotho` or `Eswatini`) before bootstrapping.
+
 Create a PostgreSQL custom-format backup in `backup_db/`:
 
    uv run python -m database.backup
@@ -47,6 +49,10 @@ Environment variables:
 If your PostgreSQL admin database is not `postgres`, run:
 
    .\init_db.bat --admin-db <admin_database>
+
+To skip the prompt and choose the database directly, run:
+
+   .\init_db.bat --country lesotho
 
 To choose a specific backup file path, run:
 

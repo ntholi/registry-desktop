@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 from sqlalchemy.engine.url import URL, make_url
 
+from base.runtime_config import CountryConfig, get_available_countries, get_country_config
 from database.connection import (
+    configure_database_urls_for_country,
     create_database_engine,
     get_database_env_label,
     get_database_url,
@@ -20,6 +23,47 @@ class BootstrapResult:
     environment: str
     database_name: str
     database_created: bool
+
+
+def parse_country_selection(
+    selection: str, countries: list[CountryConfig] | None = None
+) -> CountryConfig | None:
+    available_countries = countries or get_available_countries()
+    normalized = selection.strip().lower()
+
+    if not normalized:
+        return None
+
+    for index, config in enumerate(available_countries, start=1):
+        if normalized in {str(index), config.code, config.label.lower()}:
+            return config
+
+    return None
+
+
+def prompt_for_country_selection(
+    input_func: Callable[[str], str] = input,
+    output_func: Callable[[str], None] = print,
+) -> CountryConfig:
+    countries = get_available_countries()
+    output_func("Select the database to create or initialize:")
+
+    for index, config in enumerate(countries, start=1):
+        output_func(f"{index}. {config.label} ({config.database_name})")
+
+    accepted_values = " / ".join(
+        f"{index}:{config.code}" for index, config in enumerate(countries, start=1)
+    )
+
+    while True:
+        selected_country = parse_country_selection(
+            input_func("Choose a database: "), countries
+        )
+
+        if selected_country:
+            return selected_country
+
+        output_func(f"Invalid selection. Enter one of {accepted_values}.")
 
 
 def quote_identifier(value: str) -> str:
@@ -93,7 +137,12 @@ def ensure_database_schema(engine: Engine) -> None:
     Base.metadata.create_all(engine)
 
 
-def bootstrap_database(admin_database: str = "postgres") -> BootstrapResult:
+def bootstrap_database(
+    admin_database: str = "postgres", country_code: str | None = None
+) -> BootstrapResult:
+    if country_code:
+        configure_database_urls_for_country(country_code)
+
     database_url = get_database_url()
     target_url = make_url(database_url)
     database_name = target_url.database
@@ -119,6 +168,11 @@ def bootstrap_database(admin_database: str = "postgres") -> BootstrapResult:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("--admin-db", default="postgres")
+    parser.add_argument(
+        "--country",
+        choices=[config.code for config in get_available_countries()],
+        help="use a specific country/database without prompting",
+    )
     return parser
 
 
@@ -126,13 +180,22 @@ def main() -> None:
     args = build_parser().parse_args()
 
     try:
-        result = bootstrap_database(admin_database=args.admin_db)
+        selected_country = (
+            get_country_config(args.country)
+            if args.country
+            else prompt_for_country_selection()
+        )
+        result = bootstrap_database(
+            admin_database=args.admin_db,
+            country_code=selected_country.code,
+        )
     except Exception as exc:
         print(f"Database bootstrap failed: {exc}")
         raise SystemExit(1) from exc
 
     action = "Created" if result.database_created else "Using existing"
 
+    print(f"Country: {selected_country.label}")
     print(f"Environment: {result.environment}")
     print(f"Database: {result.database_name}")
     print(f"Status: {action} database and ensured all tables exist")

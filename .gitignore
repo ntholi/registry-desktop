@@ -14,7 +14,7 @@ wheels/
 # Database
 local.db
 /samples
-/session.pkl
+*.pkl
 .claude/settings.local.json
 /CLAUDE.md
 

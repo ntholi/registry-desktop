@@ -474,7 +474,7 @@ def scrape_student_semester_data(
 
     assist_provider = get_table_value(table, "Asst-Provider")
     if assist_provider and repository:
-        sponsor_id = repository.lookup_sponsor_by_code(assist_provider)
+        sponsor_id = repository.lookup_sponsor(assist_provider)
         if sponsor_id:
             data["sponsor_id"] = sponsor_id
         elif missing_sponsor_callback:

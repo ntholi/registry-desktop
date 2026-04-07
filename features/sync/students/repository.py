@@ -32,7 +32,29 @@ from utils.normalizers import normalize_student_module_status
 logger = get_logger(__name__)
 
 _structure_semester_cache: dict[tuple[int, str], Optional[int]] = {}
-_sponsor_cache: dict[str, Optional[int]] = {}
+_sponsor_code_cache: dict[str, Optional[int]] = {}
+_sponsor_name_cache: dict[str, Optional[int]] = {}
+
+
+def _normalize_sponsor_key(value: str | None) -> Optional[str]:
+    if not value or not value.strip():
+        return None
+    return value.strip()
+
+
+def _cache_sponsor(
+    sponsor_id: Optional[int],
+    *,
+    sponsor_code: str | None = None,
+    sponsor_name: str | None = None,
+) -> None:
+    normalized_code = _normalize_sponsor_key(sponsor_code)
+    normalized_name = _normalize_sponsor_key(sponsor_name)
+
+    if normalized_code:
+        _sponsor_code_cache[normalized_code] = sponsor_id
+    if normalized_name:
+        _sponsor_name_cache[normalized_name] = sponsor_id
 
 
 @dataclass(frozen=True)
@@ -1149,38 +1171,84 @@ class StudentRepository:
             return structure_semester_id
 
     def lookup_sponsor_by_code(self, sponsor_code: str) -> Optional[int]:
-        if not sponsor_code or not sponsor_code.strip():
+        normalized_sponsor_code = _normalize_sponsor_key(sponsor_code)
+        if normalized_sponsor_code is None:
             return None
 
-        sponsor_code = sponsor_code.strip()
-
-        if sponsor_code in _sponsor_cache:
-            logger.debug(f"Cache hit for sponsor code '{sponsor_code}'")
-            return _sponsor_cache[sponsor_code]
+        if normalized_sponsor_code in _sponsor_code_cache:
+            logger.debug(f"Cache hit for sponsor code '{normalized_sponsor_code}'")
+            return _sponsor_code_cache[normalized_sponsor_code]
 
         logger.debug(
-            f"Cache miss for sponsor code '{sponsor_code}' - querying database"
+            f"Cache miss for sponsor code '{normalized_sponsor_code}' - querying database"
         )
 
         with self._session() as session:
             result = (
-                session.query(Sponsor.id).filter(Sponsor.code == sponsor_code).first()
+                session.query(Sponsor.id, Sponsor.name)
+                .filter(Sponsor.code == normalized_sponsor_code)
+                .first()
             )
             sponsor_id = result[0] if result else None
+            sponsor_name = result[1] if result else None
 
-            _sponsor_cache[sponsor_code] = sponsor_id
+            _cache_sponsor(
+                sponsor_id,
+                sponsor_code=normalized_sponsor_code,
+                sponsor_name=sponsor_name,
+            )
 
             return sponsor_id
+
+    def lookup_sponsor_by_name(self, sponsor_name: str) -> Optional[int]:
+        normalized_sponsor_name = _normalize_sponsor_key(sponsor_name)
+        if normalized_sponsor_name is None:
+            return None
+
+        if normalized_sponsor_name in _sponsor_name_cache:
+            logger.debug(f"Cache hit for sponsor name '{normalized_sponsor_name}'")
+            return _sponsor_name_cache[normalized_sponsor_name]
+
+        logger.debug(
+            f"Cache miss for sponsor name '{normalized_sponsor_name}' - querying database"
+        )
+
+        with self._session() as session:
+            result = (
+                session.query(Sponsor.id, Sponsor.code)
+                .filter(Sponsor.name == normalized_sponsor_name)
+                .first()
+            )
+            sponsor_id = result[0] if result else None
+            sponsor_code = result[1] if result else None
+
+            _cache_sponsor(
+                sponsor_id,
+                sponsor_code=sponsor_code,
+                sponsor_name=normalized_sponsor_name,
+            )
+
+            return sponsor_id
+
+    def lookup_sponsor(self, sponsor_value: str) -> Optional[int]:
+        normalized_value = _normalize_sponsor_key(sponsor_value)
+        if normalized_value is None:
+            return None
+
+        sponsor_id = self.lookup_sponsor_by_code(normalized_value)
+        if sponsor_id:
+            return sponsor_id
+
+        return self.lookup_sponsor_by_name(normalized_value)
 
     def create_sponsor(
         self, sponsor_code: str, sponsor_name: Optional[str] = None
     ) -> Optional[int]:
-        if not sponsor_code or not sponsor_code.strip():
+        normalized_sponsor_code = _normalize_sponsor_key(sponsor_code)
+        if normalized_sponsor_code is None:
             return None
 
-        sponsor_code = sponsor_code.strip()
-
-        existing_sponsor_id = self.lookup_sponsor_by_code(sponsor_code)
+        existing_sponsor_id = self.lookup_sponsor(normalized_sponsor_code)
         if existing_sponsor_id:
             return existing_sponsor_id
 
@@ -1188,7 +1256,7 @@ class StudentRepository:
             base_name = (
                 sponsor_name.strip()
                 if sponsor_name and sponsor_name.strip()
-                else sponsor_code
+                else normalized_sponsor_code
             )
             candidate_name = base_name
             suffix = 1
@@ -1201,7 +1269,7 @@ class StudentRepository:
 
             sponsor = Sponsor(
                 name=candidate_name,
-                code=sponsor_code,
+                code=normalized_sponsor_code,
                 updated_at=datetime.datetime.utcnow(),
             )
             session.add(sponsor)
@@ -1209,30 +1277,44 @@ class StudentRepository:
             try:
                 session.commit()
                 session.refresh(sponsor)
-                _sponsor_cache[sponsor_code] = sponsor.id
+                _cache_sponsor(
+                    sponsor.id,
+                    sponsor_code=sponsor.code,
+                    sponsor_name=sponsor.name,
+                )
                 logger.warning(
                     f"Created missing sponsor - sponsor_id={sponsor.id}, "
-                    f"sponsor_code={sponsor_code}, sponsor_name={candidate_name}"
+                    f"sponsor_code={normalized_sponsor_code}, sponsor_name={candidate_name}"
                 )
                 return sponsor.id
             except IntegrityError:
                 session.rollback()
                 result = (
-                    session.query(Sponsor.id)
-                    .filter(Sponsor.code == sponsor_code)
+                    session.query(Sponsor.id, Sponsor.code, Sponsor.name)
+                    .filter(
+                        or_(
+                            Sponsor.code == normalized_sponsor_code,
+                            Sponsor.name == base_name,
+                        )
+                    )
                     .first()
                 )
                 if result:
-                    _sponsor_cache[sponsor_code] = result[0]
-                    return result[0]
+                    sponsor_id, existing_code, existing_name = result
+                    _cache_sponsor(
+                        sponsor_id,
+                        sponsor_code=existing_code,
+                        sponsor_name=existing_name,
+                    )
+                    return sponsor_id
                 logger.error(
-                    f"Failed to create sponsor due to integrity error - sponsor_code={sponsor_code}"
+                    f"Failed to create sponsor due to integrity error - sponsor_code={normalized_sponsor_code}"
                 )
                 return None
             except Exception as e:
                 session.rollback()
                 logger.error(
-                    f"Failed to create sponsor - sponsor_code={sponsor_code}, error={str(e)}"
+                    f"Failed to create sponsor - sponsor_code={normalized_sponsor_code}, error={str(e)}"
                 )
                 return None
 
@@ -1259,11 +1341,14 @@ class StudentRepository:
         logger.info("Preloading all sponsors")
 
         with self._session() as session:
-            results = session.query(Sponsor.id, Sponsor.code).all()
+            results = session.query(Sponsor.id, Sponsor.code, Sponsor.name).all()
 
-            for sponsor_id, sponsor_code in results:
-                if sponsor_code:
-                    _sponsor_cache[sponsor_code.strip()] = sponsor_id
+            for sponsor_id, sponsor_code, sponsor_name in results:
+                _cache_sponsor(
+                    sponsor_id,
+                    sponsor_code=sponsor_code,
+                    sponsor_name=sponsor_name,
+                )
 
             logger.info(f"Preloaded {len(results)} sponsors")
             return len(results)
@@ -1274,8 +1359,9 @@ class StudentRepository:
         logger.info("Cleared structure semester cache")
 
     def clear_sponsor_cache(self) -> None:
-        global _sponsor_cache
-        _sponsor_cache.clear()
+        global _sponsor_code_cache, _sponsor_name_cache
+        _sponsor_code_cache.clear()
+        _sponsor_name_cache.clear()
         logger.info("Cleared sponsor cache")
 
     def get_active_term_code(self) -> Optional[str]:

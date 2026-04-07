@@ -58,7 +58,7 @@ class StudentSyncService:
         term: Optional[str],
         missing_sponsor_prompt: Optional[Callable[[str, str, Optional[str]], bool]],
     ) -> int:
-        existing_sponsor_id = self._repository.lookup_sponsor_by_code(sponsor_code)
+        existing_sponsor_id = self._repository.lookup_sponsor(sponsor_code)
         if existing_sponsor_id:
             return existing_sponsor_id
 

@@ -3,7 +3,7 @@ import wx
 from base import get_logger
 
 from .importer_project import ImporterProject, ImporterProjectManager
-from .importer_worker import ImporterWorker
+from .importer_worker import ImporterRetryWorker, ImporterWorker
 
 logger = get_logger(__name__)
 
@@ -13,17 +13,26 @@ class ImporterDialog(wx.Dialog):
         super().__init__(
             parent,
             title="Import Students",
-            size=wx.Size(620, 580),
+            size=wx.Size(640, 720),
             style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
         )
 
         self.sync_service = sync_service
         self.status_bar = status_bar
         self.worker = None
+        self.retry_worker = None
         self.project = None
+        self.pending_retry_student = None
+        self.active_retry_student = None
+        self.retry_state_message = ""
 
         self.setup_panel = None
         self.progress_panel = None
+        self.failed_students_panel = None
+        self.failed_students_header = None
+        self.retry_state_label = None
+        self.failed_students_scroll = None
+        self.failed_students_list_sizer = None
 
         self.init_ui()
         self.load_project_state()
@@ -303,6 +312,48 @@ class ImporterDialog(wx.Dialog):
 
         sizer.Add(stats_sizer, 0, wx.LEFT | wx.RIGHT, 20)
 
+        sizer.AddSpacer(20)
+
+        failed_separator = wx.StaticLine(panel, style=wx.LI_HORIZONTAL)
+        sizer.Add(failed_separator, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 20)
+
+        sizer.AddSpacer(15)
+
+        self.failed_students_panel = wx.Panel(panel)
+        failed_students_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        self.failed_students_header = wx.StaticText(
+            self.failed_students_panel, label="Failed Students"
+        )
+        font = self.failed_students_header.GetFont()
+        font = font.Bold()
+        self.failed_students_header.SetFont(font)
+        failed_students_sizer.Add(self.failed_students_header, 0)
+
+        failed_students_sizer.AddSpacer(8)
+
+        self.retry_state_label = wx.StaticText(self.failed_students_panel, label="")
+        self.retry_state_label.Hide()
+        failed_students_sizer.Add(self.retry_state_label, 0, wx.BOTTOM, 8)
+
+        self.failed_students_scroll = wx.ScrolledWindow(
+            self.failed_students_panel, style=wx.VSCROLL | wx.BORDER_SIMPLE
+        )
+        self.failed_students_scroll.SetScrollRate(0, 10)
+        self.failed_students_scroll.SetMinSize(wx.Size(-1, 150))
+        self.failed_students_list_sizer = wx.BoxSizer(wx.VERTICAL)
+        self.failed_students_scroll.SetSizer(self.failed_students_list_sizer)
+        failed_students_sizer.Add(self.failed_students_scroll, 0, wx.EXPAND)
+
+        self.failed_students_panel.SetSizer(failed_students_sizer)
+        self.failed_students_panel.Hide()
+        sizer.Add(
+            self.failed_students_panel,
+            0,
+            wx.EXPAND | wx.LEFT | wx.RIGHT,
+            20,
+        )
+
         sizer.AddStretchSpacer()
 
         button_sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -364,6 +415,109 @@ class ImporterDialog(wx.Dialog):
             self.progress_panel.Show()
         self.Layout()
 
+    def update_failed_students_display(self):
+        if (
+            not self.failed_students_panel
+            or not self.failed_students_header
+            or not self.retry_state_label
+            or not self.failed_students_scroll
+            or not self.failed_students_list_sizer
+        ):
+            return
+
+        failed_students = []
+        if self.project and self.project.failed_students:
+            failed_students = list(self.project.failed_students)
+
+        show_panel = bool(failed_students or self.retry_state_message)
+        self.failed_students_panel.Show(show_panel)
+
+        if not show_panel:
+            self.Layout()
+            return
+
+        self.failed_students_header.SetLabel(
+            f"Failed Students ({len(failed_students)})"
+        )
+
+        if self.retry_state_message:
+            self.retry_state_label.SetLabel(self.retry_state_message)
+            self.retry_state_label.Show()
+        else:
+            self.retry_state_label.SetLabel("")
+            self.retry_state_label.Hide()
+
+        self.failed_students_list_sizer.Clear(True)
+
+        retry_locked = bool(
+            self.pending_retry_student
+            or self.active_retry_student
+            or (self.retry_worker and self.retry_worker.is_alive())
+        )
+
+        if failed_students:
+            for student_number in failed_students:
+                row_panel = wx.Panel(self.failed_students_scroll)
+                row_sizer = wx.BoxSizer(wx.HORIZONTAL)
+
+                label_text = student_number
+                if student_number == self.pending_retry_student:
+                    label_text = f"{student_number} - waiting"
+                elif student_number == self.active_retry_student:
+                    label_text = f"{student_number} - retrying"
+
+                student_label = wx.StaticText(row_panel, label=label_text)
+                row_sizer.Add(
+                    student_label,
+                    0,
+                    wx.ALIGN_CENTER_VERTICAL | wx.RIGHT,
+                    12,
+                )
+                row_sizer.AddStretchSpacer()
+
+                retry_bitmap = wx.ArtProvider.GetBitmap(
+                    wx.ART_REDO,
+                    wx.ART_BUTTON,
+                    wx.Size(16, 16),
+                )
+                retry_button = wx.BitmapButton(
+                    row_panel,
+                    bitmap=wx.BitmapBundle.FromBitmap(retry_bitmap),
+                )
+                retry_button.SetMinSize(wx.Size(30, 30))
+                retry_button.SetToolTip(f"Retry import for {student_number}")
+                retry_button.Enable(
+                    not retry_locked
+                    and self.project is not None
+                    and self.project.status in ["running", "paused"]
+                )
+                retry_button.Bind(
+                    wx.EVT_BUTTON,
+                    lambda event, std_no=student_number: self.on_retry_student(
+                        event, std_no
+                    ),
+                )
+                row_sizer.Add(retry_button, 0, wx.ALIGN_CENTER_VERTICAL)
+
+                row_panel.SetSizer(row_sizer)
+                self.failed_students_list_sizer.Add(
+                    row_panel,
+                    0,
+                    wx.EXPAND | wx.ALL,
+                    6,
+                )
+        else:
+            empty_label = wx.StaticText(
+                self.failed_students_scroll,
+                label="No failed students.",
+            )
+            self.failed_students_list_sizer.Add(empty_label, 0, wx.ALL, 8)
+
+        self.failed_students_scroll.Layout()
+        self.failed_students_scroll.FitInside()
+        self.failed_students_panel.Layout()
+        self.Layout()
+
     def on_select_all_checkbox(self, event):
         is_checked = self.select_all_checkbox.GetValue()
         self.student_info_checkbox.SetValue(is_checked)
@@ -395,6 +549,75 @@ class ImporterDialog(wx.Dialog):
             self.select_all_checkbox.Set3StateValue(wx.CHK_UNDETERMINED)
         else:
             self.select_all_checkbox.Set3StateValue(wx.CHK_UNCHECKED)
+
+    def on_retry_student(self, event, student_number):
+        if not self.project:
+            return
+
+        if (
+            not self.project.failed_students
+            or student_number not in self.project.failed_students
+        ):
+            return
+
+        if self.pending_retry_student or self.active_retry_student:
+            return
+
+        if self.project.status == "completed":
+            return
+
+        if self.worker and self.worker.is_alive() and self.project.status == "running":
+            logger.info(
+                f"Pausing import after current student to retry {student_number}"
+            )
+            self.pending_retry_student = student_number
+            self.retry_state_message = f"Waiting for the current import to finish before retrying {student_number}."
+            self.worker.stop()
+            self.pause_resume_button.Enable(False)
+            self.pause_resume_button.SetLabel("Pausing...")
+            self.stop_button.Enable(False)
+            self.hide_button.Enable(False)
+
+            if self.status_bar:
+                self.status_bar.show_message(self.retry_state_message)
+
+            if self.IsShown():
+                self.update_progress_display()
+            return
+
+        if self.project.status == "running":
+            self.project.status = "paused"
+            ImporterProjectManager.save_project(self.project)
+
+        self.start_retry_worker(student_number)
+
+    def start_retry_worker(self, student_number):
+        if not self.project:
+            return
+
+        if self.retry_worker and self.retry_worker.is_alive():
+            return
+
+        logger.info(f"Retrying failed student {student_number}")
+        self.project.status = "paused"
+        ImporterProjectManager.save_project(self.project)
+        self.pending_retry_student = None
+        self.active_retry_student = student_number
+        self.retry_state_message = f"Retrying {student_number}."
+        self.retry_worker = ImporterRetryWorker(
+            self.project,
+            student_number,
+            self.sync_service,
+            self.on_worker_callback,
+        )
+        self.pause_resume_button.SetLabel("Resume")
+        self.pause_resume_button.Enable(False)
+        self.stop_button.Enable(False)
+        self.hide_button.Enable(False)
+        self.retry_worker.start()
+
+        if self.IsShown():
+            self.update_progress_display()
 
     def on_start_import(self, event):
         start_num = self.start_student_input.GetValue().strip()
@@ -476,6 +699,10 @@ class ImporterDialog(wx.Dialog):
         self.project = ImporterProjectManager.create_project(
             start_num, end_num, import_options
         )
+        self.pending_retry_student = None
+        self.active_retry_student = None
+        self.retry_state_message = ""
+        self.retry_worker = None
 
         self.show_progress_panel()
         self.update_progress_display()
@@ -492,6 +719,7 @@ class ImporterDialog(wx.Dialog):
 
         self.project.status = "running"
         ImporterProjectManager.save_project(self.project)
+        self.retry_state_message = ""
 
         self.worker = ImporterWorker(
             self.project, self.sync_service, self.on_worker_callback
@@ -531,6 +759,9 @@ class ImporterDialog(wx.Dialog):
             logger.error("Cannot resume worker without a project")
             return
 
+        self.pending_retry_student = None
+        self.active_retry_student = None
+        self.retry_state_message = ""
         self.project.status = "running"
         ImporterProjectManager.save_project(self.project)
         self.start_worker()
@@ -583,6 +814,10 @@ class ImporterDialog(wx.Dialog):
         ImporterProjectManager.delete_project()
         self.project = None
         self.worker = None
+        self.retry_worker = None
+        self.pending_retry_student = None
+        self.active_retry_student = None
+        self.retry_state_message = ""
 
         if self.status_bar:
             self.status_bar.clear()
@@ -616,12 +851,20 @@ class ImporterDialog(wx.Dialog):
             f"{self.project.start_student} - {self.project.end_student}"
         )
 
-        status_text = self.project.status.capitalize()
+        if self.active_retry_student:
+            status_text = "Retrying"
+        elif self.pending_retry_student:
+            status_text = "Pausing for Retry"
+        else:
+            status_text = self.project.status.capitalize()
         self.status_value_label.SetLabel(status_text)
 
         self.success_count_label.SetLabel(str(self.project.success_count))
         self.failed_count_label.SetLabel(str(self.project.failed_count))
-        self.current_student_label.SetLabel(self.project.current_student)
+        if self.active_retry_student:
+            self.current_student_label.SetLabel(self.active_retry_student)
+        else:
+            self.current_student_label.SetLabel(self.project.current_student)
 
         total_students = len(
             ImporterProjectManager.generate_student_numbers(
@@ -634,10 +877,15 @@ class ImporterDialog(wx.Dialog):
         if total_students > 0:
             progress_percent = int((completed / total_students) * 100)
             self.progress_bar.SetValue(progress_percent)
-            self.progress_text.SetLabel(f"{completed} of {total_students} students")
+            progress_label = f"{completed} of {total_students} students"
+            if self.pending_retry_student or self.active_retry_student:
+                progress_label += " in main batch"
+            self.progress_text.SetLabel(progress_label)
         else:
             self.progress_bar.SetValue(0)
             self.progress_text.SetLabel("0 of 0 students")
+
+        self.update_failed_students_display()
 
     def _confirm_missing_sponsor(
         self, sponsor_code: str, semester_id: str, term: str | None
@@ -687,6 +935,10 @@ class ImporterDialog(wx.Dialog):
             project, error_msg = args
             self.project = project
             self.worker = None
+            self.retry_worker = None
+            self.pending_retry_student = None
+            self.active_retry_student = None
+            self.retry_state_message = ""
 
             if self.status_bar:
                 self.status_bar.clear()
@@ -712,6 +964,11 @@ class ImporterDialog(wx.Dialog):
         elif event_type == "finished":
             project = args[0]
             self.project = project
+            self.worker = None
+            self.retry_worker = None
+            self.pending_retry_student = None
+            self.active_retry_student = None
+            self.retry_state_message = ""
 
             if self.status_bar:
                 self.status_bar.clear()
@@ -735,6 +992,7 @@ class ImporterDialog(wx.Dialog):
             ImporterProjectManager.delete_project()
             self.project = None
             self.worker = None
+            self.retry_worker = None
             self.show_setup_panel()
             self.clear_setup_fields()
 
@@ -743,9 +1001,14 @@ class ImporterDialog(wx.Dialog):
             self.project = project
             self.project.status = "paused"
             ImporterProjectManager.save_project(self.project)
+            self.worker = None
 
             if self.status_bar:
                 self.status_bar.clear()
+
+            if self.pending_retry_student:
+                self.start_retry_worker(self.pending_retry_student)
+                return
 
             if self.IsShown():
                 self.update_progress_display()
@@ -759,6 +1022,51 @@ class ImporterDialog(wx.Dialog):
                 f"Import paused at student {project.current_student}. "
                 f"Success: {project.success_count}, Failed: {project.failed_count}"
             )
+
+        elif event_type == "retry_progress":
+            message, current, total, student_number, project = args
+            self.project = project
+            self.retry_state_message = f"Retrying {student_number}."
+
+            if self.status_bar:
+                self.status_bar.show_progress(message, current, total)
+
+            if self.IsShown():
+                self.update_progress_display()
+
+        elif event_type == "retry_finished":
+            project, student_number, was_successful, message = args
+            self.project = project
+            self.retry_worker = None
+            self.pending_retry_student = None
+            self.active_retry_student = None
+
+            if self.status_bar:
+                self.status_bar.clear()
+
+            if was_successful:
+                self.retry_state_message = f"Retry completed for {student_number}."
+            else:
+                self.retry_state_message = f"Retry failed for {student_number}."
+
+            if self.IsShown():
+                self.update_progress_display()
+                self.pause_resume_button.SetLabel("Resume")
+                self.pause_resume_button.Enable(True)
+                self.stop_button.Enable(True)
+                self.stop_button.SetLabel("Stop")
+                self.hide_button.Enable(False)
+
+            if not was_successful:
+                owner = self if self.IsShown() else self.GetParent()
+                dialog = wx.MessageDialog(
+                    owner,
+                    message,
+                    "Retry Failed",
+                    wx.OK | wx.ICON_WARNING,
+                )
+                dialog.ShowModal()
+                dialog.Destroy()
 
         elif event_type == "error":
             error_msg = args[0]

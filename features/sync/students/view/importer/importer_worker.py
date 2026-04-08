@@ -96,9 +96,7 @@ class ImporterWorker(threading.Thread):
                 if was_updated:
                     self.project.success_count += 1
                 else:
-                    self.project.failed_count += 1
-                    if self.project.failed_students is not None:
-                        self.project.failed_students.append(std_no)
+                    ImporterProjectManager.add_failed_student(self.project, std_no)
 
                 ImporterProjectManager.save_project(self.project)
 
@@ -108,9 +106,7 @@ class ImporterWorker(threading.Thread):
                 logger.warning(
                     f"Import stopped while syncing student {std_no}: {str(e)}"
                 )
-                self.project.failed_count += 1
-                if self.project.failed_students is not None:
-                    self.project.failed_students.append(std_no)
+                ImporterProjectManager.add_failed_student(self.project, std_no)
                 self.project.status = "paused"
                 ImporterProjectManager.save_project(self.project)
                 self.callback("cancelled", self.project, str(e))
@@ -120,9 +116,7 @@ class ImporterWorker(threading.Thread):
                     f"Error importing student {std_no}: {str(e)}",
                 )
                 self.callback("error", f"Error importing student {std_no}: {str(e)}")
-                self.project.failed_count += 1
-                if self.project.failed_students is not None:
-                    self.project.failed_students.append(std_no)
+                ImporterProjectManager.add_failed_student(self.project, std_no)
                 ImporterProjectManager.save_project(self.project)
 
                 student_started = False
@@ -159,3 +153,106 @@ class ImporterWorker(threading.Thread):
                 f"Failed: {self.project.failed_count}"
             )
             self.callback("finished", self.project)
+
+
+class ImporterRetryWorker(threading.Thread):
+    def __init__(
+        self,
+        project: ImporterProject,
+        student_number: str,
+        sync_service,
+        callback: Callable,
+    ):
+        super().__init__(daemon=True)
+        self.project = project
+        self.student_number = student_number
+        self.sync_service = sync_service
+        self.callback = callback
+
+    def _request_missing_sponsor(
+        self, sponsor_code: str, semester_id: str, term: str | None
+    ) -> bool:
+        response_holder = {"create": False}
+        response_event = threading.Event()
+        self.callback(
+            "missing_sponsor",
+            sponsor_code,
+            semester_id,
+            term,
+            response_holder,
+            response_event,
+        )
+        response_event.wait()
+        return bool(response_holder["create"])
+
+    def run(self):
+        logger.info(f"Retry worker starting for student {self.student_number}")
+
+        try:
+
+            def progress_callback(message, current, total):
+                self.callback(
+                    "retry_progress",
+                    message,
+                    current,
+                    total,
+                    self.student_number,
+                    self.project,
+                )
+
+            was_updated = self.sync_service.fetch_student(
+                self.student_number,
+                progress_callback,
+                self.project.import_options,
+                self._request_missing_sponsor,
+            )
+
+            if was_updated:
+                if not ImporterProjectManager.resolve_failed_student(
+                    self.project, self.student_number
+                ):
+                    self.project.success_count += 1
+                ImporterProjectManager.save_project(self.project)
+                self.callback(
+                    "retry_finished",
+                    self.project,
+                    self.student_number,
+                    True,
+                    "",
+                )
+                return
+
+            ImporterProjectManager.add_failed_student(self.project, self.student_number)
+            ImporterProjectManager.save_project(self.project)
+            self.callback(
+                "retry_finished",
+                self.project,
+                self.student_number,
+                False,
+                f"Retry did not import student {self.student_number}.",
+            )
+        except SponsorResolutionError as e:
+            logger.warning(
+                f"Retry stopped while syncing student {self.student_number}: {str(e)}"
+            )
+            ImporterProjectManager.add_failed_student(self.project, self.student_number)
+            ImporterProjectManager.save_project(self.project)
+            self.callback(
+                "retry_finished",
+                self.project,
+                self.student_number,
+                False,
+                str(e),
+            )
+        except Exception as e:
+            error_msg = f"Error importing student {self.student_number}: {str(e)}"
+            logger.error(error_msg)
+            ImporterProjectManager.add_failed_student(self.project, self.student_number)
+            ImporterProjectManager.save_project(self.project)
+            self.callback(
+                "retry_finished",
+                self.project,
+                self.student_number,
+                False,
+                error_msg,
+            )

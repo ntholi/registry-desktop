@@ -22,6 +22,8 @@ class ImporterProject:
     def __post_init__(self):
         if self.failed_students is None:
             self.failed_students = []
+        self.failed_students = list(dict.fromkeys(self.failed_students))
+        self.failed_count = len(self.failed_students)
         if self.created_at is None:
             self.created_at = datetime.now().isoformat()
         if self.updated_at is None:
@@ -111,3 +113,28 @@ class ImporterProjectManager:
             pass
 
         return all_students[current_idx:]
+
+    @classmethod
+    def add_failed_student(cls, project: ImporterProject, student_number: str):
+        if project.failed_students is None:
+            project.failed_students = []
+
+        if student_number not in project.failed_students:
+            project.failed_students.append(student_number)
+
+        project.failed_count = len(project.failed_students)
+
+    @classmethod
+    def resolve_failed_student(
+        cls, project: ImporterProject, student_number: str
+    ) -> bool:
+        if (
+            project.failed_students is None
+            or student_number not in project.failed_students
+        ):
+            return False
+
+        project.failed_students.remove(student_number)
+        project.failed_count = len(project.failed_students)
+        project.success_count += 1
+        return True

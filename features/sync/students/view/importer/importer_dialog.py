@@ -781,20 +781,28 @@ class ImporterDialog(wx.Dialog):
         if not self.project:
             return
 
-        dlg = wx.MessageDialog(
+        confirm_dialog = wx.TextEntryDialog(
             self,
-            "Are you sure you want to stop the import?\n\n"
-            "This will permanently delete the import project and you will need to start over.\n"
-            "The current student being imported will complete before stopping.",
-            "Confirm Stop",
-            wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION,
+            "Stop will lose the current progress.\n\n"
+            "Use Pause instead if you want to keep your progress and continue later.\n\n"
+            "Type 'stop' to confirm stopping this import.",
+            "Type Stop to Confirm",
         )
 
-        if dlg.ShowModal() != wx.ID_YES:
-            dlg.Destroy()
+        if confirm_dialog.ShowModal() != wx.ID_OK:
+            confirm_dialog.Destroy()
             return
 
-        dlg.Destroy()
+        confirmation_text = confirm_dialog.GetValue().strip()
+        confirm_dialog.Destroy()
+
+        if confirmation_text != "stop":
+            wx.MessageBox(
+                "Stop cancelled. Type 'stop' exactly to confirm.",
+                "Stop Cancelled",
+                wx.OK | wx.ICON_INFORMATION,
+            )
+            return
 
         if self.worker and self.worker.is_alive():
             logger.info(

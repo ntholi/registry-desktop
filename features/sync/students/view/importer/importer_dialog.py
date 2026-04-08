@@ -340,8 +340,11 @@ class ImporterDialog(wx.Dialog):
             self.failed_students_panel, style=wx.VSCROLL | wx.BORDER_SIMPLE
         )
         self.failed_students_scroll.SetScrollRate(0, 10)
-        self.failed_students_scroll.SetMinSize(wx.Size(-1, 150))
-        self.failed_students_list_sizer = wx.BoxSizer(wx.VERTICAL)
+        self.failed_students_scroll.SetMinSize(wx.Size(-1, 96))
+        self.failed_students_list_sizer = wx.FlexGridSizer(
+            rows=0, cols=2, vgap=4, hgap=8
+        )
+        self.failed_students_list_sizer.AddGrowableCol(0, 1)
         self.failed_students_scroll.SetSizer(self.failed_students_list_sizer)
         failed_students_sizer.Add(self.failed_students_scroll, 0, wx.EXPAND)
 
@@ -456,24 +459,23 @@ class ImporterDialog(wx.Dialog):
         )
 
         if failed_students:
+            visible_rows = min(len(failed_students), 4)
             for student_number in failed_students:
-                row_panel = wx.Panel(self.failed_students_scroll)
-                row_sizer = wx.BoxSizer(wx.HORIZONTAL)
-
                 label_text = student_number
                 if student_number == self.pending_retry_student:
                     label_text = f"{student_number} - waiting"
                 elif student_number == self.active_retry_student:
                     label_text = f"{student_number} - retrying"
 
-                student_label = wx.StaticText(row_panel, label=label_text)
-                row_sizer.Add(
-                    student_label,
-                    0,
-                    wx.ALIGN_CENTER_VERTICAL | wx.RIGHT,
-                    12,
+                student_label = wx.StaticText(
+                    self.failed_students_scroll, label=label_text
                 )
-                row_sizer.AddStretchSpacer()
+                self.failed_students_list_sizer.Add(
+                    student_label,
+                    1,
+                    wx.ALIGN_CENTER_VERTICAL | wx.LEFT | wx.TOP | wx.BOTTOM,
+                    6,
+                )
 
                 retry_bitmap = wx.ArtProvider.GetBitmap(
                     wx.ART_REDO,
@@ -481,10 +483,11 @@ class ImporterDialog(wx.Dialog):
                     wx.Size(16, 16),
                 )
                 retry_button = wx.BitmapButton(
-                    row_panel,
+                    self.failed_students_scroll,
                     bitmap=wx.BitmapBundle.FromBitmap(retry_bitmap),
                 )
-                retry_button.SetMinSize(wx.Size(30, 30))
+                retry_button.SetMinSize(wx.Size(26, 26))
+                retry_button.SetMaxSize(wx.Size(26, 26))
                 retry_button.SetToolTip(f"Retry import for {student_number}")
                 retry_button.Enable(
                     not retry_locked
@@ -497,21 +500,29 @@ class ImporterDialog(wx.Dialog):
                         event, std_no
                     ),
                 )
-                row_sizer.Add(retry_button, 0, wx.ALIGN_CENTER_VERTICAL)
-
-                row_panel.SetSizer(row_sizer)
                 self.failed_students_list_sizer.Add(
-                    row_panel,
+                    retry_button,
                     0,
-                    wx.EXPAND | wx.ALL,
-                    6,
+                    wx.ALIGN_CENTER_VERTICAL | wx.RIGHT | wx.TOP | wx.BOTTOM,
+                    2,
                 )
         else:
+            visible_rows = 1
             empty_label = wx.StaticText(
                 self.failed_students_scroll,
                 label="No failed students.",
             )
-            self.failed_students_list_sizer.Add(empty_label, 0, wx.ALL, 8)
+            self.failed_students_list_sizer.Add(
+                empty_label,
+                0,
+                wx.ALIGN_CENTER_VERTICAL | wx.ALL,
+                6,
+            )
+            self.failed_students_list_sizer.Add(wx.Size(0, 0))
+
+        scroll_height = 12 + (visible_rows * 30)
+        self.failed_students_scroll.SetMinSize(wx.Size(-1, scroll_height))
+        self.failed_students_scroll.SetMaxSize(wx.Size(-1, scroll_height))
 
         self.failed_students_scroll.Layout()
         self.failed_students_scroll.FitInside()

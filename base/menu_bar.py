@@ -32,7 +32,7 @@ class AppMenuBar:
         )
         self.parent.Bind(wx.EVT_MENU, self._on_forget_configuration, forget_item)
 
-        self.menu_bar.Append(configuration_menu, "Configuration")
+        self.menu_bar.Append(configuration_menu, "Settings")
 
     def _create_help_menu(self):
         help_menu = wx.Menu()
@@ -74,6 +74,7 @@ class AppMenuBar:
                 wx.OK | wx.ICON_INFORMATION,
                 self.parent,
             )
+            self.parent.Close()
             return
 
         wx.MessageBox(
@@ -82,6 +83,7 @@ class AppMenuBar:
             wx.OK | wx.ICON_INFORMATION,
             self.parent,
         )
+        self.parent.Close()
 
     def _show_about(self, event):
         from base.__version__ import __version__

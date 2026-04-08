@@ -3,10 +3,6 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from dotenv import load_dotenv
-
-load_dotenv()
-
 from features.sync.students.repository import StudentRepository
 from features.sync.students.service import StudentSyncService
 

@@ -11,13 +11,20 @@ from base.auto_update import AutoUpdater
 from base.logging_config import setup_logging
 from base.menu_bar import AppMenuBar
 from base.nav import AccordionNavigation
-from base.runtime_config import get_current_country_code, get_current_country_label
+from base.runtime_config import (
+    get_current_country_code,
+    get_current_country_label,
+    save_runtime_settings,
+)
 from base.splash_screen import SplashScreen
 from base.status.status_bar import StatusBar
 from base.widgets.country_selection_dialog import CountrySelectionDialog
 from base.widgets.loading_panel import LoadingPanel
 from base.widgets.update_dialog import UpdateDialog
-from database.connection import configure_database_urls_for_country
+from database.connection import (
+    configure_database_urls_for_country,
+    get_database_env_label,
+)
 from features.bulk.student_modules import StudentModulesView
 from features.bulk.student_programs import StudentProgramsView
 from features.bulk.student_semesters import StudentSemestersView
@@ -227,18 +234,29 @@ def select_runtime_country() -> bool:
         dialog.Destroy()
         return False
 
-    selected_country = dialog.get_selected_country_code()
-    dialog.Destroy()
-
     try:
+        selected_country = dialog.get_selected_country_code()
+        if not selected_country:
+            raise ValueError("No country was selected")
+
+        save_runtime_settings(
+            country_code=selected_country,
+            database_host=dialog.get_database_host(),
+            database_port=dialog.get_database_port(),
+            database_user=dialog.get_database_user(),
+            database_password=dialog.get_database_password(),
+        )
         configure_database_urls_for_country(selected_country)
     except Exception as exc:
+        dialog.Destroy()
         wx.MessageBox(
-            f"Failed to load the {selected_country.title()} configuration: {exc}",
+            f"Failed to save the application configuration: {exc}",
             "Configuration Error",
             wx.OK | wx.ICON_ERROR,
         )
         return False
+
+    dialog.Destroy()
 
     return True
 
@@ -297,19 +315,18 @@ def main():
 
     logger.info("Starting Limkokwing Registry Desktop Application")
 
-    database_env = os.getenv("DATABASE_ENV", "local").strip().lower()
     desktop_env = os.getenv("DESKTOP_ENV", "prod").strip().lower()
-
-    if (database_env == "remote" or desktop_env == "prod") and desktop_env == "dev":
-        print("\n" + "=" * 60)
-        print("WARNING: Using REMOTE database!")
-        print("=" * 60 + "\n")
-        input("Press any key to continue...")
 
     app = wx.App()
 
     if not select_runtime_country():
         return
+
+    if get_database_env_label() == "remote" and desktop_env == "dev":
+        print("\n" + "=" * 60)
+        print("WARNING: Using REMOTE database!")
+        print("=" * 60 + "\n")
+        input("Press any key to continue...")
 
     splash = SplashScreen(__version__)
     splash.Show()

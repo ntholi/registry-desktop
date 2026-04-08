@@ -95,3 +95,16 @@ class DatabaseConnectionTests(unittest.TestCase):
         self.assertEqual(loaded_settings.database_port, 6000)
         self.assertEqual(loaded_settings.database_user, "registry")
         self.assertEqual(loaded_settings.database_password, "secret")
+
+    def test_forget_saved_runtime_settings_removes_settings_file(self):
+        with TemporaryDirectory() as temp_dir:
+            settings_path = Path(temp_dir) / "settings.json"
+            settings_path.write_text("{}", encoding="utf-8")
+
+            with patch(
+                "base.runtime_config.get_settings_file_path",
+                return_value=settings_path,
+            ):
+                removed = runtime_config.forget_saved_runtime_settings()
+                self.assertTrue(removed)
+                self.assertFalse(settings_path.exists())

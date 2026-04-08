@@ -11,6 +11,7 @@ class AppMenuBar:
 
     def _create_menus(self):
         self._create_file_menu()
+        self._create_configuration_menu()
         self._create_help_menu()
 
     def _create_file_menu(self):
@@ -20,6 +21,18 @@ class AppMenuBar:
         self.parent.Bind(wx.EVT_MENU, self._on_exit, exit_item)
 
         self.menu_bar.Append(file_menu, "File")
+
+    def _create_configuration_menu(self):
+        configuration_menu = wx.Menu()
+
+        forget_item = configuration_menu.Append(
+            wx.ID_ANY,
+            "Forget Saved Configuration...",
+            "Remove the saved country and database connection for the next launch",
+        )
+        self.parent.Bind(wx.EVT_MENU, self._on_forget_configuration, forget_item)
+
+        self.menu_bar.Append(configuration_menu, "Configuration")
 
     def _create_help_menu(self):
         help_menu = wx.Menu()
@@ -40,6 +53,35 @@ class AppMenuBar:
         from main import check_for_updates_manual
 
         check_for_updates_manual(self.parent)
+
+    def _on_forget_configuration(self, event):
+        confirm = wx.MessageBox(
+            "This will remove the saved country and database connection for the next launch. The current session will continue using the active configuration until you close the app.\n\nDo you want to continue?",
+            "Forget Saved Configuration",
+            wx.YES_NO | wx.NO_DEFAULT | wx.ICON_WARNING,
+            self.parent,
+        )
+        if confirm != wx.YES:
+            return
+
+        from base.runtime_config import forget_saved_runtime_settings
+
+        removed = forget_saved_runtime_settings()
+        if removed:
+            wx.MessageBox(
+                "The saved configuration has been removed. Restart the application when you want to choose a new country or database connection.",
+                "Configuration Removed",
+                wx.OK | wx.ICON_INFORMATION,
+                self.parent,
+            )
+            return
+
+        wx.MessageBox(
+            "There is no saved configuration to remove.",
+            "No Saved Configuration",
+            wx.OK | wx.ICON_INFORMATION,
+            self.parent,
+        )
 
     def _show_about(self, event):
         from base.__version__ import __version__

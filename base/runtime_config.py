@@ -153,6 +153,24 @@ def get_app_settings() -> AppSettings:
     return _settings
 
 
+def has_complete_runtime_configuration() -> bool:
+    return bool(
+        _settings.country_code
+        and _settings.database_host
+        and _settings.database_user
+        and _settings.database_port
+    )
+
+
+def forget_saved_runtime_settings() -> bool:
+    settings_path = get_settings_file_path()
+    if not settings_path.exists():
+        return False
+
+    settings_path.unlink()
+    return True
+
+
 def save_runtime_settings(
     country_code: str | None,
     database_host: str,

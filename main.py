@@ -14,6 +14,7 @@ from base.nav import AccordionNavigation
 from base.runtime_config import (
     get_current_country_code,
     get_current_country_label,
+    has_complete_runtime_configuration,
     save_runtime_settings,
 )
 from base.splash_screen import SplashScreen
@@ -21,6 +22,7 @@ from base.status.status_bar import StatusBar
 from base.widgets.country_selection_dialog import CountrySelectionDialog
 from base.widgets.loading_panel import LoadingPanel
 from base.widgets.update_dialog import UpdateDialog
+from database.bootstrap import bootstrap_current_database
 from database.connection import (
     configure_database_urls_for_country,
     get_database_env_label,
@@ -261,6 +263,33 @@ def select_runtime_country() -> bool:
     return True
 
 
+def ensure_runtime_configuration() -> bool:
+    if not has_complete_runtime_configuration():
+        return select_runtime_country()
+
+    try:
+        configure_database_urls_for_country(get_current_country_code())
+    except Exception as exc:
+        wx.MessageBox(
+            f"Failed to load the saved configuration: {exc}",
+            "Configuration Error",
+            wx.OK | wx.ICON_ERROR,
+        )
+        return False
+
+    return True
+
+
+def bootstrap_runtime_database() -> None:
+    result = bootstrap_current_database()
+    action = "Created" if result.database_created else "Using existing"
+    logger.info(
+        "%s database %s during startup bootstrap",
+        action,
+        result.database_name,
+    )
+
+
 def check_for_updates_async(parent_window):
     def check_updates():
         updater = AutoUpdater()
@@ -319,7 +348,7 @@ def main():
 
     app = wx.App()
 
-    if not select_runtime_country():
+    if not ensure_runtime_configuration():
         return
 
     if get_database_env_label() == "remote" and desktop_env == "dev":
@@ -332,6 +361,18 @@ def main():
     splash.Show()
 
     wx.Yield()
+
+    try:
+        bootstrap_runtime_database()
+    except Exception as exc:
+        splash.close()
+        logger.exception(f"Failed to bootstrap database on startup: {exc}")
+        wx.MessageBox(
+            f"Failed to initialize the database: {exc}",
+            "Database Error",
+            wx.OK | wx.ICON_ERROR,
+        )
+        return
 
     splash.close()
 

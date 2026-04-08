@@ -8,7 +8,12 @@ from sqlalchemy import text
 from sqlalchemy.engine import Engine
 from sqlalchemy.engine.url import URL, make_url
 
-from base.runtime_config import CountryConfig, get_available_countries, get_country_config
+from base.runtime_config import (
+    CountryConfig,
+    get_available_countries,
+    get_country_config,
+    get_current_country_code,
+)
 from database.connection import (
     configure_database_urls_for_country,
     create_database_engine,
@@ -163,6 +168,11 @@ def bootstrap_database(
         database_name=database_name,
         database_created=database_created,
     )
+
+
+def bootstrap_current_database(admin_database: str = "postgres") -> BootstrapResult:
+    country_code = get_current_country_code() or None
+    return bootstrap_database(admin_database=admin_database, country_code=country_code)
 
 
 def build_parser() -> argparse.ArgumentParser:

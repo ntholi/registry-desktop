@@ -31,6 +31,75 @@ from utils.normalizers import (
 logger = get_logger(__name__)
 
 
+def detect_student_range() -> tuple[str, str, int]:
+    browser = Browser()
+
+    url = f"{BASE_URL}/r_studentviewlist.php?cmd=resetall"
+    response = browser.fetch(url)
+    first_page = BeautifulSoup(response.text, "lxml")
+
+    pager = first_page.select_one("form#ewpagerform")
+    if not pager:
+        raise ValueError("Could not find pager on student list page")
+
+    pager_text = pager.get_text(" ", strip=True)
+    match = re.search(r"Records\s+(\d+)\s+to\s+(\d+)\s+of\s+(\d+)", pager_text)
+    if not match:
+        raise ValueError("Could not parse record count from student list page")
+
+    total_records = int(match.group(3))
+    last_record_on_page = int(match.group(2))
+
+    table = first_page.select_one("table#ewlistmain")
+    if not table:
+        raise ValueError("Could not find student table on list page")
+
+    first_std_no = _extract_first_student_no(table)
+    if not first_std_no:
+        raise ValueError("Could not extract first student number from list page")
+
+    if last_record_on_page >= total_records:
+        last_std_no = _extract_last_student_no(table)
+    else:
+        last_page_url = (
+            f"{BASE_URL}/r_studentviewlist.php?cmd=resetall&start={total_records}"
+        )
+        last_response = browser.fetch(last_page_url)
+        last_page = BeautifulSoup(last_response.text, "lxml")
+        last_table = last_page.select_one("table#ewlistmain")
+        if not last_table:
+            raise ValueError("Could not find student table on last page")
+        last_std_no = _extract_last_student_no(last_table)
+
+    if not last_std_no:
+        raise ValueError("Could not extract last student number from list page")
+
+    return first_std_no, last_std_no, total_records
+
+
+def _extract_first_student_no(table: Tag) -> str | None:
+    rows = table.select("tr.ewTableRow, tr.ewTableAltRow")
+    if not rows:
+        return None
+    return _extract_student_id_from_row(rows[0])
+
+
+def _extract_last_student_no(table: Tag) -> str | None:
+    rows = table.select("tr.ewTableRow, tr.ewTableAltRow")
+    if not rows:
+        return None
+    return _extract_student_id_from_row(rows[-1])
+
+
+def _extract_student_id_from_row(row: Tag) -> str | None:
+    link = row.select_one("a[href*='StudentID=']")
+    if link:
+        href = str(link.get("href", ""))
+        if "StudentID=" in href:
+            return href.split("StudentID=")[1].split("&")[0]
+    return None
+
+
 def extract_student_program_ids(std_no: str) -> list[str]:
     browser = Browser()
     url = f"{BASE_URL}/r_stdprogramlist.php?showmaster=1&StudentID={std_no}"

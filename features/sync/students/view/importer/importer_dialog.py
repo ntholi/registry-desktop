@@ -1,3 +1,5 @@
+import threading
+
 import wx
 
 from base import get_logger
@@ -85,7 +87,17 @@ class ImporterDialog(wx.Dialog):
         font = range_label.GetFont()
         font = font.Bold()
         range_label.SetFont(font)
-        sizer.Add(range_label, 0, wx.LEFT | wx.RIGHT, 20)
+
+        range_header_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        range_header_sizer.Add(range_label, 0, wx.ALIGN_CENTER_VERTICAL)
+        range_header_sizer.AddStretchSpacer()
+        self.auto_detect_button = wx.Button(panel, label="Auto Detect")
+        self.auto_detect_button.SetToolTip(
+            "Detect first and last student numbers from the CMS"
+        )
+        self.auto_detect_button.Bind(wx.EVT_BUTTON, self.on_auto_detect)
+        range_header_sizer.Add(self.auto_detect_button, 0, wx.ALIGN_CENTER_VERTICAL)
+        sizer.Add(range_header_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 20)
 
         sizer.AddSpacer(10)
 
@@ -560,6 +572,50 @@ class ImporterDialog(wx.Dialog):
             self.select_all_checkbox.Set3StateValue(wx.CHK_UNDETERMINED)
         else:
             self.select_all_checkbox.Set3StateValue(wx.CHK_UNCHECKED)
+
+    def on_auto_detect(self, event):
+        self.auto_detect_button.Enable(False)
+        self.auto_detect_button.SetLabel("Detecting...")
+
+        if self.status_bar:
+            self.status_bar.show_message("Detecting student range from CMS...")
+
+        thread = threading.Thread(target=self._run_auto_detect, daemon=True)
+        thread.start()
+
+    def _run_auto_detect(self):
+        try:
+            from features.sync.students.scraper import detect_student_range
+
+            first_std, last_std, total = detect_student_range()
+            wx.CallAfter(self._on_auto_detect_done, first_std, last_std, total)
+        except Exception as e:
+            logger.error(f"Auto detect failed: {e}")
+            wx.CallAfter(self._on_auto_detect_error, str(e))
+
+    def _on_auto_detect_done(self, first_std: str, last_std: str, total: int):
+        self.start_student_input.SetValue(first_std)
+        self.end_student_input.SetValue(last_std)
+        self.auto_detect_button.SetLabel("Auto Detect")
+        self.auto_detect_button.Enable(True)
+
+        if self.status_bar:
+            self.status_bar.show_message(
+                f"Detected {total} students: {first_std} - {last_std}"
+            )
+
+    def _on_auto_detect_error(self, error_msg: str):
+        self.auto_detect_button.SetLabel("Auto Detect")
+        self.auto_detect_button.Enable(True)
+
+        if self.status_bar:
+            self.status_bar.clear()
+
+        wx.MessageBox(
+            f"Failed to detect student range:\n\n{error_msg}",
+            "Auto Detect Failed",
+            wx.OK | wx.ICON_ERROR,
+        )
 
     def on_retry_student(self, event, student_number):
         if not self.project:

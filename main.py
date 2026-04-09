@@ -319,10 +319,18 @@ def check_for_updates_manual(parent):
     def check_updates():
         updater = AutoUpdater()
         has_update = updater.check_for_updates()
+        error = updater.get_last_error()
 
         wx.CallAfter(checking_dialog.close_dialog)
 
-        if has_update:
+        if error:
+            wx.CallAfter(
+                wx.MessageBox,
+                error,
+                "Update Check Failed",
+                wx.OK | wx.ICON_ERROR,
+            )
+        elif has_update:
             wx.CallAfter(show_update_dialog, parent, updater)
         else:
             wx.CallAfter(

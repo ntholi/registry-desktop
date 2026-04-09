@@ -135,8 +135,14 @@ class UpdateDialog(wx.Dialog):
         self.progress_panel.Hide()
         self.Layout()
 
+        error_message = self.updater.get_last_error()
+        if not error_message:
+            error_message = (
+                "Failed to download or install the update. Please try again later."
+            )
+
         wx.MessageBox(
-            "Failed to download or install the update. Please try again later.",
+            error_message,
             "Update Error",
             wx.OK | wx.ICON_ERROR,
         )

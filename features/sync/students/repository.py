@@ -411,10 +411,58 @@ class StudentRepository:
 
             return None
 
+    def resolve_student_program_structure_id(
+        self, program_code: str | None, structure_identifier: str | None
+    ) -> Optional[int]:
+        normalized_program_code = (program_code or "").strip()
+        normalized_identifier = (structure_identifier or "").strip()
+
+        if not normalized_identifier:
+            return None
+
+        if normalized_program_code:
+            with self._session() as session:
+                scoped_query = session.query(Structure.id).join(
+                    Program, Structure.program_id == Program.id
+                )
+                scoped_query = scoped_query.filter(Program.code == normalized_program_code)
+
+                structure = scoped_query.filter(
+                    Structure.code == normalized_identifier
+                ).first()
+                if structure:
+                    return structure[0]
+
+                structure = scoped_query.filter(
+                    Structure.desc == normalized_identifier
+                ).first()
+                if structure:
+                    return structure[0]
+
+                if normalized_identifier.isdigit():
+                    structure = scoped_query.filter(
+                        Structure.cms_id == int(normalized_identifier)
+                    ).first()
+                    if structure:
+                        return structure[0]
+
+        return self.get_structure_by_code_or_desc(
+            normalized_identifier, normalized_identifier
+        )
+
     def get_structure_cms_id(self, structure_id: int) -> Optional[int]:
         with self._session() as session:
             result = (
                 session.query(Structure.cms_id)
+                .filter(Structure.id == structure_id)
+                .first()
+            )
+            return result[0] if result else None
+
+    def get_structure_code(self, structure_id: int) -> Optional[str]:
+        with self._session() as session:
+            result = (
+                session.query(Structure.code)
                 .filter(Structure.id == structure_id)
                 .first()
             )
@@ -610,8 +658,8 @@ class StudentRepository:
                 )
 
                 if "structure_code" in data:
-                    structure_id = self.get_structure_by_code_or_desc(
-                        data["structure_code"], data["structure_code"]
+                    structure_id = self.resolve_student_program_structure_id(
+                        data.get("program_code"), data["structure_code"]
                     )
                     if not structure_id:
                         logger.error(
@@ -819,6 +867,57 @@ class StudentRepository:
         )
         return sem_module.id
 
+    def _lookup_semester_module_for_student_semester(
+        self,
+        session: Session,
+        *,
+        module_code: str,
+        structure_semester_id: int,
+        module_type: str | None = None,
+        credits: float | None = None,
+    ) -> Optional[int]:
+        candidates = (
+            session.query(
+                SemesterModule.id,
+                SemesterModule.type,
+                SemesterModule.credits,
+            )
+            .join(Module, SemesterModule.module_id == Module.id)
+            .filter(Module.code == module_code)
+            .filter(SemesterModule.semester_id == structure_semester_id)
+            .all()
+        )
+
+        if not candidates:
+            return None
+
+        target_type = (module_type or "").strip()
+        target_credits = float(credits) if credits is not None else None
+
+        if target_type:
+            type_matches = [
+                candidate for candidate in candidates if candidate.type == target_type
+            ]
+            if target_credits is not None:
+                for candidate in type_matches:
+                    if abs(float(candidate.credits or 0) - target_credits) < 1e-6:
+                        return candidate.id
+                return None
+            if type_matches:
+                return type_matches[0].id
+            return None
+
+        if target_credits is not None:
+            for candidate in candidates:
+                if abs(float(candidate.credits or 0) - target_credits) < 1e-6:
+                    return candidate.id
+            return None
+
+        if len(candidates) == 1:
+            return candidates[0].id
+
+        return None
+
     def get_semester_module_by_code(
         self, module_code: str, structure_id: int
     ) -> Optional[int]:
@@ -920,11 +1019,27 @@ class StudentRepository:
 
                         if student_program is not None:
                             structure_id = cast(int, student_program.structure_id)
-                            semester_module_id = self.get_semester_module_by_code(
-                                data["module_code"], structure_id
+                            structure_semester_id = cast(
+                                int, student_semester.structure_semester_id
+                            )
+                            module_credits: float | None = None
+                            if data.get("credits") is not None:
+                                try:
+                                    module_credits = float(data["credits"])
+                                except (TypeError, ValueError):
+                                    module_credits = None
+
+                            semester_module_id = (
+                                self._lookup_semester_module_for_student_semester(
+                                    session,
+                                    module_code=str(data["module_code"]),
+                                    structure_semester_id=structure_semester_id,
+                                    module_type=data.get("type"),
+                                    credits=module_credits,
+                                )
                             )
 
-                            if not semester_module_id:
+                            if not semester_module_id and structure_semester_id:
                                 semester_module_id = (
                                     self._create_missing_semester_module(
                                         session,
@@ -932,10 +1047,17 @@ class StudentRepository:
                                         data.get("module_name", data["module_code"]),
                                         data.get("type", "Core"),
                                         float(data.get("credits", 0)),
-                                        cast(
-                                            int, student_semester.structure_semester_id
-                                        ),
+                                        structure_semester_id,
                                     )
+                                )
+
+                            if (
+                                not semester_module_id
+                                and not structure_semester_id
+                                and structure_id
+                            ):
+                                semester_module_id = self.get_semester_module_by_code(
+                                    data["module_code"], structure_id
                                 )
 
                 if not existing and semester_module_id:
@@ -1252,6 +1374,8 @@ class StudentRepository:
         if existing_sponsor_id:
             return existing_sponsor_id
 
+        base_code = normalized_sponsor_code[:10]
+
         with self._session() as session:
             base_name = (
                 sponsor_name.strip()
@@ -1259,6 +1383,7 @@ class StudentRepository:
                 else normalized_sponsor_code
             )
             candidate_name = base_name
+            candidate_code = base_code
             suffix = 1
 
             while (
@@ -1267,9 +1392,16 @@ class StudentRepository:
                 candidate_name = f"{base_name} {suffix}"
                 suffix += 1
 
+            code_suffix = 1
+            while session.query(Sponsor.id).filter(Sponsor.code == candidate_code).first():
+                suffix_str = str(code_suffix)
+                prefix_length = max(1, 10 - len(suffix_str))
+                candidate_code = f"{base_code[:prefix_length]}{suffix_str}"
+                code_suffix += 1
+
             sponsor = Sponsor(
                 name=candidate_name,
-                code=normalized_sponsor_code,
+                code=candidate_code,
                 updated_at=datetime.datetime.utcnow(),
             )
             session.add(sponsor)
@@ -1284,7 +1416,7 @@ class StudentRepository:
                 )
                 logger.warning(
                     f"Created missing sponsor - sponsor_id={sponsor.id}, "
-                    f"sponsor_code={normalized_sponsor_code}, sponsor_name={candidate_name}"
+                    f"sponsor_code={candidate_code}, sponsor_name={candidate_name}"
                 )
                 return sponsor.id
             except IntegrityError:
@@ -1293,7 +1425,7 @@ class StudentRepository:
                     session.query(Sponsor.id, Sponsor.code, Sponsor.name)
                     .filter(
                         or_(
-                            Sponsor.code == normalized_sponsor_code,
+                            Sponsor.code == candidate_code,
                             Sponsor.name == base_name,
                         )
                     )
@@ -1308,13 +1440,13 @@ class StudentRepository:
                     )
                     return sponsor_id
                 logger.error(
-                    f"Failed to create sponsor due to integrity error - sponsor_code={normalized_sponsor_code}"
+                    f"Failed to create sponsor due to integrity error - sponsor_code={candidate_code}"
                 )
                 return None
             except Exception as e:
                 session.rollback()
                 logger.error(
-                    f"Failed to create sponsor - sponsor_code={normalized_sponsor_code}, error={str(e)}"
+                    f"Failed to create sponsor - sponsor_code={candidate_code}, error={str(e)}"
                 )
                 return None
 

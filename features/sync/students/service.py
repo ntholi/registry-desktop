@@ -308,8 +308,8 @@ class StudentSyncService:
                         if "structure_code" in program_data:
                             code = program_data["structure_code"]
                             structure_id = (
-                                self._repository.get_structure_by_code_or_desc(
-                                    code,
+                                self._repository.resolve_student_program_structure_id(
+                                    program_data.get("program_code"),
                                     code,
                                 )
                             )

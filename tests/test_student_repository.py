@@ -3,7 +3,19 @@ import unittest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from database import Sponsor
+from database import (
+    Module,
+    Program,
+    School,
+    SemesterModule,
+    Sponsor,
+    Structure,
+    StructureSemester,
+    Student,
+    StudentModule,
+    StudentProgram,
+    StudentSemester,
+)
 from features.sync.students.repository import StudentRepository
 
 
@@ -49,6 +61,231 @@ class StudentRepositorySponsorTests(unittest.TestCase):
         self.assertEqual(sponsors[0].id, sponsor_id)
         self.assertEqual(sponsors[0].name, "Self Sponsor")
         self.assertEqual(sponsors[0].code, "SELF")
+
+    def test_create_sponsor_truncates_long_code_values(self):
+        sponsor_id = self.repository.create_sponsor("Self Sponsor")
+
+        self.assertIsNotNone(sponsor_id)
+
+        with Session(self.engine) as session:
+            sponsors = session.query(Sponsor.id, Sponsor.name, Sponsor.code).all()
+
+        self.assertEqual(len(sponsors), 1)
+        self.assertEqual(sponsors[0].id, sponsor_id)
+        self.assertEqual(sponsors[0].name, "Self Sponsor")
+        self.assertEqual(sponsors[0].code, "Self Spons")
+
+
+class StudentRepositoryProgramResolutionTests(unittest.TestCase):
+    def setUp(self):
+        self.engine = create_engine("sqlite:///:memory:")
+        for table in [School.__table__, Program.__table__, Structure.__table__]:
+            table.create(self.engine)
+
+        self.repository = StudentRepository()
+        self.repository._engine = self.engine
+
+    def tearDown(self):
+        self.engine.dispose()
+
+    def test_resolve_student_program_structure_id_prefers_program_scoped_match(self):
+        with Session(self.engine) as session:
+            school = School(code="BUS", name="Business")
+            session.add(school)
+            session.flush()
+
+            program_bbib = Program(
+                code="BBIB",
+                name="International Business",
+                level="degree",
+                school_id=school.id,
+            )
+            program_bit = Program(
+                code="BIT",
+                name="Information Technology",
+                level="degree",
+                school_id=school.id,
+            )
+            program_at = Program(
+                code="AT",
+                name="Accounting Technician",
+                level="diploma",
+                school_id=school.id,
+            )
+            session.add_all([program_bbib, program_bit, program_at])
+            session.flush()
+
+            bit_structure = Structure(
+                code="2022-11",
+                desc="2022-BIT",
+                program_id=program_bit.id,
+            )
+            bbib_structure = Structure(
+                code="2022-IBM",
+                desc="2022-11",
+                program_id=program_bbib.id,
+            )
+            at_structure = Structure(
+                code="2018-AT",
+                desc="1808-AT",
+                program_id=program_at.id,
+            )
+            session.add_all([bit_structure, bbib_structure, at_structure])
+            session.commit()
+            bbib_structure_id = bbib_structure.id
+            at_structure_id = at_structure.id
+
+        resolved_bbib_id = self.repository.resolve_student_program_structure_id(
+            "BBIB", "2022-11"
+        )
+        resolved_at_id = self.repository.resolve_student_program_structure_id(
+            "AT", "1808-AT"
+        )
+
+        self.assertEqual(resolved_bbib_id, bbib_structure_id)
+        self.assertEqual(resolved_at_id, at_structure_id)
+
+
+class StudentRepositoryStudentModuleTests(unittest.TestCase):
+    def setUp(self):
+        self.engine = create_engine("sqlite:///:memory:")
+        for table in [
+            School.__table__,
+            Program.__table__,
+            Structure.__table__,
+            StructureSemester.__table__,
+            Module.__table__,
+            SemesterModule.__table__,
+            Student.__table__,
+            StudentProgram.__table__,
+            StudentSemester.__table__,
+            StudentModule.__table__,
+        ]:
+            table.create(self.engine)
+
+        self.repository = StudentRepository()
+        self.repository._engine = self.engine
+
+    def tearDown(self):
+        self.engine.dispose()
+
+    def test_upsert_student_module_creates_matching_type_variant_in_same_semester(self):
+        with Session(self.engine) as session:
+            school = School(code="BUS", name="Business")
+            session.add(school)
+            session.flush()
+
+            program = Program(
+                code="PR",
+                name="Public Relations",
+                level="degree",
+                school_id=school.id,
+            )
+            session.add(program)
+            session.flush()
+
+            structure = Structure(
+                code="1309-PR",
+                desc="1309-PR",
+                program_id=program.id,
+            )
+            session.add(structure)
+            session.flush()
+
+            structure_semester = StructureSemester(
+                structure_id=structure.id,
+                semester_number="03",
+                name="Semester 3",
+                total_credits=20.0,
+            )
+            session.add(structure_semester)
+            session.flush()
+
+            student = Student(std_no=902002456, name="Test Student", status="Active")
+            session.add(student)
+            session.flush()
+
+            student_program = StudentProgram(
+                cms_id=2510,
+                std_no=student.std_no,
+                structure_id=structure.id,
+                status="Active",
+            )
+            session.add(student_program)
+            session.flush()
+
+            student_semester = StudentSemester(
+                cms_id=10655,
+                term_code="2019-09",
+                structure_semester_id=structure_semester.id,
+                status="Active",
+                student_program_id=student_program.id,
+            )
+            session.add(student_semester)
+            session.flush()
+
+            module = Module(
+                code="MAKT101",
+                name="Principles of Marketing",
+                status="Active",
+            )
+            session.add(module)
+            session.flush()
+
+            session.add(
+                SemesterModule(
+                    cms_id=914,
+                    module_id=module.id,
+                    type="Major",
+                    credits=3.0,
+                    semester_id=structure_semester.id,
+                )
+            )
+            session.commit()
+
+            student_semester_id = student_semester.id
+            structure_semester_id = structure_semester.id
+
+        success, message = self.repository.upsert_student_module(
+            {
+                "cms_id": 55543,
+                "student_semester_id": student_semester_id,
+                "module_code": "MAKT101",
+                "module_name": "Principles of Marketing",
+                "type": "Minor",
+                "credits": 3.0,
+                "status": "Compulsory",
+                "marks": "60.0",
+                "grade": "B-",
+            }
+        )
+
+        self.assertTrue(success, message)
+
+        with Session(self.engine) as session:
+            student_module = (
+                session.query(StudentModule)
+                .filter(StudentModule.cms_id == 55543)
+                .one()
+            )
+            linked_semester_module = (
+                session.query(SemesterModule)
+                .filter(SemesterModule.id == student_module.semester_module_id)
+                .one()
+            )
+            semester_module_types = [
+                row.type
+                for row in session.query(SemesterModule)
+                .join(Module, SemesterModule.module_id == Module.id)
+                .filter(Module.code == "MAKT101")
+                .filter(SemesterModule.semester_id == structure_semester_id)
+                .order_by(SemesterModule.id)
+                .all()
+            ]
+
+        self.assertEqual(linked_semester_module.type, "Minor")
+        self.assertEqual(linked_semester_module.semester_id, structure_semester_id)
+        self.assertEqual(semester_module_types, ["Major", "Minor"])
 
 
 if __name__ == "__main__":

@@ -34,30 +34,45 @@ class ConflictDetailDialog(wx.Dialog):
         self.conflicts = conflicts
         self.use_source = use_source.copy()
 
-        panel = wx.Panel(self)
         sizer = wx.BoxSizer(wx.VERTICAL)
 
+        sizer.AddSpacer(15)
+
+        header = wx.StaticText(self, label=f"Conflicts for '{field_name}'")
+        header_font = header.GetFont()
+        header_font.PointSize = 12
+        header_font = header_font.Bold()
+        header.SetFont(header_font)
+        sizer.Add(header, 0, wx.LEFT | wx.RIGHT, 20)
+
+        sizer.AddSpacer(8)
+
         desc = wx.StaticText(
-            panel,
-            label=f"Review {len(conflicts)} conflicts for '{field_name}'. "
-            "Checked items will use the source value. Unchecked keep the live database value.",
+            self,
+            label=f"{len(conflicts)} records have different values in source and live databases. "
+            "Check items to use the source value. Unchecked items keep the live database value.",
         )
         desc.Wrap(700)
-        sizer.Add(desc, 0, wx.ALL, 10)
+        desc.SetForegroundColour(wx.Colour(100, 100, 100))
+        sizer.Add(desc, 0, wx.LEFT | wx.RIGHT, 20)
+
+        sizer.AddSpacer(12)
 
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        select_all_btn = wx.Button(panel, label="Select All (Use Source)")
-        deselect_all_btn = wx.Button(panel, label="Deselect All (Keep Live)")
-        btn_sizer.Add(select_all_btn, 0, wx.RIGHT, 5)
+        select_all_btn = wx.Button(self, label="Select All")
+        deselect_all_btn = wx.Button(self, label="Deselect All")
+        btn_sizer.Add(select_all_btn, 0, wx.RIGHT, 8)
         btn_sizer.Add(deselect_all_btn, 0)
-        sizer.Add(btn_sizer, 0, wx.LEFT | wx.BOTTOM, 10)
+        sizer.Add(btn_sizer, 0, wx.LEFT | wx.RIGHT, 20)
 
-        self.list_ctrl = wx.ListCtrl(panel, style=wx.LC_REPORT)
+        sizer.AddSpacer(8)
+
+        self.list_ctrl = wx.ListCtrl(self, style=wx.LC_REPORT | wx.BORDER_SIMPLE)
         self.list_ctrl.EnableCheckBoxes(True)
         self.list_ctrl.AppendColumn("Student No", width=100)
-        self.list_ctrl.AppendColumn("Name", width=200)
-        self.list_ctrl.AppendColumn("Live Value", width=180)
-        self.list_ctrl.AppendColumn("Source Value", width=180)
+        self.list_ctrl.AppendColumn("Name", width=210)
+        self.list_ctrl.AppendColumn("Live Value", width=170)
+        self.list_ctrl.AppendColumn("Source Value", width=170)
 
         for i, c in enumerate(conflicts):
             idx = self.list_ctrl.InsertItem(i, str(c.std_no))
@@ -67,17 +82,21 @@ class ConflictDetailDialog(wx.Dialog):
             if (c.std_no, c.field_name) in self.use_source:
                 self.list_ctrl.CheckItem(idx, True)
 
-        sizer.Add(self.list_ctrl, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
+        sizer.Add(self.list_ctrl, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 20)
+
+        sizer.AddSpacer(15)
 
         dialog_btn_sizer = wx.StdDialogButtonSizer()
-        ok_btn = wx.Button(panel, wx.ID_OK)
-        cancel_btn = wx.Button(panel, wx.ID_CANCEL)
+        ok_btn = wx.Button(self, wx.ID_OK)
+        ok_btn.SetDefault()
+        cancel_btn = wx.Button(self, wx.ID_CANCEL)
         dialog_btn_sizer.AddButton(ok_btn)
         dialog_btn_sizer.AddButton(cancel_btn)
         dialog_btn_sizer.Realize()
-        sizer.Add(dialog_btn_sizer, 0, wx.EXPAND | wx.ALL, 10)
+        sizer.Add(dialog_btn_sizer, 0, wx.ALIGN_RIGHT | wx.LEFT | wx.RIGHT | wx.BOTTOM, 20)
 
-        panel.SetSizer(sizer)
+        self.SetSizer(sizer)
+        self.CenterOnParent()
 
         select_all_btn.Bind(wx.EVT_BUTTON, self._on_select_all)
         deselect_all_btn.Bind(wx.EVT_BUTTON, self._on_deselect_all)
@@ -103,7 +122,7 @@ class UploadDataDialog(wx.Dialog):
         super().__init__(
             parent,
             title="Upload Data",
-            size=wx.Size(650, 550),
+            size=wx.Size(680, 580),
             style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
         )
 
@@ -115,31 +134,61 @@ class UploadDataDialog(wx.Dialog):
         self.conflicts_by_field: dict[str, list[Conflict]] = {}
         self.field_actions: dict[str, str] = {}
 
-        panel = wx.Panel(self)
         main_sizer = wx.BoxSizer(wx.VERTICAL)
 
-        url_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        url_label = wx.StaticText(panel, label="Source Database URL:")
-        url_sizer.Add(url_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
-        self.url_input = wx.TextCtrl(panel, size=wx.Size(350, -1))
-        url_sizer.Add(self.url_input, 1, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
-        self.analyze_btn = wx.Button(panel, label="Analyze")
-        url_sizer.Add(self.analyze_btn, 0)
-        main_sizer.Add(url_sizer, 0, wx.EXPAND | wx.ALL, 15)
+        main_sizer.AddSpacer(20)
 
-        separator = wx.StaticLine(panel, style=wx.LI_HORIZONTAL)
-        main_sizer.Add(separator, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 15)
+        title = wx.StaticText(self, label="Upload Data")
+        title_font = title.GetFont()
+        title_font.PointSize = 14
+        title_font = title_font.Bold()
+        title.SetFont(title_font)
+        main_sizer.Add(title, 0, wx.LEFT | wx.RIGHT, 20)
 
-        self.progress_label = wx.StaticText(panel, label="")
-        main_sizer.Add(self.progress_label, 0, wx.LEFT | wx.TOP, 15)
-        self.progress_gauge = wx.Gauge(panel, range=100, size=wx.Size(-1, 18))
+        main_sizer.AddSpacer(6)
+
+        subtitle = wx.StaticText(
+            self,
+            label="Merge student data from an external database into the live registry.",
+        )
+        subtitle.SetForegroundColour(wx.Colour(100, 100, 100))
+        main_sizer.Add(subtitle, 0, wx.LEFT | wx.RIGHT, 20)
+
+        main_sizer.AddSpacer(15)
+
+        separator_top = wx.StaticLine(self, style=wx.LI_HORIZONTAL)
+        main_sizer.Add(separator_top, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 20)
+
+        main_sizer.AddSpacer(15)
+
+        url_label = wx.StaticText(self, label="Source Database URL")
+        url_label_font = url_label.GetFont()
+        url_label_font = url_label_font.Bold()
+        url_label.SetFont(url_label_font)
+        main_sizer.Add(url_label, 0, wx.LEFT | wx.RIGHT, 20)
+
+        main_sizer.AddSpacer(6)
+
+        url_row = wx.BoxSizer(wx.HORIZONTAL)
+        self.url_input = wx.TextCtrl(self, size=wx.Size(350, -1))
+        self.url_input.SetHint("postgresql://user:password@host/dbname")
+        url_row.Add(self.url_input, 1, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 10)
+        self.analyze_btn = wx.Button(self, label="Analyze")
+        url_row.Add(self.analyze_btn, 0)
+        main_sizer.Add(url_row, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 20)
+
+        main_sizer.AddSpacer(15)
+
+        self.progress_label = wx.StaticText(self, label="")
+        main_sizer.Add(self.progress_label, 0, wx.LEFT | wx.RIGHT, 20)
+        self.progress_gauge = wx.Gauge(self, range=100, size=wx.Size(-1, 18))
         main_sizer.Add(
-            self.progress_gauge, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 15
+            self.progress_gauge, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 20
         )
         self.progress_label.Hide()
         self.progress_gauge.Hide()
 
-        self.results_panel = wx.Panel(panel)
+        self.results_panel = wx.Panel(self)
         results_sizer = wx.BoxSizer(wx.VERTICAL)
 
         summary_label = wx.StaticText(self.results_panel, label="Analysis Summary")
@@ -147,53 +196,83 @@ class UploadDataDialog(wx.Dialog):
         summary_font.PointSize = 11
         summary_font = summary_font.Bold()
         summary_label.SetFont(summary_font)
-        results_sizer.Add(summary_label, 0, wx.TOP | wx.BOTTOM, 8)
+        results_sizer.Add(summary_label, 0, wx.BOTTOM, 10)
 
-        self.summary_text = wx.StaticText(self.results_panel, label="")
-        results_sizer.Add(self.summary_text, 0, wx.BOTTOM, 10)
+        self.summary_grid = wx.FlexGridSizer(cols=2, vgap=6, hgap=20)
+        self.summary_grid.AddGrowableCol(1, 1)
 
-        conflicts_label = wx.StaticText(self.results_panel, label="Conflicts")
-        conflicts_font = conflicts_label.GetFont()
+        self.summary_labels: dict[str, wx.StaticText] = {}
+        for key, label_text in [
+            ("students", "Students to add"),
+            ("fields", "Fields to fill"),
+            ("education", "Education records to add"),
+            ("kins", "Next of Kin records to add"),
+        ]:
+            label = wx.StaticText(self.results_panel, label=label_text)
+            label.SetForegroundColour(wx.Colour(100, 100, 100))
+            value = wx.StaticText(self.results_panel, label="0")
+            value_font = value.GetFont()
+            value_font = value_font.Bold()
+            value.SetFont(value_font)
+            self.summary_grid.Add(label, 0, wx.ALIGN_LEFT)
+            self.summary_grid.Add(value, 0, wx.ALIGN_LEFT)
+            self.summary_labels[key] = value
+
+        results_sizer.Add(self.summary_grid, 0, wx.EXPAND | wx.BOTTOM, 15)
+
+        conflicts_header = wx.StaticText(self.results_panel, label="Conflicts")
+        conflicts_font = conflicts_header.GetFont()
         conflicts_font.PointSize = 11
         conflicts_font = conflicts_font.Bold()
-        conflicts_label.SetFont(conflicts_font)
-        results_sizer.Add(conflicts_label, 0, wx.BOTTOM, 8)
+        conflicts_header.SetFont(conflicts_font)
+        results_sizer.Add(conflicts_header, 0, wx.BOTTOM, 8)
 
         self.conflicts_desc = wx.StaticText(self.results_panel, label="")
-        self.conflicts_desc.Wrap(580)
+        self.conflicts_desc.SetForegroundColour(wx.Colour(100, 100, 100))
+        self.conflicts_desc.Wrap(600)
         results_sizer.Add(self.conflicts_desc, 0, wx.BOTTOM, 8)
 
         self.conflict_list = wx.ListCtrl(
-            self.results_panel, style=wx.LC_REPORT, size=wx.Size(-1, 150)
+            self.results_panel,
+            style=wx.LC_REPORT | wx.BORDER_SIMPLE,
+            size=wx.Size(-1, 140),
         )
-        self.conflict_list.AppendColumn("Field", width=120)
+        self.conflict_list.AppendColumn("Field", width=150)
         self.conflict_list.AppendColumn("Conflicts", width=80)
-        self.conflict_list.AppendColumn("Action", width=150)
+        self.conflict_list.AppendColumn("Action", width=160)
         results_sizer.Add(self.conflict_list, 1, wx.EXPAND | wx.BOTTOM, 8)
 
         conflict_btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.toggle_action_btn = wx.Button(self.results_panel, label="Toggle Action")
-        self.review_btn = wx.Button(self.results_panel, label="Review Details...")
-        conflict_btn_sizer.Add(self.toggle_action_btn, 0, wx.RIGHT, 5)
+        self.review_btn = wx.Button(self.results_panel, label="Review Details\u2026")
+        conflict_btn_sizer.Add(self.toggle_action_btn, 0, wx.RIGHT, 8)
         conflict_btn_sizer.Add(self.review_btn, 0)
-        results_sizer.Add(conflict_btn_sizer, 0, wx.BOTTOM, 10)
+        results_sizer.Add(conflict_btn_sizer, 0)
 
         self.results_panel.SetSizer(results_sizer)
         main_sizer.Add(
-            self.results_panel, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 15
+            self.results_panel, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 20
         )
         self.results_panel.Hide()
 
+        main_sizer.AddStretchSpacer()
+
+        separator_btm = wx.StaticLine(self, style=wx.LI_HORIZONTAL)
+        main_sizer.Add(separator_btm, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 20)
+
+        main_sizer.AddSpacer(12)
+
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
         btn_sizer.AddStretchSpacer()
-        self.upload_btn = wx.Button(panel, label="Upload")
+        self.upload_btn = wx.Button(self, label="Upload")
         self.upload_btn.Disable()
-        close_btn = wx.Button(panel, wx.ID_CANCEL, label="Close")
+        close_btn = wx.Button(self, wx.ID_CANCEL, label="Close")
         btn_sizer.Add(self.upload_btn, 0, wx.RIGHT, 8)
         btn_sizer.Add(close_btn, 0)
-        main_sizer.Add(btn_sizer, 0, wx.EXPAND | wx.ALL, 15)
+        main_sizer.Add(btn_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 20)
 
-        panel.SetSizer(main_sizer)
+        self.SetSizer(main_sizer)
+        self.CenterOnParent()
 
         self.analyze_btn.Bind(wx.EVT_BUTTON, self._on_analyze)
         self.upload_btn.Bind(wx.EVT_BUTTON, self._on_upload)
@@ -260,13 +339,10 @@ class UploadDataDialog(wx.Dialog):
         self.field_actions.clear()
 
         fields_total = sum(analysis.fields_to_fill.values())
-        lines = [
-            f"Students to add: {analysis.students_to_add}",
-            f"Student fields to fill: {fields_total}",
-            f"Education records to add: {analysis.education_to_add}",
-            f"Next of Kin records to add: {analysis.kins_to_add}",
-        ]
-        self.summary_text.SetLabel("\n".join(lines))
+        self.summary_labels["students"].SetLabel(str(analysis.students_to_add))
+        self.summary_labels["fields"].SetLabel(str(fields_total))
+        self.summary_labels["education"].SetLabel(str(analysis.education_to_add))
+        self.summary_labels["kins"].SetLabel(str(analysis.kins_to_add))
 
         self.conflicts_by_field = defaultdict(list)
         for c in analysis.conflicts:
@@ -276,11 +352,10 @@ class UploadDataDialog(wx.Dialog):
         total_conflicts = len(analysis.conflicts)
         if total_conflicts > 0:
             self.conflicts_desc.SetLabel(
-                f"Found {total_conflicts} fields where both databases have different "
-                "non-empty values. Default: keep live database values. Toggle to use source "
-                "values, or review individual conflicts."
+                f"Found {total_conflicts} conflicts where both databases have different "
+                "non-empty values. Default: keep live values. Toggle or review to change."
             )
-            self.conflicts_desc.Wrap(580)
+            self.conflicts_desc.Wrap(600)
             for field_name, conflicts in sorted(
                 self.conflicts_by_field.items(), key=lambda x: -len(x[1])
             ):
@@ -297,10 +372,7 @@ class UploadDataDialog(wx.Dialog):
 
         self.results_panel.Show()
         self.upload_btn.Enable()
-        self.GetParent()
-        panel = self.results_panel.GetParent()
-        if panel:
-            panel.Layout()
+        self.Layout()
 
     def _on_toggle_action(self, event: wx.CommandEvent) -> None:
         selected = self.conflict_list.GetFirstSelected()

@@ -3,6 +3,7 @@ import unittest
 from tools.student_audit import (
     CandidateProfile,
     build_page_starts,
+    canonical_education_rows,
     canonical_program_rows,
     canonical_semester_rows,
     diff_summary,
@@ -21,12 +22,54 @@ class StudentAuditHelpersTests(unittest.TestCase):
 
     def test_select_audit_students_prefers_rich_records_and_keeps_unique(self):
         candidates = [
-            CandidateProfile("902000001", programs=1, educations=0, addresses=0, semesters=0, modules=0),
-            CandidateProfile("902000002", programs=1, educations=0, addresses=0, semesters=1, modules=4),
-            CandidateProfile("902000003", programs=1, educations=1, addresses=1, semesters=3, modules=12),
-            CandidateProfile("902000004", programs=2, educations=0, addresses=2, semesters=2, modules=5),
-            CandidateProfile("902000005", programs=1, educations=0, addresses=0, semesters=0, modules=1),
-            CandidateProfile("902000006", programs=1, educations=2, addresses=1, semesters=4, modules=15),
+            CandidateProfile(
+                "902000001",
+                programs=1,
+                educations=0,
+                addresses=0,
+                semesters=0,
+                modules=0,
+            ),
+            CandidateProfile(
+                "902000002",
+                programs=1,
+                educations=0,
+                addresses=0,
+                semesters=1,
+                modules=4,
+            ),
+            CandidateProfile(
+                "902000003",
+                programs=1,
+                educations=1,
+                addresses=1,
+                semesters=3,
+                modules=12,
+            ),
+            CandidateProfile(
+                "902000004",
+                programs=2,
+                educations=0,
+                addresses=2,
+                semesters=2,
+                modules=5,
+            ),
+            CandidateProfile(
+                "902000005",
+                programs=1,
+                educations=0,
+                addresses=0,
+                semesters=0,
+                modules=1,
+            ),
+            CandidateProfile(
+                "902000006",
+                programs=1,
+                educations=2,
+                addresses=1,
+                semesters=4,
+                modules=15,
+            ),
         ]
 
         selected = select_audit_students(candidates, limit=4)
@@ -83,6 +126,35 @@ class StudentAuditHelpersTests(unittest.TestCase):
                     "Active",
                     "",
                     "",
+                )
+            },
+        )
+
+    def test_canonical_education_rows_keeps_rows_without_school_name(self):
+        canonical = canonical_education_rows(
+            [
+                {
+                    "cms_id": 9,
+                    "std_no": "901000008",
+                    "school_name": "",
+                    "type": "Secondary",
+                    "level": "Cambridge Oversea School Certificate",
+                    "end_date": "2002-11-01",
+                }
+            ]
+        )
+
+        self.assertEqual(
+            canonical,
+            {
+                (
+                    9,
+                    "901000008",
+                    "",
+                    "Secondary",
+                    "Cambridge Oversea School Certificate",
+                    "",
+                    "2002-11-01",
                 )
             },
         )

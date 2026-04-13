@@ -62,7 +62,11 @@ from features.sync.students.scraper import (
     scrape_student_view,
 )
 from features.sync.students.service import StudentSyncService
-from tools.catalog_audit import create_audit_database, drop_audit_database, patch_database_url
+from tools.catalog_audit import (
+    create_audit_database,
+    drop_audit_database,
+    patch_database_url,
+)
 from utils.normalizers import (
     normalize_date,
     normalize_next_of_kin_relationship,
@@ -264,9 +268,7 @@ def fetch_student_page(browser: Browser, start: int) -> tuple[list[str], int, in
     page = BeautifulSoup(browser.fetch(url).text, "lxml")
     first_record, last_record, total_records = extract_pager_bounds(page)
     if first_record != start:
-        raise ValueError(
-            f"Student pager expected start {start} but got {first_record}"
-        )
+        raise ValueError(f"Student pager expected start {start} but got {first_record}")
 
     table = page.select_one("table#ewlistmain")
     if not table:
@@ -364,9 +366,14 @@ def collect_catalog_counts(audit_url: URL) -> dict[str, int]:
                 "schools": session.query(func.count(School.id)).scalar() or 0,
                 "programs": session.query(func.count(Program.id)).scalar() or 0,
                 "structures": session.query(func.count(Structure.id)).scalar() or 0,
-                "structure_semesters": session.query(func.count(StructureSemester.id)).scalar()
+                "structure_semesters": session.query(
+                    func.count(StructureSemester.id)
+                ).scalar()
                 or 0,
-                "semester_modules": session.query(func.count(SemesterModule.id)).scalar() or 0,
+                "semester_modules": session.query(
+                    func.count(SemesterModule.id)
+                ).scalar()
+                or 0,
             }
     finally:
         engine.dispose()
@@ -501,17 +508,25 @@ def canonical_education_rows(rows: Iterable[dict[str, Any]]) -> set[tuple[Any, .
         cms_id = row.get("cms_id")
         std_no = row.get("std_no")
         school_name = normalize_scalar(row.get("school_name"))
-        if not cms_id or not std_no or not school_name:
+        education_type = normalize_scalar(row.get("type"))
+        education_level = normalize_scalar(row.get("level"))
+        start_date = normalize_scalar(row.get("start_date"))
+        end_date = normalize_scalar(row.get("end_date"))
+        if not cms_id or not std_no:
+            continue
+        if not any(
+            (school_name, education_type, education_level, start_date, end_date)
+        ):
             continue
         canonical.add(
             (
                 int(cms_id),
                 normalize_scalar(std_no),
                 school_name,
-                normalize_scalar(row.get("type")),
-                normalize_scalar(row.get("level")),
-                normalize_scalar(row.get("start_date")),
-                normalize_scalar(row.get("end_date")),
+                education_type,
+                education_level,
+                start_date,
+                end_date,
             )
         )
     return canonical
@@ -574,7 +589,12 @@ def canonical_module_rows(rows: Iterable[dict[str, Any]]) -> set[tuple[Any, ...]
         student_program_cms_id = row.get("student_program_cms_id")
         student_semester_cms_id = row.get("student_semester_cms_id")
         module_code = normalize_scalar(row.get("module_code"))
-        if not cms_id or not student_program_cms_id or not student_semester_cms_id or not module_code:
+        if (
+            not cms_id
+            or not student_program_cms_id
+            or not student_semester_cms_id
+            or not module_code
+        ):
             continue
         canonical.add(
             (
@@ -894,11 +914,17 @@ def collect_db_counts(audit_url: URL) -> dict[str, int]:
             return {
                 "students": session.query(func.count(Student.std_no)).scalar() or 0,
                 "next_of_kins": session.query(func.count(NextOfKin.id)).scalar() or 0,
-                "student_education": session.query(func.count(StudentEducation.id)).scalar()
+                "student_education": session.query(
+                    func.count(StudentEducation.id)
+                ).scalar()
                 or 0,
-                "student_programs": session.query(func.count(StudentProgram.id)).scalar()
+                "student_programs": session.query(
+                    func.count(StudentProgram.id)
+                ).scalar()
                 or 0,
-                "student_semesters": session.query(func.count(StudentSemester.id)).scalar()
+                "student_semesters": session.query(
+                    func.count(StudentSemester.id)
+                ).scalar()
                 or 0,
                 "student_modules": session.query(func.count(StudentModule.id)).scalar()
                 or 0,
@@ -974,9 +1000,7 @@ def main() -> None:
         )
 
         patch_database_url(audit_url)
-        catalog_counts: dict[str, int | float] = {
-            **collect_catalog_counts(audit_url)
-        }
+        catalog_counts: dict[str, int | float] = {**collect_catalog_counts(audit_url)}
         catalog_mode = "template_clone"
         should_refresh_catalog = args.refresh_catalog or bootstrap_mode == "create_all"
         if not should_refresh_catalog:
@@ -1022,7 +1046,9 @@ def main() -> None:
                 candidate_profiles.append(future.result())
 
         selected_candidates = select_audit_students(candidate_profiles, args.limit)
-        selected_students = [candidate.student_number for candidate in selected_candidates]
+        selected_students = [
+            candidate.student_number for candidate in selected_candidates
+        ]
 
         print(
             json.dumps(
@@ -1041,7 +1067,9 @@ def main() -> None:
                             "modules": candidate.modules,
                         }
                         for candidate in sorted(
-                            candidate_profiles, key=lambda item: item.score, reverse=True
+                            candidate_profiles,
+                            key=lambda item: item.score,
+                            reverse=True,
                         )[:10]
                     ],
                 },
@@ -1061,7 +1089,9 @@ def main() -> None:
             result = audit_student(student_number, service, repository, audit_url)
             results.append(result)
 
-            if index % max(args.progress_every, 1) == 0 or index == len(selected_students):
+            if index % max(args.progress_every, 1) == 0 or index == len(
+                selected_students
+            ):
                 print(
                     json.dumps(
                         {
@@ -1088,7 +1118,9 @@ def main() -> None:
 
         summary = {
             "event": "final_summary",
-            "status": "pass" if not import_failures and not comparison_failures else "fail",
+            "status": (
+                "pass" if not import_failures and not comparison_failures else "fail"
+            ),
             "country": get_current_country_label(),
             "country_code": get_current_country_code(),
             "cms": get_current_cms_base_url(),
@@ -1107,12 +1139,12 @@ def main() -> None:
                 "import_failures": len(import_failures),
                 "comparison_failures": len(comparison_failures),
                 "elapsed_seconds": round(time.perf_counter() - started, 3),
-                "average_seconds": round(statistics.fmean(durations), 3)
-                if durations
-                else 0.0,
-                "median_seconds": round(statistics.median(durations), 3)
-                if durations
-                else 0.0,
+                "average_seconds": (
+                    round(statistics.fmean(durations), 3) if durations else 0.0
+                ),
+                "median_seconds": (
+                    round(statistics.median(durations), 3) if durations else 0.0
+                ),
                 "slowest_seconds": round(max(durations), 3) if durations else 0.0,
                 "with_contacts": sum(
                     1 for result in results if result.live_counts["contacts"] > 0

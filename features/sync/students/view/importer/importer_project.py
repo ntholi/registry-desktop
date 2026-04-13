@@ -60,7 +60,7 @@ class ImporterProjectManager:
             return None
 
         try:
-            with open(cls.PROJECT_FILE, "r") as f:
+            with open(cls.PROJECT_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
             return ImporterProject(**data)
         except Exception:
@@ -71,9 +71,16 @@ class ImporterProjectManager:
         cls._ensure_directory()
 
         project.updated_at = datetime.now().isoformat()
+        payload = json.dumps(asdict(project), indent=2)
+        temp_file = cls.PROJECT_FILE.with_suffix(f"{cls.PROJECT_FILE.suffix}.tmp")
 
-        with open(cls.PROJECT_FILE, "w") as f:
-            json.dump(asdict(project), f, indent=2)
+        try:
+            with open(temp_file, "w", encoding="utf-8") as f:
+                f.write(payload)
+            os.replace(temp_file, cls.PROJECT_FILE)
+        finally:
+            if temp_file.exists():
+                temp_file.unlink(missing_ok=True)
 
     @classmethod
     def delete_project(cls):
@@ -101,6 +108,19 @@ class ImporterProjectManager:
             return []
 
     @classmethod
+    def count_students(cls, start: str, end: str) -> int:
+        try:
+            start_num = int(start)
+            end_num = int(end)
+        except Exception:
+            return 0
+
+        if start_num > end_num:
+            return 0
+
+        return end_num - start_num + 1
+
+    @classmethod
     def get_remaining_students(cls, project: ImporterProject) -> list[str]:
         all_students = cls.generate_student_numbers(
             project.start_student, project.end_student
@@ -113,6 +133,28 @@ class ImporterProjectManager:
             pass
 
         return all_students[current_idx:]
+
+    @classmethod
+    def count_remaining_students(cls, project: ImporterProject) -> int:
+        total_students = cls.count_students(project.start_student, project.end_student)
+
+        if total_students == 0:
+            return 0
+
+        try:
+            start_num = int(project.start_student)
+            end_num = int(project.end_student)
+            current_num = int(project.current_student)
+        except Exception:
+            return total_students
+
+        if current_num <= start_num:
+            return total_students
+
+        if current_num > end_num:
+            return 0
+
+        return end_num - current_num + 1
 
     @classmethod
     def add_failed_student(cls, project: ImporterProject, student_number: str):

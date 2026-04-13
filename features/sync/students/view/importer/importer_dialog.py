@@ -54,6 +54,10 @@ class ImporterDialog(wx.Dialog):
         self.Bind(wx.EVT_CLOSE, self.on_close)
 
     def on_close(self, event):
+        if self.IsModal():
+            self.EndModal(wx.ID_OK)
+            return
+
         if event.CanVeto():
             self.Hide()
             event.Veto()
@@ -176,7 +180,14 @@ class ImporterDialog(wx.Dialog):
         self.enrollment_data_checkbox.Bind(
             wx.EVT_CHECKBOX, self.on_data_checkbox_changed
         )
-        checkbox_sizer.Add(self.enrollment_data_checkbox, 0)
+        checkbox_sizer.Add(self.enrollment_data_checkbox, 0, wx.BOTTOM, 5)
+
+        self.addresses_checkbox = wx.CheckBox(
+            panel, label="Addresses (Next of Kin, Contact persons, etc.)"
+        )
+        self.addresses_checkbox.SetValue(True)
+        self.addresses_checkbox.Bind(wx.EVT_CHECKBOX, self.on_data_checkbox_changed)
+        checkbox_sizer.Add(self.addresses_checkbox, 0)
 
         sizer.Add(checkbox_sizer, 0, wx.LEFT | wx.RIGHT, 20)
 
@@ -547,6 +558,7 @@ class ImporterDialog(wx.Dialog):
         self.personal_info_checkbox.SetValue(is_checked)
         self.education_history_checkbox.SetValue(is_checked)
         self.enrollment_data_checkbox.SetValue(is_checked)
+        self.addresses_checkbox.SetValue(is_checked)
 
     def on_data_checkbox_changed(self, event):
         all_checked = all(
@@ -555,6 +567,7 @@ class ImporterDialog(wx.Dialog):
                 self.personal_info_checkbox.GetValue(),
                 self.education_history_checkbox.GetValue(),
                 self.enrollment_data_checkbox.GetValue(),
+                self.addresses_checkbox.GetValue(),
             ]
         )
         any_checked = any(
@@ -563,6 +576,7 @@ class ImporterDialog(wx.Dialog):
                 self.personal_info_checkbox.GetValue(),
                 self.education_history_checkbox.GetValue(),
                 self.enrollment_data_checkbox.GetValue(),
+                self.addresses_checkbox.GetValue(),
             ]
         )
 
@@ -572,6 +586,30 @@ class ImporterDialog(wx.Dialog):
             self.select_all_checkbox.Set3StateValue(wx.CHK_UNDETERMINED)
         else:
             self.select_all_checkbox.Set3StateValue(wx.CHK_UNCHECKED)
+
+    def get_import_options(self) -> dict:
+        return {
+            "student_info": self.student_info_checkbox.GetValue(),
+            "personal_info": self.personal_info_checkbox.GetValue(),
+            "education_history": self.education_history_checkbox.GetValue(),
+            "enrollment_data": self.enrollment_data_checkbox.GetValue(),
+            "addresses": self.addresses_checkbox.GetValue(),
+            "skip_active_term": self.skip_active_term_checkbox.GetValue(),
+            "delete_programs_before_import": self.delete_programs_checkbox.GetValue(),
+        }
+
+    def has_selected_import_data(self, import_options: dict | None = None) -> bool:
+        options = import_options or self.get_import_options()
+        return any(
+            options.get(key)
+            for key in (
+                "student_info",
+                "personal_info",
+                "education_history",
+                "enrollment_data",
+                "addresses",
+            )
+        )
 
     def on_auto_detect(self, event):
         self.auto_detect_button.Enable(False)
@@ -730,16 +768,9 @@ class ImporterDialog(wx.Dialog):
             )
             return
 
-        import_options = {
-            "student_info": self.student_info_checkbox.GetValue(),
-            "personal_info": self.personal_info_checkbox.GetValue(),
-            "education_history": self.education_history_checkbox.GetValue(),
-            "enrollment_data": self.enrollment_data_checkbox.GetValue(),
-            "skip_active_term": self.skip_active_term_checkbox.GetValue(),
-            "delete_programs_before_import": self.delete_programs_checkbox.GetValue(),
-        }
+        import_options = self.get_import_options()
 
-        if not any(import_options.values()):
+        if not self.has_selected_import_data(import_options):
             wx.MessageBox(
                 "Please select at least one data type to import.",
                 "No Data Selected",
@@ -905,7 +936,10 @@ class ImporterDialog(wx.Dialog):
         self.hide_button.Enable(True)
 
     def on_hide(self, event):
-        self.EndModal(wx.ID_OK)
+        if self.IsModal():
+            self.EndModal(wx.ID_OK)
+        else:
+            self.Hide()
 
     def clear_setup_fields(self):
         self.start_student_input.SetValue("")
@@ -914,6 +948,7 @@ class ImporterDialog(wx.Dialog):
         self.personal_info_checkbox.SetValue(True)
         self.education_history_checkbox.SetValue(True)
         self.enrollment_data_checkbox.SetValue(True)
+        self.addresses_checkbox.SetValue(True)
         self.skip_active_term_checkbox.SetValue(False)
         self.delete_programs_checkbox.SetValue(False)
         self.select_all_checkbox.Set3StateValue(wx.CHK_CHECKED)
@@ -941,12 +976,11 @@ class ImporterDialog(wx.Dialog):
         else:
             self.current_student_label.SetLabel(self.project.current_student)
 
-        total_students = len(
-            ImporterProjectManager.generate_student_numbers(
-                self.project.start_student, self.project.end_student
-            )
+        total_students = ImporterProjectManager.count_students(
+            self.project.start_student,
+            self.project.end_student,
         )
-        remaining = len(ImporterProjectManager.get_remaining_students(self.project))
+        remaining = ImporterProjectManager.count_remaining_students(self.project)
         completed = total_students - remaining
 
         if total_students > 0:

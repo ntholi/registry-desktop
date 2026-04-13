@@ -17,6 +17,13 @@ class AppMenuBar:
     def _create_file_menu(self):
         file_menu = wx.Menu()
 
+        upload_item = file_menu.Append(
+            wx.ID_ANY, "Upload Data...", "Upload data from another database"
+        )
+        self.parent.Bind(wx.EVT_MENU, self._on_upload_data, upload_item)
+
+        file_menu.AppendSeparator()
+
         exit_item = file_menu.Append(wx.ID_EXIT, "Exit", "Exit the application")
         self.parent.Bind(wx.EVT_MENU, self._on_exit, exit_item)
 
@@ -84,6 +91,13 @@ class AppMenuBar:
             self.parent,
         )
         self.parent.Close()
+
+    def _on_upload_data(self, event):
+        from features.upload.upload_dialog import UploadDataDialog
+
+        dlg = UploadDataDialog(self.parent, self.parent.status_bar)
+        dlg.ShowModal()
+        dlg.Destroy()
 
     def _show_about(self, event):
         from base.__version__ import __version__

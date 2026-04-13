@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import Mock, patch
 
+from features.sync.students.service import StudentSyncService
 from features.sync.students.view.importer.importer_project import (
     ImporterProject,
     ImporterProjectManager,
@@ -94,6 +95,65 @@ class ImporterRetryWorkerTests(unittest.TestCase):
         self.assertEqual(project.failed_students, ["901000001"])
         self.assertEqual(callback.call_args_list[-1].args[0], "retry_finished")
         self.assertFalse(callback.call_args_list[-1].args[3])
+
+
+class StudentSyncServiceTests(unittest.TestCase):
+    def test_fetch_student_returns_success_for_enrollment_only_import(self):
+        repository = Mock()
+        repository.get_active_term_code.return_value = None
+        repository.resolve_student_program_structure_id.return_value = None
+        repository.upsert_student_program.return_value = (
+            True,
+            "Student program updated",
+            321,
+        )
+        service = None
+
+        with (
+            patch("features.sync.students.service.Browser"),
+            patch(
+                "features.sync.students.service.extract_student_program_ids",
+                return_value=[111],
+            ),
+            patch(
+                "features.sync.students.service.scrape_student_program_data",
+                return_value={
+                    "std_no": "901000001",
+                    "program_code": "BIO",
+                    "structure_code": "2026-A",
+                },
+            ),
+            patch(
+                "features.sync.students.service.extract_student_semester_ids",
+                return_value=[],
+            ),
+        ):
+            service = StudentSyncService(repository)
+            was_updated = service.fetch_student(
+                "901000001",
+                lambda *_: None,
+                {
+                    "student_info": False,
+                    "personal_info": False,
+                    "education_history": False,
+                    "addresses": False,
+                    "enrollment_data": True,
+                    "skip_active_term": False,
+                    "delete_programs_before_import": False,
+                },
+            )
+
+        self.assertTrue(was_updated)
+        repository.update_student.assert_not_called()
+        repository.upsert_student_program.assert_called_once_with(
+            111,
+            "901000001",
+            {
+                "std_no": "901000001",
+                "program_code": "BIO",
+                "structure_code": "2026-A",
+            },
+        )
 
 
 if __name__ == "__main__":

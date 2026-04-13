@@ -107,6 +107,17 @@ class StudentSyncService:
                 "delete_programs_before_import": False,
             }
 
+        selected_sections = any(
+            import_options.get(key)
+            for key in (
+                "student_info",
+                "personal_info",
+                "education_history",
+                "addresses",
+                "enrollment_data",
+            )
+        )
+
         skip_active_term = import_options.get("skip_active_term", True)
         delete_programs_before_import = import_options.get(
             "delete_programs_before_import", False
@@ -511,7 +522,7 @@ class StudentSyncService:
         )
 
         return (
-            student_updated
+            selected_sections
             and related_records_failed == 0
             and educations_failed == 0
             and programs_failed == 0

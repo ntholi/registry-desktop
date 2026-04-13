@@ -93,7 +93,9 @@ class ConflictDetailDialog(wx.Dialog):
         dialog_btn_sizer.AddButton(ok_btn)
         dialog_btn_sizer.AddButton(cancel_btn)
         dialog_btn_sizer.Realize()
-        sizer.Add(dialog_btn_sizer, 0, wx.ALIGN_RIGHT | wx.LEFT | wx.RIGHT | wx.BOTTOM, 20)
+        sizer.Add(
+            dialog_btn_sizer, 0, wx.ALIGN_RIGHT | wx.LEFT | wx.RIGHT | wx.BOTTOM, 20
+        )
 
         self.SetSizer(sizer)
         self.CenterOnParent()
@@ -122,7 +124,7 @@ class UploadDataDialog(wx.Dialog):
         super().__init__(
             parent,
             title="Upload Data",
-            size=wx.Size(680, 580),
+            size=wx.Size(680, 680),
             style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
         )
 
@@ -149,7 +151,7 @@ class UploadDataDialog(wx.Dialog):
 
         subtitle = wx.StaticText(
             self,
-            label="Merge student data from an external database into the live registry.",
+            label="Upload student data from the local registry to the live database.",
         )
         subtitle.SetForegroundColour(wx.Colour(100, 100, 100))
         main_sizer.Add(subtitle, 0, wx.LEFT | wx.RIGHT, 20)
@@ -161,7 +163,7 @@ class UploadDataDialog(wx.Dialog):
 
         main_sizer.AddSpacer(15)
 
-        url_label = wx.StaticText(self, label="Source Database URL")
+        url_label = wx.StaticText(self, label="Live Database URL")
         url_label_font = url_label.GetFont()
         url_label_font = url_label_font.Bold()
         url_label.SetFont(url_label_font)
@@ -171,7 +173,7 @@ class UploadDataDialog(wx.Dialog):
 
         url_row = wx.BoxSizer(wx.HORIZONTAL)
         self.url_input = wx.TextCtrl(self, size=wx.Size(350, -1))
-        self.url_input.SetHint("postgresql://user:password@host/dbname")
+        self.url_input.SetHint("postgresql://user:pass@host/dbname")
         url_row.Add(self.url_input, 1, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 10)
         self.analyze_btn = wx.Button(self, label="Analyze")
         url_row.Add(self.analyze_btn, 0)
@@ -317,8 +319,8 @@ class UploadDataDialog(wx.Dialog):
         try:
             from database.connection import get_engine
 
-            self.source_engine = create_source_engine(url)
-            self.target_engine = get_engine()
+            self.source_engine = get_engine()
+            self.target_engine = create_source_engine(url)
 
             wx.CallAfter(self._show_progress_impl, "Analyzing differences...", 0, 0)
             analysis = analyze_differences(self.source_engine, self.target_engine)
@@ -353,7 +355,7 @@ class UploadDataDialog(wx.Dialog):
         if total_conflicts > 0:
             self.conflicts_desc.SetLabel(
                 f"Found {total_conflicts} conflicts where both databases have different "
-                "non-empty values. Default: keep live values. Toggle or review to change."
+                "non-empty values. Default: Keep Live Data values. Toggle or review to change."
             )
             self.conflicts_desc.Wrap(600)
             for field_name, conflicts in sorted(
@@ -363,7 +365,7 @@ class UploadDataDialog(wx.Dialog):
                     self.conflict_list.GetItemCount(), field_name
                 )
                 self.conflict_list.SetItem(idx, 1, str(len(conflicts)))
-                self.conflict_list.SetItem(idx, 2, "Keep Live")
+                self.conflict_list.SetItem(idx, 2, "Keep Live Data")
                 self.field_actions[field_name] = "keep"
         else:
             self.conflicts_desc.SetLabel(
@@ -390,7 +392,7 @@ class UploadDataDialog(wx.Dialog):
         new_action = "source" if current == "keep" else "keep"
         self.field_actions[field_name] = new_action
 
-        label = "Use Source" if new_action == "source" else "Keep Live"
+        label = "Use Source" if new_action == "source" else "Keep Live Data"
         self.conflict_list.SetItem(selected, 2, label)
 
         for c in self.conflicts_by_field.get(field_name, []):
@@ -427,7 +429,7 @@ class UploadDataDialog(wx.Dialog):
             source_count = len(new_use_source)
             if source_count == 0:
                 self.field_actions[field_name] = "keep"
-                self.conflict_list.SetItem(selected, 2, "Keep Live")
+                self.conflict_list.SetItem(selected, 2, "Keep Live Data")
             elif source_count == len(conflicts):
                 self.field_actions[field_name] = "source"
                 self.conflict_list.SetItem(selected, 2, "Use Source")
@@ -452,7 +454,7 @@ class UploadDataDialog(wx.Dialog):
             return
 
         confirm = wx.MessageBox(
-            "This will merge data from the source database into the registry "
+            "This will upload data from the local database to the live "
             "database. Continue?",
             "Confirm Upload",
             wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION,

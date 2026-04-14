@@ -53,6 +53,7 @@ from features.sync.students.scraper import (
     extract_student_program_ids,
     extract_student_semester_ids,
     get_table_value,
+    parse_semester_name,
     parse_semester_number,
     scrape_student_addresses,
     scrape_student_education_data,
@@ -426,6 +427,7 @@ def scrape_student_semester_snapshot(
         if semester_number is not None:
             data["semester_number"] = semester_number
             if structure_id is not None:
+                semester_name = parse_semester_name(semester_str, semester_number)
                 converted_semester = {"F1": "01", "F2": "02"}.get(semester_number)
                 structure_semester_id = repository.lookup_structure_semester_id(
                     structure_id, semester_number
@@ -445,6 +447,14 @@ def scrape_student_semester_snapshot(
                         )
                 if structure_semester_id:
                     data["structure_semester_id"] = structure_semester_id
+                else:
+                    structure_semester_id = repository.ensure_structure_semester(
+                        structure_id,
+                        semester_number,
+                        semester_name,
+                    )
+                    if structure_semester_id:
+                        data["structure_semester_id"] = structure_semester_id
 
     status = get_table_value(table, "SemStatus")
     if status:

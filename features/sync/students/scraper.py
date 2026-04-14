@@ -236,6 +236,20 @@ def parse_semester_number(semester_str: str) -> Optional[str]:
     return None
 
 
+def parse_semester_name(semester_str: str, semester_number: str) -> str:
+    normalized_semester = semester_str.strip()
+    normalized_number = semester_number.strip()
+    if not normalized_semester:
+        return f"Semester {normalized_number}".strip()
+
+    if normalized_number and normalized_semester.startswith(normalized_number):
+        suffix = normalized_semester[len(normalized_number) :].strip(" -")
+        if suffix:
+            return suffix
+
+    return normalized_semester
+
+
 def get_table_value(table: Tag, header_text: str) -> Optional[str]:
     rows = table.select("tr")
     for row in rows:
@@ -493,6 +507,7 @@ def scrape_student_semester_data(
     if semester_str:
         semester_number = parse_semester_number(semester_str)
         if semester_number is not None and structure_id is not None and repository:
+            semester_name = parse_semester_name(semester_str, semester_number)
             converted_semester = {"F1": "01", "F2": "02"}.get(semester_number)
             structure_semester_id = repository.lookup_structure_semester_id(
                 structure_id, semester_number
@@ -523,11 +538,19 @@ def scrape_student_semester_data(
             if structure_semester_id:
                 data["structure_semester_id"] = structure_semester_id
             else:
-                logger.error(
-                    f"Could not find structure_semester_id - semester_id={std_semester_id}, "
-                    f"structure_id={structure_id}, semester_number={semester_number}, "
-                    f"term={data.get('term')}, semester_str={semester_str}"
+                structure_semester_id = repository.ensure_structure_semester(
+                    structure_id,
+                    semester_number,
+                    semester_name,
                 )
+                if structure_semester_id:
+                    data["structure_semester_id"] = structure_semester_id
+                else:
+                    logger.error(
+                        f"Could not find structure_semester_id - semester_id={std_semester_id}, "
+                        f"structure_id={structure_id}, semester_number={semester_number}, "
+                        f"term={data.get('term')}, semester_str={semester_str}"
+                    )
 
     status = get_table_value(table, "SemStatus")
     if status:

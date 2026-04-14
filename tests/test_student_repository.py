@@ -148,6 +148,75 @@ class StudentRepositoryProgramResolutionTests(unittest.TestCase):
         self.assertEqual(resolved_at_id, at_structure_id)
 
 
+class StudentRepositoryStructureSemesterTests(unittest.TestCase):
+    def setUp(self):
+        self.engine = create_engine("sqlite:///:memory:")
+        for table in [
+            School.__table__,
+            Program.__table__,
+            Structure.__table__,
+            StructureSemester.__table__,
+        ]:
+            table.create(self.engine)
+
+        self.repository = StudentRepository()
+        self.repository._engine = self.engine
+        self.repository.clear_structure_semester_cache()
+
+    def tearDown(self):
+        self.repository.clear_structure_semester_cache()
+        self.engine.dispose()
+
+    def test_ensure_structure_semester_creates_placeholder_when_missing(self):
+        with Session(self.engine) as session:
+            school = School(code="BUS", name="Business")
+            session.add(school)
+            session.flush()
+
+            program = Program(
+                code="BAHR",
+                name="Human Resource Management",
+                level="degree",
+                school_id=school.id,
+            )
+            session.add(program)
+            session.flush()
+
+            structure = Structure(
+                code="0802-BAHR",
+                desc="0802-BAHR",
+                program_id=program.id,
+            )
+            session.add(structure)
+            session.commit()
+            structure_id = structure.id
+
+        structure_semester_id = self.repository.ensure_structure_semester(
+            structure_id,
+            "07",
+            "Year 4 Sem 1",
+        )
+
+        self.assertIsNotNone(structure_semester_id)
+        self.assertEqual(
+            self.repository.lookup_structure_semester_id(structure_id, "07"),
+            structure_semester_id,
+        )
+
+        with Session(self.engine) as session:
+            structure_semester = (
+                session.query(StructureSemester)
+                .filter(StructureSemester.id == structure_semester_id)
+                .one()
+            )
+
+        self.assertEqual(structure_semester.structure_id, structure_id)
+        self.assertEqual(structure_semester.semester_number, "07")
+        self.assertEqual(structure_semester.name, "Year 4 Sem 1")
+        self.assertEqual(structure_semester.total_credits, 0.0)
+        self.assertIsNone(structure_semester.cms_id)
+
+
 class StudentRepositoryDateCoercionTests(unittest.TestCase):
     def setUp(self):
         self.engine = create_engine("sqlite:///:memory:")

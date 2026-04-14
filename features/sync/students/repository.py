@@ -1343,6 +1343,65 @@ class StudentRepository:
 
             return structure_semester_id
 
+    def ensure_structure_semester(
+        self,
+        structure_id: int,
+        semester_number: str,
+        name: str,
+        *,
+        total_credits: float = 0.0,
+    ) -> Optional[int]:
+        normalized_semester_number = semester_number.strip()
+        if not normalized_semester_number:
+            return None
+
+        normalized_name = name.strip() or f"Semester {normalized_semester_number}"
+        cache_key = (structure_id, normalized_semester_number)
+
+        with self._session() as session:
+            structure_semester = (
+                session.query(StructureSemester)
+                .filter(StructureSemester.structure_id == structure_id)
+                .filter(
+                    StructureSemester.semester_number == normalized_semester_number
+                )
+                .first()
+            )
+
+            if structure_semester:
+                if normalized_name and structure_semester.name != normalized_name:
+                    structure_semester.name = normalized_name  # type: ignore
+                if (
+                    float(structure_semester.total_credits or 0.0) == 0.0
+                    and float(total_credits) != 0.0
+                ):
+                    structure_semester.total_credits = total_credits  # type: ignore
+                session.commit()
+                session.refresh(structure_semester)
+                structure_semester_id = cast(int, structure_semester.id)
+                _structure_semester_cache[cache_key] = structure_semester_id
+                return structure_semester_id
+
+            structure_semester = StructureSemester(
+                structure_id=structure_id,
+                semester_number=normalized_semester_number,
+                name=normalized_name,
+                total_credits=float(total_credits),
+            )
+            session.add(structure_semester)
+            session.commit()
+            session.refresh(structure_semester)
+
+            structure_semester_id = cast(int, structure_semester.id)
+            _structure_semester_cache[cache_key] = structure_semester_id
+            logger.warning(
+                f"Created missing structure semester - structure_id={structure_id}, "
+                f"semester_number={normalized_semester_number}, "
+                f"structure_semester_id={structure_semester_id}, "
+                f"name={normalized_name}"
+            )
+            return structure_semester_id
+
     def lookup_sponsor_by_code(self, sponsor_code: str) -> Optional[int]:
         normalized_sponsor_code = _normalize_sponsor_key(sponsor_code)
         if normalized_sponsor_code is None:

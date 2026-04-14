@@ -1,4 +1,5 @@
 import unittest
+from datetime import datetime
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -12,6 +13,7 @@ from database import (
     Structure,
     StructureSemester,
     Student,
+    StudentEducation,
     StudentModule,
     StudentProgram,
     StudentSemester,
@@ -146,6 +148,62 @@ class StudentRepositoryProgramResolutionTests(unittest.TestCase):
         self.assertEqual(resolved_at_id, at_structure_id)
 
 
+class StudentRepositoryDateCoercionTests(unittest.TestCase):
+    def setUp(self):
+        self.engine = create_engine("sqlite:///:memory:")
+        for table in [Student.__table__, StudentEducation.__table__]:
+            table.create(self.engine)
+
+        self.repository = StudentRepository()
+        self.repository._engine = self.engine
+
+    def tearDown(self):
+        self.engine.dispose()
+
+    def test_update_student_accepts_iso_date_string(self):
+        success = self.repository.update_student(
+            "901000001",
+            {
+                "name": "Test Student",
+                "date_of_birth": "2001-02-03",
+            },
+        )
+
+        self.assertTrue(success)
+
+        with Session(self.engine) as session:
+            student = session.query(Student).filter(Student.std_no == 901000001).one()
+
+        self.assertEqual(student.date_of_birth, datetime(2001, 2, 3))
+
+    def test_upsert_student_education_accepts_iso_end_date_string(self):
+        with Session(self.engine) as session:
+            session.add(Student(std_no=901000001, name="Test Student", status="Active"))
+            session.commit()
+
+        success, message = self.repository.upsert_student_education(
+            {
+                "cms_id": 1001,
+                "std_no": "901000001",
+                "school_name": "Maseru High",
+                "type": "Secondary",
+                "level": "LGCSE",
+                "end_date": "2019-11-01",
+            }
+        )
+
+        self.assertTrue(success, message)
+
+        with Session(self.engine) as session:
+            education = (
+                session.query(StudentEducation)
+                .filter(StudentEducation.cms_id == 1001)
+                .one()
+            )
+
+        self.assertEqual(education.end_date, datetime(2019, 11, 1))
+
+
 class StudentRepositoryStudentModuleTests(unittest.TestCase):
     def setUp(self):
         self.engine = create_engine("sqlite:///:memory:")
@@ -264,9 +322,7 @@ class StudentRepositoryStudentModuleTests(unittest.TestCase):
 
         with Session(self.engine) as session:
             student_module = (
-                session.query(StudentModule)
-                .filter(StudentModule.cms_id == 55543)
-                .one()
+                session.query(StudentModule).filter(StudentModule.cms_id == 55543).one()
             )
             linked_semester_module = (
                 session.query(SemesterModule)

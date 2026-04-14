@@ -482,24 +482,40 @@ def canonical_student_fields(data: dict[str, Any]) -> dict[str, str]:
 
 
 def canonical_contact_rows(rows: Iterable[dict[str, Any]]) -> set[tuple[Any, ...]]:
-    canonical: set[tuple[Any, ...]] = set()
+    merged_rows: dict[tuple[str, str], dict[str, str]] = {}
     for row in rows:
         name = normalize_scalar(row.get("name"))
         relationship = normalize_scalar(row.get("relationship"))
         if not name or not relationship:
             continue
-        canonical.add(
-            (
-                name,
-                relationship,
-                normalize_scalar(row.get("phone")),
-                normalize_scalar(row.get("email")),
-                normalize_scalar(row.get("occupation")),
-                normalize_scalar(row.get("address")),
-                normalize_scalar(row.get("country")),
-            )
+        key = (name, relationship)
+        merged = merged_rows.setdefault(
+            key,
+            {
+                "phone": "",
+                "email": "",
+                "occupation": "",
+                "address": "",
+                "country": "",
+            },
         )
-    return canonical
+        for field in ("phone", "email", "occupation", "address", "country"):
+            value = normalize_scalar(row.get(field))
+            if value and not merged[field]:
+                merged[field] = value
+
+    return {
+        (
+            name,
+            relationship,
+            merged["phone"],
+            merged["email"],
+            merged["occupation"],
+            merged["address"],
+            merged["country"],
+        )
+        for (name, relationship), merged in merged_rows.items()
+    }
 
 
 def canonical_education_rows(rows: Iterable[dict[str, Any]]) -> set[tuple[Any, ...]]:

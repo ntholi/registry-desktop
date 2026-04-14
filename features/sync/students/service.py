@@ -146,8 +146,14 @@ class StudentSyncService:
         student_record_ready = False
         student_record_attempted = False
         related_records_failed = 0
+        source_data_found = False
         scraped_data: dict = {}
         next_of_kin_list: list[dict] = []
+        student_info_found = not import_options.get("student_info")
+        personal_info_found = not import_options.get("personal_info")
+        education_history_ok = not import_options.get("education_history")
+        addresses_ok = not import_options.get("addresses")
+        enrollment_data_ok = not import_options.get("enrollment_data")
 
         def ensure_student_record() -> bool:
             nonlocal student_updated, student_record_attempted, student_record_ready
@@ -168,16 +174,26 @@ class StudentSyncService:
 
             if import_options.get("student_info"):
                 student_data = scrape_student_view(student_number)
+                if student_data:
+                    source_data_found = True
+                    student_info_found = True
                 scraped_data.update(student_data)
 
             if import_options.get("personal_info"):
                 personal_data = scrape_student_personal_view(student_number)
                 next_of_kin_list = personal_data.pop("next_of_kin", [])
+                if personal_data or next_of_kin_list:
+                    source_data_found = True
+                    personal_info_found = True
                 scraped_data.update(personal_data)
 
             if scraped_data or next_of_kin_list:
                 if not ensure_student_record():
                     related_records_failed += 1
+                    if import_options.get("student_info") and student_info_found:
+                        student_info_found = False
+                    if import_options.get("personal_info") and personal_info_found:
+                        personal_info_found = False
 
             if next_of_kin_list and student_record_ready:
                 next_of_kin_success, _ = self._repository.upsert_next_of_kin(
@@ -185,6 +201,8 @@ class StudentSyncService:
                 )
                 if not next_of_kin_success:
                     related_records_failed += 1
+                    if import_options.get("personal_info") and personal_info_found:
+                        personal_info_found = False
 
         educations_synced = 0
         educations_failed = 0
@@ -195,6 +213,7 @@ class StudentSyncService:
             )
 
             education_ids = extract_student_education_ids(student_number)
+            source_data_found = source_data_found or bool(education_ids)
 
             for edu_id in education_ids:
                 try:
@@ -211,6 +230,12 @@ class StudentSyncService:
                                 f"education_id={edu_id}, error={msg}, data={education_data}"
                             )
                             educations_failed += 1
+                    else:
+                        logger.warning(
+                            f"Education scrape returned incomplete data - student_number={student_number}, "
+                            f"education_id={edu_id}, data={education_data}"
+                        )
+                        educations_failed += 1
                 except Exception as e:
                     logger.error(
                         f"Error syncing education - student_number={student_number}, "
@@ -218,20 +243,29 @@ class StudentSyncService:
                     )
                     educations_failed += 1
 
+            education_history_ok = educations_failed == 0
+
         if import_options.get("addresses"):
             progress_callback(
                 f"Fetching addresses for {student_number}...", 1, total_steps
             )
             address_list = scrape_student_addresses(student_number)
+            source_data_found = source_data_found or bool(address_list)
             if address_list:
                 if ensure_student_record():
                     address_success, _ = self._repository.upsert_next_of_kin(
                         student_number, address_list
                     )
-                    if not address_success:
+                    if address_success:
+                        addresses_ok = True
+                    else:
                         related_records_failed += 1
+                        addresses_ok = False
                 else:
                     related_records_failed += 1
+                    addresses_ok = False
+            elif not address_list:
+                addresses_ok = True
 
         program_ids = []
         preserved_semesters: list[dict] = []
@@ -240,6 +274,7 @@ class StudentSyncService:
                 f"Fetching program list for {student_number}...", 2, total_steps
             )
             program_ids = extract_student_program_ids(student_number)
+            source_data_found = source_data_found or bool(program_ids)
 
             if delete_programs_before_import and program_ids:
                 if skip_active_term and active_term_code:
@@ -273,6 +308,7 @@ class StudentSyncService:
                         f"before import"
                     )
                 else:
+                    related_records_failed += 1
                     logger.warning(
                         f"Failed to delete existing programs for student {student_number}"
                     )
@@ -302,15 +338,15 @@ class StudentSyncService:
                         )
                     )
                     if success:
-                        programs_synced += 1
-
                         if not db_program_id:
                             logger.warning(
                                 f"No DB program ID returned - student_number={student_number}, "
                                 f"program_id={program_id}"
                             )
+                            programs_failed += 1
                             continue
 
+                        programs_synced += 1
                         std_program_id = db_program_id
 
                         semester_ids = extract_student_semester_ids(program_id)
@@ -416,6 +452,7 @@ class StudentSyncService:
                                                 f"program_id={program_id}, semester_id={sem_id}, "
                                                 f"db_semester_id={db_semester_id}, error={str(e)}",
                                             )
+                                            modules_failed += 1
 
                                     else:
                                         logger.error(
@@ -425,6 +462,13 @@ class StudentSyncService:
                                             f"data={semester_data}"
                                         )
                                         semesters_failed += 1
+                                else:
+                                    logger.warning(
+                                        f"Semester scrape returned incomplete data - student_number={student_number}, "
+                                        f"program_id={program_id}, semester_id={sem_id}, "
+                                        f"structure_id={structure_id}, data={semester_data}"
+                                    )
+                                    semesters_failed += 1
                             except SponsorResolutionError:
                                 raise
                             except Exception as e:
@@ -478,13 +522,18 @@ class StudentSyncService:
                                             f"program_id={program_id}, error={str(e)}"
                                         )
                                         semesters_failed += 1
-
                     else:
                         logger.warning(
                             f"Failed to sync program - student_number={student_number}, "
                             f"program_id={program_id}, error={msg}, data={program_data}"
                         )
                         programs_failed += 1
+                else:
+                    logger.warning(
+                        f"Program scrape returned incomplete data - student_number={student_number}, "
+                        f"program_id={program_id}, data={program_data}"
+                    )
+                    programs_failed += 1
             except SponsorResolutionError:
                 raise
             except Exception as e:
@@ -493,6 +542,20 @@ class StudentSyncService:
                     f"program_id={program_id}, error={str(e)}",
                 )
                 programs_failed += 1
+
+        enrollment_data_ok = (
+            programs_failed == 0 and semesters_failed == 0 and modules_failed == 0
+        )
+
+        if (
+            selected_sections
+            and not source_data_found
+            and not (
+                import_options.get("student_info")
+                or import_options.get("personal_info")
+            )
+        ):
+            source_data_found = bool(scrape_student_data(student_number))
 
         progress_callback(
             f"Completed sync for {student_number}: {educations_synced} education records, "
@@ -517,12 +580,20 @@ class StudentSyncService:
             f"Semesters synced={semesters_synced}, Semesters skipped={semesters_skipped}, "
             f"Semesters restored={semesters_restored}, Modules synced={modules_synced}, "
             f"Related records failed={related_records_failed}, "
+            f"Source data found={source_data_found}, "
+            f"Student info found={student_info_found}, "
+            f"Personal info found={personal_info_found}, "
             f"Education records failed={educations_failed}, Programs failed={programs_failed}, "
             f"Semesters failed={semesters_failed}, Modules failed={modules_failed}"
         )
 
         return (
             selected_sections
+            and source_data_found
+            and student_info_found
+            and education_history_ok
+            and addresses_ok
+            and enrollment_data_ok
             and related_records_failed == 0
             and educations_failed == 0
             and programs_failed == 0

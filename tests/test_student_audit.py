@@ -3,6 +3,7 @@ import unittest
 from tools.student_audit import (
     CandidateProfile,
     build_page_starts,
+    canonical_contact_rows,
     canonical_education_rows,
     canonical_program_rows,
     canonical_semester_rows,
@@ -155,6 +156,39 @@ class StudentAuditHelpersTests(unittest.TestCase):
                     "Cambridge Oversea School Certificate",
                     "",
                     "2002-11-01",
+                )
+            },
+        )
+
+    def test_canonical_contact_rows_merges_duplicate_contact_sources(self):
+        canonical = canonical_contact_rows(
+            [
+                {
+                    "name": "Malesekele Ntsohi",
+                    "relationship": "Guardian",
+                    "phone": "+26651676104",
+                },
+                {
+                    "name": "Malesekele Ntsohi",
+                    "relationship": "Guardian",
+                    "phone": "+26651676104",
+                    "occupation": "Pensioner",
+                    "country": "Lesotho",
+                },
+            ]
+        )
+
+        self.assertEqual(
+            canonical,
+            {
+                (
+                    "Malesekele Ntsohi",
+                    "Guardian",
+                    "+26651676104",
+                    "",
+                    "Pensioner",
+                    "",
+                    "Lesotho",
                 )
             },
         )

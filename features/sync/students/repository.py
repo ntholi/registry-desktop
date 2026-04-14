@@ -36,6 +36,49 @@ _sponsor_code_cache: dict[str, Optional[int]] = {}
 _sponsor_name_cache: dict[str, Optional[int]] = {}
 
 
+def _coerce_datetime(value: object) -> datetime.datetime | None:
+    if value is None:
+        return None
+
+    if isinstance(value, datetime.datetime):
+        return value
+
+    if isinstance(value, datetime.date):
+        return datetime.datetime.combine(value, datetime.time.min)
+
+    if isinstance(value, str):
+        normalized = value.strip()
+        if not normalized:
+            return None
+
+        if normalized.endswith("Z"):
+            normalized = f"{normalized[:-1]}+00:00"
+
+        try:
+            return datetime.datetime.fromisoformat(normalized)
+        except ValueError:
+            return None
+
+    return None
+
+
+def _coerce_int(value: object) -> int | None:
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+
+    if isinstance(value, str):
+        normalized = value.strip()
+        if not normalized:
+            return None
+
+        try:
+            return int(normalized)
+        except ValueError:
+            return None
+
+    return None
+
+
 def _normalize_sponsor_key(value: str | None) -> Optional[str]:
     if not value or not value.strip():
         return None
@@ -381,6 +424,12 @@ class StudentRepository:
             for key, value in data.items():
                 if value is None or not hasattr(student, key):
                     continue
+
+                if key == "date_of_birth":
+                    value = _coerce_datetime(value)
+                    if value is None:
+                        continue
+
                 setattr(student, key, value)
 
             session.commit()
@@ -425,7 +474,9 @@ class StudentRepository:
                 scoped_query = session.query(Structure.id).join(
                     Program, Structure.program_id == Program.id
                 )
-                scoped_query = scoped_query.filter(Program.code == normalized_program_code)
+                scoped_query = scoped_query.filter(
+                    Program.code == normalized_program_code
+                )
 
                 structure = scoped_query.filter(
                     Structure.code == normalized_identifier
@@ -1208,11 +1259,11 @@ class StudentRepository:
 
     def upsert_student_education(self, data: dict) -> tuple[bool, str]:
         education_id: int = 0
-        std_no: Optional[str] = None
+        std_no: Optional[int] = None
         with self._session() as session:
             try:
                 education_id = int(data["cms_id"])
-                std_no = data.get("std_no")
+                std_no = _coerce_int(data.get("std_no"))
 
                 if not std_no:
                     return False, "Missing student number"
@@ -1232,9 +1283,9 @@ class StudentRepository:
                     if "level" in data:
                         existing.level = data["level"]
                     if "start_date" in data:
-                        existing.start_date = data["start_date"]
+                        existing.start_date = _coerce_datetime(data["start_date"])
                     if "end_date" in data:
-                        existing.end_date = data["end_date"]
+                        existing.end_date = _coerce_datetime(data["end_date"])
 
                     session.commit()
                     logger.info(f"Updated student education {education_id}")
@@ -1246,8 +1297,8 @@ class StudentRepository:
                         school_name=data.get("school_name", ""),
                         type=data.get("type"),
                         level=data.get("level"),
-                        start_date=data.get("start_date"),
-                        end_date=data.get("end_date"),
+                        start_date=_coerce_datetime(data.get("start_date")),
+                        end_date=_coerce_datetime(data.get("end_date")),
                     )
                     session.add(new_education)
                     session.commit()
@@ -1393,7 +1444,9 @@ class StudentRepository:
                 suffix += 1
 
             code_suffix = 1
-            while session.query(Sponsor.id).filter(Sponsor.code == candidate_code).first():
+            while (
+                session.query(Sponsor.id).filter(Sponsor.code == candidate_code).first()
+            ):
                 suffix_str = str(code_suffix)
                 prefix_length = max(1, 10 - len(suffix_str))
                 candidate_code = f"{base_code[:prefix_length]}{suffix_str}"

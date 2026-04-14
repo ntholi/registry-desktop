@@ -662,18 +662,18 @@ def scrape_live_snapshot(
         if not program_data:
             continue
 
-        structure_code = program_data.get("structure_code")
-        structure_id = None
-        if structure_code:
-            structure_id = repository.resolve_student_program_structure_id(
-                str(program_data.get("program_code") or ""),
-                str(structure_code),
-            )
-            if structure_id:
-                resolved_structure_code = repository.get_structure_code(structure_id)
-                if resolved_structure_code:
-                    program_data["resolved_structure_code"] = resolved_structure_code
-                repository.preload_structure_semesters(structure_id)
+        structure_id = repository.resolve_student_program_structure_id(
+            str(program_data.get("program_code") or ""),
+            str(program_data.get("structure_code") or ""),
+            str(program_data.get("start_term") or ""),
+            str(program_data.get("intake_date") or ""),
+            str(program_data.get("reg_date") or ""),
+        )
+        if structure_id:
+            resolved_structure_code = repository.get_structure_code(structure_id)
+            if resolved_structure_code:
+                program_data["resolved_structure_code"] = resolved_structure_code
+            repository.preload_structure_semesters(structure_id)
 
         program_row = {"cms_id": int(program_id), **program_data}
         program_rows.append(program_row)

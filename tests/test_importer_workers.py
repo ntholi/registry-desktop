@@ -498,6 +498,60 @@ class StudentSyncServiceTests(unittest.TestCase):
             },
         )
 
+    def test_fetch_student_uses_term_fallback_when_structure_code_missing(self):
+        repository = Mock()
+        repository.get_active_term_code.return_value = None
+        repository.resolve_student_program_structure_id.return_value = 44
+        repository.upsert_student_program.return_value = (
+            True,
+            "Student program updated",
+            321,
+        )
+
+        with (
+            patch("features.sync.students.service.Browser"),
+            patch(
+                "features.sync.students.service.extract_student_program_ids",
+                return_value=[111],
+            ),
+            patch(
+                "features.sync.students.service.scrape_student_program_data",
+                return_value={
+                    "std_no": "901000001",
+                    "program_code": "INT",
+                    "start_term": "2009-07",
+                    "reg_date": "2009-09-17",
+                },
+            ),
+            patch(
+                "features.sync.students.service.extract_student_semester_ids",
+                return_value=[],
+            ),
+        ):
+            service = StudentSyncService(repository)
+            was_updated = service.fetch_student(
+                "901000001",
+                lambda *_: None,
+                {
+                    "student_info": False,
+                    "personal_info": False,
+                    "education_history": False,
+                    "addresses": False,
+                    "enrollment_data": True,
+                    "skip_active_term": False,
+                    "delete_programs_before_import": False,
+                },
+            )
+
+        self.assertTrue(was_updated)
+        repository.resolve_student_program_structure_id.assert_called_once_with(
+            "INT",
+            None,
+            "2009-07",
+            None,
+            "2009-09-17",
+        )
+
     def test_fetch_student_returns_false_when_education_scrape_returns_incomplete_data(
         self,
     ):

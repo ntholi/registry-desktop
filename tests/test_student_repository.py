@@ -147,6 +147,50 @@ class StudentRepositoryProgramResolutionTests(unittest.TestCase):
         self.assertEqual(resolved_bbib_id, bbib_structure_id)
         self.assertEqual(resolved_at_id, at_structure_id)
 
+    def test_resolve_student_program_structure_id_falls_back_to_start_term_prefix(self):
+        with Session(self.engine) as session:
+            school = School(code="BUS", name="Business")
+            session.add(school)
+            session.flush()
+
+            program_int = Program(
+                code="INT",
+                name="Information Technology",
+                level="degree",
+                school_id=school.id,
+            )
+            session.add(program_int)
+            session.flush()
+
+            structure_old = Structure(
+                code="0802-INT",
+                desc="0802-INT",
+                program_id=program_int.id,
+            )
+            structure_target = Structure(
+                code="0907-INT.",
+                desc="0907-INT",
+                program_id=program_int.id,
+            )
+            structure_new = Structure(
+                code="1002-INT",
+                desc="1002-INT",
+                program_id=program_int.id,
+            )
+            session.add_all([structure_old, structure_target, structure_new])
+            session.commit()
+            structure_target_id = structure_target.id
+
+        resolved_id = self.repository.resolve_student_program_structure_id(
+            "INT",
+            None,
+            "2009-07",
+            None,
+            "2009-09-17",
+        )
+
+        self.assertEqual(resolved_id, structure_target_id)
+
 
 class StudentRepositoryStructureSemesterTests(unittest.TestCase):
     def setUp(self):

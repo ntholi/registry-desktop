@@ -351,15 +351,15 @@ class StudentSyncService:
 
                         semester_ids = extract_student_semester_ids(program_id)
 
-                        structure_id = None
-                        if "structure_code" in program_data:
-                            code = program_data["structure_code"]
-                            structure_id = (
-                                self._repository.resolve_student_program_structure_id(
-                                    program_data.get("program_code"),
-                                    code,
-                                )
+                        structure_id = (
+                            self._repository.resolve_student_program_structure_id(
+                                program_data.get("program_code"),
+                                program_data.get("structure_code"),
+                                program_data.get("start_term"),
+                                program_data.get("intake_date"),
+                                program_data.get("reg_date"),
                             )
+                        )
 
                         if structure_id and semester_ids:
                             self._repository.preload_structure_semesters(structure_id)

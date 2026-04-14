@@ -85,6 +85,27 @@ def _normalize_sponsor_key(value: str | None) -> Optional[str]:
     return value.strip()
 
 
+def _extract_structure_period_prefixes(*values: str | None) -> list[str]:
+    prefixes: list[str] = []
+
+    for value in values:
+        normalized = (value or "").strip()
+        if len(normalized) < 7:
+            continue
+
+        year = normalized[:4]
+        separator = normalized[4]
+        month = normalized[5:7]
+        if not year.isdigit() or not month.isdigit() or separator != "-":
+            continue
+
+        prefix = f"{year[2:]}{month}"
+        if prefix not in prefixes:
+            prefixes.append(prefix)
+
+    return prefixes
+
+
 def _cache_sponsor(
     sponsor_id: Optional[int],
     *,
@@ -461,41 +482,80 @@ class StudentRepository:
             return None
 
     def resolve_student_program_structure_id(
-        self, program_code: str | None, structure_identifier: str | None
+        self,
+        program_code: str | None,
+        structure_identifier: str | None,
+        start_term: str | None = None,
+        intake_date: str | None = None,
+        reg_date: str | None = None,
     ) -> Optional[int]:
         normalized_program_code = (program_code or "").strip()
         normalized_identifier = (structure_identifier or "").strip()
 
-        if not normalized_identifier:
-            return None
-
         if normalized_program_code:
             with self._session() as session:
-                scoped_query = session.query(Structure.id).join(
+                scoped_query = session.query(
+                    Structure.id,
+                    Structure.code,
+                    Structure.desc,
+                    Structure.cms_id,
+                ).join(
                     Program, Structure.program_id == Program.id
                 )
                 scoped_query = scoped_query.filter(
                     Program.code == normalized_program_code
                 )
 
-                structure = scoped_query.filter(
-                    Structure.code == normalized_identifier
-                ).first()
-                if structure:
-                    return structure[0]
-
-                structure = scoped_query.filter(
-                    Structure.desc == normalized_identifier
-                ).first()
-                if structure:
-                    return structure[0]
-
-                if normalized_identifier.isdigit():
+                if normalized_identifier:
                     structure = scoped_query.filter(
-                        Structure.cms_id == int(normalized_identifier)
+                        Structure.code == normalized_identifier
                     ).first()
                     if structure:
                         return structure[0]
+
+                    structure = scoped_query.filter(
+                        Structure.desc == normalized_identifier
+                    ).first()
+                    if structure:
+                        return structure[0]
+
+                    if normalized_identifier.isdigit():
+                        structure = scoped_query.filter(
+                            Structure.cms_id == int(normalized_identifier)
+                        ).first()
+                        if structure:
+                            return structure[0]
+
+                for prefix in _extract_structure_period_prefixes(
+                    start_term,
+                    intake_date,
+                    reg_date,
+                ):
+                    candidates = scoped_query.filter(
+                        or_(
+                            Structure.code.like(f"{prefix}-%"),
+                            Structure.desc.like(f"{prefix}-%"),
+                            Structure.code.like(f"{prefix}%"),
+                            Structure.desc.like(f"{prefix}%"),
+                        )
+                    ).all()
+                    if not candidates:
+                        continue
+
+                    expected_code = f"{prefix}-{normalized_program_code}"
+                    exact_candidates = [
+                        candidate
+                        for candidate in candidates
+                        if str(candidate.code or "").rstrip(".") == expected_code
+                        or str(candidate.desc or "").rstrip(".") == expected_code
+                    ]
+                    if len(exact_candidates) == 1:
+                        return exact_candidates[0][0]
+                    if len(candidates) == 1:
+                        return candidates[0][0]
+
+        if not normalized_identifier:
+            return None
 
         return self.get_structure_by_code_or_desc(
             normalized_identifier, normalized_identifier
@@ -710,7 +770,11 @@ class StudentRepository:
 
                 if "structure_code" in data:
                     structure_id = self.resolve_student_program_structure_id(
-                        data.get("program_code"), data["structure_code"]
+                        data.get("program_code"),
+                        data["structure_code"],
+                        data.get("start_term"),
+                        data.get("intake_date"),
+                        data.get("reg_date"),
                     )
                     if not structure_id:
                         logger.error(
@@ -718,6 +782,16 @@ class StudentRepository:
                             f"student_program_id={student_program_id}, "
                             f"structure_code={data['structure_code']}"
                         )
+                elif any(
+                    data.get(key) for key in ("start_term", "intake_date", "reg_date")
+                ):
+                    structure_id = self.resolve_student_program_structure_id(
+                        data.get("program_code"),
+                        None,
+                        data.get("start_term"),
+                        data.get("intake_date"),
+                        data.get("reg_date"),
+                    )
 
                 if existing:
                     existing.cms_id = int(student_program_id)  # type: ignore

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime
+import re
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Optional, cast
@@ -104,6 +105,94 @@ def _extract_structure_period_prefixes(*values: str | None) -> list[str]:
             prefixes.append(prefix)
 
     return prefixes
+
+
+def _extract_structure_period_targets(
+    *values: str | None,
+) -> list[tuple[int, int]]:
+    targets: list[tuple[int, int]] = []
+
+    for value in values:
+        normalized = (value or "").strip()
+        if len(normalized) < 7:
+            continue
+
+        year = normalized[:4]
+        separator = normalized[4]
+        month = normalized[5:7]
+        if not year.isdigit() or not month.isdigit() or separator != "-":
+            continue
+
+        target = (int(year), int(month))
+        if target not in targets:
+            targets.append(target)
+
+    return targets
+
+
+def _extract_structure_period_candidate(
+    code: str | None, desc: str | None
+) -> tuple[int, int] | None:
+    for value in (code, desc):
+        normalized = (value or "").strip().rstrip(".")
+        if not normalized:
+            continue
+
+        year_month_match = re.match(r"^((?:19|20)\d{2})-(\d{2})(?:$|[^0-9])", normalized)
+        if year_month_match:
+            return (int(year_month_match.group(1)), int(year_month_match.group(2)))
+
+        short_year_month_match = re.match(r"^(\d{2})(\d{2})-[A-Za-z]", normalized)
+        if short_year_month_match:
+            year = int(short_year_month_match.group(1))
+            month = int(short_year_month_match.group(2))
+            if 1 <= month <= 12:
+                return (2000 + year, month)
+
+        year_only_match = re.match(r"^((?:19|20)\d{2})-[A-Za-z]", normalized)
+        if year_only_match:
+            return (int(year_only_match.group(1)), 0)
+
+    return None
+
+
+def _select_structure_candidate_by_period(
+    candidates: list[tuple[int, str | None, str | None, int | None]],
+    *values: str | None,
+) -> Optional[int]:
+    targets = _extract_structure_period_targets(*values)
+    if not targets:
+        return None
+
+    period_candidates: list[
+        tuple[tuple[int, int], tuple[int, str | None, str | None, int | None]]
+    ] = []
+    for candidate in candidates:
+        period = _extract_structure_period_candidate(candidate[1], candidate[2])
+        if period is None:
+            continue
+        period_candidates.append((period, candidate))
+
+    if not period_candidates:
+        return None
+
+    for target in targets:
+        eligible = [
+            (period, candidate)
+            for period, candidate in period_candidates
+            if period <= target
+        ]
+        if not eligible:
+            continue
+
+        best_period = max(period for period, _ in eligible)
+        best_candidates = [
+            candidate for period, candidate in eligible if period == best_period
+        ]
+        if len(best_candidates) == 1:
+            return best_candidates[0][0]
+
+    return None
 
 
 def _cache_sponsor(
@@ -553,6 +642,18 @@ class StudentRepository:
                         return exact_candidates[0][0]
                     if len(candidates) == 1:
                         return candidates[0][0]
+
+                fallback_structure_id = _select_structure_candidate_by_period(
+                    [
+                        (candidate[0], candidate[1], candidate[2], candidate[3])
+                        for candidate in scoped_query.all()
+                    ],
+                    start_term,
+                    intake_date,
+                    reg_date,
+                )
+                if fallback_structure_id is not None:
+                    return fallback_structure_id
 
         if not normalized_identifier:
             return None

@@ -191,6 +191,78 @@ class StudentRepositoryProgramResolutionTests(unittest.TestCase):
 
         self.assertEqual(resolved_id, structure_target_id)
 
+    def test_resolve_student_program_structure_id_falls_back_to_latest_prior_year(self):
+        with Session(self.engine) as session:
+            school = School(code="ART", name="Arts")
+            session.add(school)
+            session.flush()
+
+            program_bdf = Program(
+                code="BDF",
+                name="BA in Digital Film",
+                level="degree",
+                school_id=school.id,
+            )
+            session.add(program_bdf)
+            session.flush()
+
+            structure_old = Structure(
+                code="2008-BDF",
+                desc="2008-BDF",
+                program_id=program_bdf.id,
+            )
+            structure_latest = Structure(
+                code="2024-BDF",
+                desc="",
+                program_id=program_bdf.id,
+            )
+            session.add_all([structure_old, structure_latest])
+            session.commit()
+            structure_latest_id = structure_latest.id
+
+        resolved_id = self.repository.resolve_student_program_structure_id(
+            "BDF",
+            None,
+            "2025-07",
+            "2025-07-25",
+            "2025-08-11",
+        )
+
+        self.assertEqual(resolved_id, structure_latest_id)
+
+    def test_resolve_student_program_structure_id_does_not_pick_future_year(self):
+        with Session(self.engine) as session:
+            school = School(code="ART", name="Arts")
+            session.add(school)
+            session.flush()
+
+            program_bdf = Program(
+                code="BDF",
+                name="BA in Digital Film",
+                level="degree",
+                school_id=school.id,
+            )
+            session.add(program_bdf)
+            session.flush()
+
+            structure_future = Structure(
+                code="2026-BDF",
+                desc="",
+                program_id=program_bdf.id,
+            )
+            session.add(structure_future)
+            session.commit()
+
+        resolved_id = self.repository.resolve_student_program_structure_id(
+            "BDF",
+            None,
+            "2025-07",
+            "2025-07-25",
+            "2025-08-11",
+        )
+
+        self.assertIsNone(resolved_id)
+
 
 class StudentRepositoryStructureSemesterTests(unittest.TestCase):
     def setUp(self):

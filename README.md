@@ -73,6 +73,20 @@ Run tests with pytest:
 
    python -m pytest tests
 
+Run the student importer from the terminal with the same saved import project used by the desktop importer:
+
+   uv run python -m tools.student_import --status
+
+If no active import project exists, create one from the terminal and start importing immediately:
+
+   uv run python -m tools.student_import --start 901000001 --end 901000500
+
+Resume a paused import project directly:
+
+   uv run python -m tools.student_import --resume
+
+While the CLI import is running, press `Ctrl+C` to let the current student finish, pause the saved import project safely, and then exit the terminal session.
+
 ## Packaging
 
 Build helpers and PyInstaller spec files are included (`registry.spec`, `registry-onefile.spec`). There is also a `build.bat` and `build.py` for convenience.

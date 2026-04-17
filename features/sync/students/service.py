@@ -462,6 +462,18 @@ class StudentSyncService:
                                             f"data={semester_data}"
                                         )
                                         semesters_failed += 1
+                                elif (
+                                    semester_data
+                                    and semester_data.get("semester_status")
+                                    == "Deleted"
+                                ):
+                                    logger.info(
+                                        f"Skipping deleted semester with no term - student_number={student_number}, "
+                                        f"program_id={program_id}, semester_id={sem_id}, "
+                                        f"structure_id={structure_id}, data={semester_data}"
+                                    )
+                                    semesters_skipped += 1
+                                    continue
                                 else:
                                     logger.warning(
                                         f"Semester scrape returned incomplete data - student_number={student_number}, "

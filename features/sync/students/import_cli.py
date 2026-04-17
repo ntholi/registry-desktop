@@ -6,7 +6,10 @@ import sys
 from dataclasses import dataclass
 from typing import Callable, Protocol, Sequence, TextIO, cast, runtime_checkable
 
-from base.runtime_config import get_current_country_code, has_complete_runtime_configuration
+from base.runtime_config import (
+    get_current_country_code,
+    has_complete_runtime_configuration,
+)
 from database.connection import configure_database_urls_for_country
 from features.sync.students.scraper import detect_student_range
 
@@ -161,6 +164,11 @@ class StudentImportCli:
                 if result == "exit":
                     return 0
                 continue
+            if action == "retry_all":
+                result = self._retry_all_failed_students()
+                if result == "exit":
+                    return 0
+                continue
             if action == "status":
                 self._print_project_status()
                 continue
@@ -190,7 +198,11 @@ class StudentImportCli:
         self, options: ImportCliOptions
     ) -> tuple[ImporterProject | None, bool]:
         existing_project = self.project_manager.load_project()
-        if existing_project and existing_project.status in {"pending", "running", "paused"}:
+        if existing_project and existing_project.status in {
+            "pending",
+            "running",
+            "paused",
+        }:
             if options.start or options.end or options.auto_detect:
                 raise ValueError(
                     "An active import project already exists. Resume that project instead of creating a new one."
@@ -285,6 +297,54 @@ class StudentImportCli:
                 return result
 
         return "paused"
+
+    def _retry_all_failed_students(self) -> str | None:
+        if self.project is None or not self.project.failed_students:
+            self.console.print("There are no failed students to retry.")
+            return None
+
+        failed_list = list(self.project.failed_students)
+        total = len(failed_list)
+        succeeded = 0
+        still_failed = 0
+
+        self.console.print(f"Retrying all {total} failed students...")
+
+        for idx, student_number in enumerate(failed_list, 1):
+            if self.project is None:
+                break
+            if student_number not in self.project.failed_students:
+                continue
+
+            self.console.print(f"[{idx}/{total}] Retrying {student_number}...")
+            self._start_retry_worker(student_number)
+
+            while self.retry_worker is not None:
+                try:
+                    event_type, args = self.event_queue.get(timeout=0.2)
+                except queue.Empty:
+                    continue
+                result = self._handle_event(event_type, args)
+                if result == "exit":
+                    self.console.print(
+                        f"Retry interrupted. Succeeded: {succeeded}, Still failed: {still_failed}, "
+                        f"Remaining: {total - idx}"
+                    )
+                    return "exit"
+                if result == "retry_finished":
+                    if (
+                        self.project
+                        and student_number not in self.project.failed_students
+                    ):
+                        succeeded += 1
+                    else:
+                        still_failed += 1
+                    break
+
+        self.console.print(
+            f"Retry all completed. Succeeded: {succeeded}, Still failed: {still_failed}"
+        )
+        return None
 
     def _retry_next_failed_student(self) -> str | None:
         if self.project is None or not self.project.failed_students:
@@ -486,10 +546,15 @@ class StudentImportCli:
         if self.project is None:
             return "exit"
 
-        options: list[MenuOption] = [("resume", "Resume import"), ("status", "Show status")]
+        options: list[MenuOption] = [
+            ("resume", "Resume import"),
+            ("status", "Show status"),
+        ]
         if self.project.failed_students:
             next_failed = self.project.failed_students[0]
+            failed_count = len(self.project.failed_students)
             options.append(("retry", f"Retry next failed student ({next_failed})"))
+            options.append(("retry_all", f"Retry all failed ({failed_count} students)"))
             options.append(("failed", "Show failed students"))
         options.append(("exit", "Exit CLI and keep the import paused"))
         return self.console.choose(
@@ -509,10 +574,14 @@ class StudentImportCli:
         )
         remaining_students = self.project_manager.count_remaining_students(self.project)
         completed_students = max(0, total_students - remaining_students)
-        self.console.print(f"Range: {self.project.start_student} - {self.project.end_student}")
+        self.console.print(
+            f"Range: {self.project.start_student} - {self.project.end_student}"
+        )
         self.console.print(f"Status: {self.project.status}")
         self.console.print(f"Current student: {self.project.current_student}")
-        self.console.print(f"Completed students: {completed_students} of {total_students}")
+        self.console.print(
+            f"Completed students: {completed_students} of {total_students}"
+        )
         self.console.print(f"Successful imports: {self.project.success_count}")
         self.console.print(f"Failed imports: {self.project.failed_count}")
         if self.project.failed_students:
